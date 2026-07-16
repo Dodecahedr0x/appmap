@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { distributeRevenue, revenuePerImpression } from "./revenue";
+import { distributeAppRevenue, distributeRevenue, revenuePerImpression } from "./revenue";
 
 describe("distributeRevenue", () => {
   it("splits pro-rata by stake after taking the protocol fee", () => {
@@ -62,5 +62,55 @@ describe("distributeRevenue", () => {
 describe("revenuePerImpression", () => {
   it("divides cpm by 1000", () => {
     expect(revenuePerImpression(2.5)).toBeCloseTo(0.0025, 9);
+  });
+});
+
+describe("distributeAppRevenue", () => {
+  it("splits the distributable amount 50/50 between vote and tag pools", () => {
+    const result = distributeAppRevenue(200, {
+      votePositions: [{ userId: "voter", stake: 10 }],
+      tagPositions: [{ userId: "tagger", stake: 10 }],
+    });
+    // fee 10% of 200 = 20, distributable 180, split 90/90
+    expect(result.gross).toBeCloseTo(200, 6);
+    expect(result.protocolFee).toBeCloseTo(20, 6);
+    expect(result.votePool.distributable).toBeCloseTo(90, 6);
+    expect(result.tagPool.distributable).toBeCloseTo(90, 6);
+  });
+
+  it("exposes the combined fee at the top level even though the inner pools show a zero fee", () => {
+    // The fee is taken once, up front, on the combined gross — the inner
+    // distributeRevenue calls run with feeRate=0 so it isn't double-charged.
+    // A caller auditing total fee revenue must read the top-level field,
+    // not sum the (zeroed) inner pool fees.
+    const result = distributeAppRevenue(200, {
+      votePositions: [{ userId: "voter", stake: 10 }],
+      tagPositions: [{ userId: "tagger", stake: 10 }],
+    });
+    expect(result.protocolFee).toBeCloseTo(20, 6);
+    expect(result.votePool.protocolFee).toBe(0);
+    expect(result.tagPool.protocolFee).toBe(0);
+  });
+
+  it("rolls the tags pool into the vote pool when there are no tag stakers", () => {
+    const result = distributeAppRevenue(200, {
+      votePositions: [{ userId: "voter", stake: 10 }],
+      tagPositions: [],
+    });
+    expect(result.votePool.distributable).toBeCloseTo(180, 6);
+    expect(result.tagPool.shares).toHaveLength(0);
+  });
+
+  it("rolls the vote pool into the tags pool when there are no voters", () => {
+    const result = distributeAppRevenue(200, {
+      votePositions: [],
+      tagPositions: [{ userId: "tagger", stake: 10 }],
+    });
+    expect(result.tagPool.distributable).toBeCloseTo(180, 6);
+  });
+
+  it("retains everything as undistributed when there is neither a voter nor a tagger", () => {
+    const result = distributeAppRevenue(200, { votePositions: [], tagPositions: [] });
+    expect(result.votePool.undistributed + result.tagPool.undistributed).toBeCloseTo(180, 6);
   });
 });

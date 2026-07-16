@@ -98,6 +98,59 @@ export function distributeRevenue(
   };
 }
 
+export const APP_TAG_SPLIT = 0.5;
+
+export interface AppRevenueSplit {
+  /** The original combined gross revenue passed in. */
+  gross: number;
+  /** Protocol fee taken once, on the combined gross, before the 50/50 split. */
+  protocolFee: number;
+  votePool: DistributionResult;
+  tagPool: DistributionResult;
+}
+
+/**
+ * Split an app's gross ad revenue between its direct (vote) stakers and its
+ * tags' stakers. The protocol fee is taken once, up front, on the combined
+ * gross — then the remainder is split 50/50 between the two pools. If one
+ * side has no active positions, its half rolls into the other side instead
+ * of being stranded.
+ *
+ * Note: `votePool.gross`/`tagPool.gross` on the inner `DistributionResult`s
+ * are each pool's post-fee share of the split, not this app's total gross
+ * revenue — use the top-level `gross`/`protocolFee` fields for that.
+ */
+export function distributeAppRevenue(
+  gross: number,
+  positions: { votePositions: StakePosition[]; tagPositions: StakePosition[] },
+  feeRate: number = REVENUE_CONFIG.protocolFee,
+): AppRevenueSplit {
+  const safeGross = Math.max(0, gross);
+  const fee = round(safeGross * clamp(feeRate, 0, 1), 9);
+  const distributable = round(safeGross - fee, 9);
+
+  const hasVoters = positions.votePositions.some((p) => p.stake > 0);
+  const hasTaggers = positions.tagPositions.some((p) => p.stake > 0);
+
+  let voteShare = round(distributable * APP_TAG_SPLIT, 9);
+  let tagShare = round(distributable - voteShare, 9);
+
+  if (!hasTaggers) {
+    voteShare = distributable;
+    tagShare = 0;
+  } else if (!hasVoters) {
+    tagShare = distributable;
+    voteShare = 0;
+  }
+
+  // distributeRevenue applies its own fee internally; pass feeRate=0 since the
+  // fee was already taken above on the combined gross.
+  const votePool = distributeRevenue(voteShare, positions.votePositions, 0);
+  const tagPool = distributeRevenue(tagShare, positions.tagPositions, 0);
+
+  return { gross: safeGross, protocolFee: fee, votePool, tagPool };
+}
+
 /**
  * Compute the revenue value credited for a single ad impression given a CPM
  * (revenue per 1000 impressions).
