@@ -161,6 +161,7 @@ model PageView {
   referrer   String?
   country    String?
   userAgent  String?
+  revenueEligible Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   impressions AdImpression[]

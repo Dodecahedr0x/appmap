@@ -36,7 +36,7 @@ export function resolveVisitor(headers: Headers): ResolvedVisitor {
 export async function getOrCreatePageView(
   appId: string,
   headers: Headers,
-  opts: { path?: string; referrer?: string | null } = {},
+  opts: { path?: string; referrer?: string | null; revenueEligible?: boolean } = {},
 ): Promise<{ id: string; created: boolean } | null> {
   const v = resolveVisitor(headers);
   if (v.isBot) return null;
@@ -57,6 +57,7 @@ export async function getOrCreatePageView(
       referrer: opts.referrer ?? headers.get("referer") ?? null,
       country: headers.get("x-vercel-ip-country") ?? null,
       userAgent: v.userAgent.slice(0, 300),
+      revenueEligible: opts.revenueEligible ?? false,
     },
     select: { id: true },
   });
