@@ -1,26 +1,33 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import { Discover } from "@/components/discover/Discover";
+import { searchApps } from "@/lib/search";
+import { searchSchema } from "@/lib/validation";
 
-// Placeholder home page. Replaced by the full Discover/search experience in the
-// search milestone.
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function HomePage({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const toArray = (v: string | string[] | undefined) =>
+    Array.isArray(v) ? v : v ? [v] : [];
+
+  const input = searchSchema.parse({
+    q: typeof sp.q === "string" ? sp.q : "",
+    tags: toArray(sp.tags),
+    category: typeof sp.category === "string" ? sp.category : undefined,
+    chain: typeof sp.chain === "string" ? sp.chain : undefined,
+    sort: typeof sp.sort === "string" ? sp.sort : undefined,
+    page: typeof sp.page === "string" ? sp.page : undefined,
+  });
+
+  const initial = await searchApps(input);
+
   return (
-    <div className="mx-auto max-w-2xl py-16 text-center">
-      <h1 className="bg-brand-gradient bg-clip-text text-4xl font-black text-transparent sm:text-5xl">
-        Discover the best apps, ranked by the crowd
-      </h1>
-      <p className="mt-4 text-slate-400">
-        AppMap is a crowd-sourced directory where the community curates,
-        votes, and stakes to surface great apps — and shares in the ad revenue
-        their attention creates.
-      </p>
-      <div className="mt-8 flex justify-center gap-3">
-        <Link href="/submit" className="btn-primary">
-          Submit an app
-        </Link>
-        <Link href="/analytics" className="btn-secondary">
-          View analytics
-        </Link>
-      </div>
-    </div>
+    <Suspense fallback={<div className="py-16 text-center text-slate-500">Loading…</div>}>
+      <Discover initial={initial} />
+    </Suspense>
   );
 }
