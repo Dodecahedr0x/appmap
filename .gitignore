@@ -44,3 +44,6 @@ yarn-error.log*
 .anchor
 test-ledger
 **/*.rs.bk
+
+# git worktrees
+/.worktrees
