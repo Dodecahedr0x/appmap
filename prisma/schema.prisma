@@ -105,7 +105,8 @@ model AppTag {
 
 /// A token-weighted vote for an app. Each row represents one vote transaction.
 /// `amount` is the number of vote-tokens committed. In on-chain mode `txSig`
-/// references the confirmed Solana transaction.
+/// references the confirmed Solana transaction. Votes can be withdrawn,
+/// setting active=false.
 model Vote {
   id        String   @id @default(cuid())
   appId     String
@@ -113,12 +114,16 @@ model Vote {
   app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  amount    Float    // token units committed to the vote
-  txSig     String?  @unique // Solana tx signature (null in simulation mode)
-  createdAt DateTime @default(now())
+  amount      Float    // token units committed to the vote
+  txSig       String?  @unique // Solana tx signature (null in simulation mode)
+  createdAt   DateTime @default(now())
+
+  active      Boolean   @default(true)
+  withdrawnAt DateTime?
 
   @@index([appId])
   @@index([userId])
+  @@index([active])
 }
 
 /// A stake placed by a user against a specific app-tag. Stake is the capital
