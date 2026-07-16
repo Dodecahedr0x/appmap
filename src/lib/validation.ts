@@ -35,6 +35,10 @@ export const unstakeSchema = z.object({
   stakeId: z.string().min(1),
 });
 
+export const unvoteSchema = z.object({
+  voteId: z.string().min(1),
+});
+
 export const trackViewSchema = z.object({
   appId: z.string().min(1),
   path: z.string().max(300).optional().default("/"),

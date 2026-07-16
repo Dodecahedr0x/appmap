@@ -16,7 +16,7 @@ export async function refreshApp(appId: string): Promise<void> {
 
   const [voteAgg, viewCount, appTags] = await Promise.all([
     prisma.vote.aggregate({
-      where: { appId },
+      where: { appId, active: true },
       _sum: { amount: true },
       _count: true,
     }),
