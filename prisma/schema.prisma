@@ -63,6 +63,7 @@ model App {
   pageViews    PageView[]
   adImpressions AdImpression[]
   revenueEpochs RevenueEpoch[]
+  statsSnapshots AppStatsSnapshot[]
 
   @@index([category])
   @@index([status])
@@ -249,4 +250,24 @@ model RevenueClaim {
 
   @@unique([epochId, userId])
   @@index([userId])
+}
+
+/// A daily snapshot of an app's cached stats, written by a periodic job.
+/// Powers trend charts without needing to reconstruct history from raw
+/// votes/stakes/views each time.
+model AppStatsSnapshot {
+  id         String   @id @default(cuid())
+  appId      String
+  app        App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  date       DateTime // truncated to the day
+  voteWeight Float
+  stakeTotal Float
+  viewCount  Int
+  rankScore  Float
+
+  createdAt  DateTime @default(now())
+
+  @@unique([appId, date])
+  @@index([appId])
 }
