@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { computeRankScore, ageInDays } from "./ranking";
-import { distributeRevenue, type StakePosition } from "./revenue";
+import { distributeAppRevenue, type StakePosition } from "./revenue";
 
 // The engine layer bridges the pure ranking/revenue math to the database:
 // recomputing cached aggregates, refreshing rank scores, and settling epochs.
@@ -93,8 +93,10 @@ export async function refreshAllRankScores(): Promise<number> {
 
 /**
  * Settle a revenue epoch: sum the ad revenue attributed to the app during the
- * window, distribute it to the app's stakers proportional to their total active
- * stake across the app's tags, and persist RevenueClaim rows.
+ * window, then split it (via `distributeAppRevenue`) between two pools — the
+ * app's direct voters and the stakers on its tags — proportional to each
+ * pool's active stake, and persist RevenueClaim rows. A user active in both
+ * pools has their shares summed into a single claim.
  */
 export async function settleEpoch(epochId: string): Promise<{
   gross: number;
@@ -118,7 +120,13 @@ export async function settleEpoch(epochId: string): Promise<{
   });
   const gross = impressionAgg._sum.revenue ?? 0;
 
-  // Build stake positions: total active stake per user across this app's tags.
+  // Build the two pools: direct voters on the app, and stakers on its tags.
+  const votes = await prisma.vote.findMany({
+    where: { appId: epoch.appId, active: true },
+    select: { userId: true, amount: true },
+  });
+  const votePositions: StakePosition[] = votes.map((v) => ({ userId: v.userId, stake: v.amount }));
+
   const appTags = await prisma.appTag.findMany({
     where: { appId: epoch.appId },
     select: { id: true },
@@ -127,12 +135,10 @@ export async function settleEpoch(epochId: string): Promise<{
     where: { appTagId: { in: appTags.map((t) => t.id) }, active: true },
     select: { userId: true, amount: true },
   });
-  const positions: StakePosition[] = stakes.map((s) => ({
-    userId: s.userId,
-    stake: s.amount,
-  }));
+  const tagPositions: StakePosition[] = stakes.map((s) => ({ userId: s.userId, stake: s.amount }));
 
-  const result = distributeRevenue(gross, positions);
+  const split = distributeAppRevenue(gross, { votePositions, tagPositions });
+  const allShares = [...split.votePool.shares, ...split.tagPool.shares];
 
   await prisma.$transaction(async (tx) => {
     // Tag the impressions as belonging to this epoch.
@@ -145,11 +151,14 @@ export async function settleEpoch(epochId: string): Promise<{
       data: { epochId: epoch.id },
     });
 
-    for (const share of result.shares) {
+    for (const share of allShares) {
+      // A user who both voted on the app and staked one of its tags appears
+      // in both pools — increment rather than overwrite so their two shares
+      // add together instead of the second write clobbering the first.
       await tx.revenueClaim.upsert({
         where: { epochId_userId: { epochId: epoch.id, userId: share.userId } },
         create: { epochId: epoch.id, userId: share.userId, amount: share.amount },
-        update: { amount: share.amount },
+        update: { amount: { increment: share.amount } },
       });
     }
 
@@ -163,5 +172,7 @@ export async function settleEpoch(epochId: string): Promise<{
     });
   });
 
-  return { gross, claims: result.shares.length };
+  // Note: claims counts shares, not distinct RevenueClaim rows — a user
+  // present in both pools contributes 2 here but upserts into a single row.
+  return { gross, claims: allShares.length };
 }
