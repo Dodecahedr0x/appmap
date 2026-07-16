@@ -65,6 +65,7 @@ async function main() {
   await prisma.revenueClaim.deleteMany();
   await prisma.adImpression.deleteMany();
   await prisma.revenueEpoch.deleteMany();
+  await prisma.appStatsSnapshot.deleteMany();
   await prisma.pageView.deleteMany();
   await prisma.ad.deleteMany();
   await prisma.stake.deleteMany();
@@ -180,6 +181,7 @@ async function main() {
           sessionId: `seed-session-${randInt(1, 200)}`,
           path: `/app/${slug}`,
           country: pick(["US", "GB", "DE", "IN", "BR", "SG"]),
+          revenueEligible: rand() < 0.7,
           createdAt: viewedAt,
         },
       });
@@ -217,6 +219,26 @@ async function main() {
       },
     });
     console.log(`  · ${appDef.name} (rank ${rankScore.toFixed(2)})`);
+  }
+
+  console.log("📈 Seeding stats snapshots…");
+  const snapshotApps = await prisma.app.findMany({ take: 3, orderBy: { createdAt: "asc" } });
+  for (const app of snapshotApps) {
+    for (let daysAgo = 13; daysAgo >= 0; daysAgo--) {
+      const date = new Date();
+      date.setUTCHours(0, 0, 0, 0);
+      date.setUTCDate(date.getUTCDate() - daysAgo);
+      await prisma.appStatsSnapshot.create({
+        data: {
+          appId: app.id,
+          date,
+          voteWeight: app.voteWeight * (1 - daysAgo * 0.03),
+          stakeTotal: app.stakeTotal * (1 - daysAgo * 0.02),
+          viewCount: Math.round(app.viewCount * (1 - daysAgo * 0.04)),
+          rankScore: app.rankScore * (1 - daysAgo * 0.01),
+        },
+      });
+    }
   }
 
   const counts = {
