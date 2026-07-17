@@ -11,6 +11,8 @@ pub enum ErrorCode {
     Unauthorized,
     #[msg("app_id must not exceed 32 bytes")]
     AppIdTooLong,
+    #[msg("tag_id must not exceed 32 bytes")]
+    TagIdTooLong,
     #[msg("Amount must be greater than zero")]
     ZeroAmount,
     #[msg("Arithmetic overflow")]

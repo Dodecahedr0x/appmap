@@ -2,6 +2,7 @@ pub mod claim_vote_reward;
 pub mod fund_app_rewards;
 pub mod init_app;
 pub mod initialize;
+pub mod suggest_tag;
 pub mod vote;
 pub mod withdraw_vote;
 
@@ -18,6 +19,7 @@ mod reexports {
     pub use super::fund_app_rewards::*;
     pub use super::init_app::*;
     pub use super::initialize::*;
+    pub use super::suggest_tag::*;
     pub use super::vote::*;
     pub use super::withdraw_vote::*;
 }

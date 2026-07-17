@@ -234,6 +234,276 @@ describe("appmap: init_app", () => {
   });
 });
 
+describe("appmap: suggest_tag", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  const program = anchor.workspace.Appmap as Program<Appmap>;
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId,
+  );
+
+  let voteMint: PublicKey;
+
+  // Same reuse-or-initialize pattern as the "appmap: init_app" describe
+  // block above: `Config` is a singleton, so reuse it if a prior describe
+  // block in this file already created it.
+  before(async () => {
+    try {
+      const config = await program.account.config.fetch(configPda);
+      voteMint = config.voteMint;
+      return;
+    } catch {
+      // Config not initialized yet — fall through and initialize it.
+    }
+
+    voteMint = await createMint(
+      provider.connection,
+      (provider.wallet as any).payer,
+      provider.wallet.publicKey,
+      null,
+      6,
+    );
+    const [programDataPda] = PublicKey.findProgramAddressSync(
+      [program.programId.toBuffer()],
+      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+    );
+    await program.methods
+      .initialize(1000)
+      .accounts({
+        config: configPda,
+        authority: provider.wallet.publicKey,
+        voteMint,
+        programData: programDataPda,
+      })
+      .rpc();
+  });
+
+  function deriveAppPdas(appId: string) {
+    const [app] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app"), Buffer.from(appId)],
+      program.programId,
+    );
+    const [voteVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [voteRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tags_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    return { app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  function deriveTagPdas(app: PublicKey, tagId: string) {
+    const [appTag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+      program.programId,
+    );
+    const [principalVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag_vault"), appTag.toBuffer()],
+      program.programId,
+    );
+    return { appTag, principalVault };
+  }
+
+  async function registerApp() {
+    const appId = `cid${randomBytes(11).toString("hex")}`;
+    const { app, voteVault, voteRewardVault, tagsRewardVault } =
+      deriveAppPdas(appId);
+    await program.methods
+      .initApp(appId)
+      .accounts({
+        app,
+        config: configPda,
+        voteVault,
+        voteRewardVault,
+        tagsRewardVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+    return { appId, app };
+  }
+
+  it("registers a new tag and its principal vault, permissionlessly", async () => {
+    const { appId, app } = await registerApp();
+    const tagId = "defi";
+    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+
+    await program.methods
+      .suggestTag(appId, tagId)
+      .accounts({
+        app,
+        appTag,
+        config: configPda,
+        principalVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.isTrue(appTagAccount.app.equals(app));
+    assert.equal(appTagAccount.tagId, tagId);
+    assert.isTrue(appTagAccount.principalVault.equals(principalVault));
+    assert.equal(appTagAccount.stakeAmount.toString(), "0");
+
+    const vaultAccount = await getAccount(provider.connection, principalVault);
+    assert.isTrue(vaultAccount.mint.equals(voteMint));
+    assert.isTrue(vaultAccount.owner.equals(appTag));
+    assert.equal(vaultAccount.amount.toString(), "0");
+  });
+
+  it("lets a different, unrelated payer suggest a tag (no authority gating)", async () => {
+    const { appId, app } = await registerApp();
+    const tagId = "gaming";
+    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+
+    const strangerPayer = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(
+        strangerPayer.publicKey,
+        1_000_000_000,
+      ),
+    );
+
+    await program.methods
+      .suggestTag(appId, tagId)
+      .accounts({
+        app,
+        appTag,
+        config: configPda,
+        principalVault,
+        voteMint,
+        payer: strangerPayer.publicKey,
+      })
+      .signers([strangerPayer])
+      .rpc();
+
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(appTagAccount.tagId, tagId);
+  });
+
+  it("rejects suggesting the same tag_id twice for the same app", async () => {
+    const { appId, app } = await registerApp();
+    const tagId = "defi";
+    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+
+    await program.methods
+      .suggestTag(appId, tagId)
+      .accounts({
+        app,
+        appTag,
+        config: configPda,
+        principalVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    let threw = false;
+    try {
+      await program.methods
+        .suggestTag(appId, tagId)
+        .accounts({
+          app,
+          appTag,
+          config: configPda,
+          principalVault,
+          voteMint,
+          payer: provider.wallet.publicKey,
+        })
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(
+      threw,
+      "expected a duplicate suggest_tag for the same (app, tag_id) to fail",
+    );
+  });
+
+  it("rejects a tag_id longer than 32 bytes", async () => {
+    const { appId, app } = await registerApp();
+    const tagId = "a".repeat(33);
+
+    let threw = false;
+    try {
+      const { appTag, principalVault } = deriveTagPdas(app, tagId);
+      await program.methods
+        .suggestTag(appId, tagId)
+        .accounts({
+          app,
+          appTag,
+          config: configPda,
+          principalVault,
+          voteMint,
+          payer: provider.wallet.publicKey,
+        })
+        .rpc();
+    } catch (err) {
+      threw = true;
+    }
+    assert.isTrue(
+      threw,
+      "expected suggest_tag to reject a tag_id longer than 32 bytes",
+    );
+  });
+
+  it("allows the same tag_id to be suggested for two different apps without collision", async () => {
+    const { appId: appIdA, app: appA } = await registerApp();
+    const { appId: appIdB, app: appB } = await registerApp();
+    assert.isFalse(appA.equals(appB));
+
+    const tagId = "defi";
+    const { appTag: appTagA, principalVault: principalVaultA } =
+      deriveTagPdas(appA, tagId);
+    const { appTag: appTagB, principalVault: principalVaultB } =
+      deriveTagPdas(appB, tagId);
+    assert.isFalse(appTagA.equals(appTagB));
+
+    await program.methods
+      .suggestTag(appIdA, tagId)
+      .accounts({
+        app: appA,
+        appTag: appTagA,
+        config: configPda,
+        principalVault: principalVaultA,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    await program.methods
+      .suggestTag(appIdB, tagId)
+      .accounts({
+        app: appB,
+        appTag: appTagB,
+        config: configPda,
+        principalVault: principalVaultB,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const appTagAccountA = await program.account.appTagAccount.fetch(appTagA);
+    const appTagAccountB = await program.account.appTagAccount.fetch(appTagB);
+    assert.isTrue(appTagAccountA.app.equals(appA));
+    assert.isTrue(appTagAccountB.app.equals(appB));
+    assert.equal(appTagAccountA.tagId, tagId);
+    assert.equal(appTagAccountB.tagId, tagId);
+    assert.isFalse(
+      appTagAccountA.principalVault.equals(appTagAccountB.principalVault),
+    );
+  });
+});
+
 describe("appmap: vote", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;

@@ -24,6 +24,10 @@ pub mod appmap {
         init_app::handler(ctx, app_id)
     }
 
+    pub fn suggest_tag(ctx: Context<SuggestTag>, app_id: String, tag_id: String) -> Result<()> {
+        suggest_tag::handler(ctx, app_id, tag_id)
+    }
+
     pub fn vote(ctx: Context<Vote>, amount: u64) -> Result<()> {
         vote::handler(ctx, amount)
     }
