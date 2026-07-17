@@ -16,6 +16,7 @@
     "db:reset": "bash scripts/ensure-postgres.sh && prisma db push --force-reset && npm run db:seed",
     "db:studio": "prisma studio",
     "setup:dev": "bash scripts/setup-dev.sh",
+    "teardown:dev": "bash scripts/teardown-dev.sh",
     "pretest": "bash scripts/ensure-postgres.sh \"${TEST_DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/appmap_test}\" && DATABASE_URL=\"${TEST_DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/appmap_test}\" npx prisma db push --skip-generate --accept-data-loss",
     "test": "vitest run",
     "test:watch": "vitest",

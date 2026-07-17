@@ -86,5 +86,5 @@ Next steps:
   - Run 'npm run dev' to start the app (http://localhost:3000)
   - Set NEXT_PUBLIC_VOTE_TOKEN_MINT in .env to a real SPL mint to exercise
     on-chain voting/staking (leave blank to stay in simulation mode)
-  - Stop the validator with: kill \$(cat $LEDGER_DIR.pid)
+  - Run 'npm run teardown:dev' to stop the validator and local Postgres
 EOF
