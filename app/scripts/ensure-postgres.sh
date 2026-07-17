@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Ensures a local Postgres role + database exist so `prisma db push` works
-# out of the box, mirroring how setup-dev.sh auto-starts solana-test-validator.
+# out of the box, mirroring how setup-dev.sh auto-starts surfpool.
 # No-op when DATABASE_URL points at a non-local host (e.g. a managed
 # Render/Neon database) — nothing to provision there.
 set -euo pipefail

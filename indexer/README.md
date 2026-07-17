@@ -63,7 +63,8 @@ hand-rolled directly against `solana-client` instead of using those crates.
 ## Local development
 
 ```bash
-# From the repo root, with a local solana-test-validator and Postgres running:
+# From the repo root, with a local surfpool Surfnet (npm run setup:dev, or
+# `surfpool start` directly — see app/scripts/setup-dev.sh) and Postgres running:
 cd indexer
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/appmap_dev" \
 NEXT_PUBLIC_SOLANA_RPC="http://127.0.0.1:8899" \
@@ -72,10 +73,10 @@ cargo run
 ```
 
 `RPC_WS_URL` defaults to the RPC URL with its scheme swapped
-(`http`→`ws`/`https`→`wss`); `solana-test-validator`'s default RPC pubsub
-port (8900) is also detected and substituted automatically. Override
-`RPC_WS_URL` directly for any provider that doesn't follow either
-convention.
+(`http`→`ws`/`https`→`wss`); surfpool's default RPC pubsub port (8900,
+same as `solana-test-validator`'s) is also detected and substituted
+automatically. Override `RPC_WS_URL` directly for any provider that
+doesn't follow either convention.
 
 ## Tables
 

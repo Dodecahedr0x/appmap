@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
 # Full local dev environment setup: installs deps, builds the Anchor program,
-# starts a local validator, deploys the program, and seeds the database.
-# See README.md "Getting started" for the manual, step-by-step version.
+# starts a local Surfnet (surfpool, forking mainnet — see surfpool.run) with
+# SOL/USDC airdropped to the dev keypair, deploys the program, launches NEB
+# (mints its supply and seeds the NEB/USDC DLMM pool — see scripts/launch-neb/),
+# and seeds the database. See README.md "Getting started" for the manual,
+# step-by-step version.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 APP_DIR="$(pwd)"
 ROOT_DIR="$(cd "$APP_DIR/.." && pwd)"
 
-LEDGER_DIR="$ROOT_DIR/test-ledger"
-VALIDATOR_LOG="$LEDGER_DIR.log"
 RPC_PORT=8899
+SURFPOOL_LOG_DIR="$ROOT_DIR/.surfpool/logs"
+SURFPOOL_PID_FILE="$ROOT_DIR/.surfpool/surfpool.pid"
+DEV_KEYPAIR="$HOME/.config/solana/id.json"
+# Real mainnet USDC — surfpool forks mainnet by default, so this (and every
+# other mainnet program/account: DLMM, Metaplex Token Metadata, ...) is
+# fetched on demand with no manual account-cloning needed.
+USDC_MINT="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+TOKEN_PROGRAM_ID="TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 
-for bin in anchor solana; do
+for bin in anchor solana surfpool; do
   if ! command -v "$bin" >/dev/null 2>&1; then
-    echo "error: '$bin' not found on PATH. Install the Solana/Anchor toolchain first:" >&2
-    echo "  https://www.anchor-lang.com/docs/installation" >&2
+    echo "error: '$bin' not found on PATH." >&2
+    if [ "$bin" = "surfpool" ]; then
+      echo "  Install: curl -sL https://run.surfpool.run/ | bash" >&2
+    else
+      echo "  Install the Solana/Anchor toolchain first: https://www.anchor-lang.com/docs/installation" >&2
+    fi
     exit 1
   fi
 done
@@ -29,6 +42,11 @@ if [ ! -f .env ]; then
   cp .env.example .env
 else
   log ".env already exists, leaving it untouched"
+fi
+
+if [ ! -f "$DEV_KEYPAIR" ]; then
+  log "No keypair at $DEV_KEYPAIR — generating one"
+  solana-keygen new --no-bip39-passphrase --silent --outfile "$DEV_KEYPAIR"
 fi
 
 BUILD_LOG="$(mktemp)"
@@ -49,14 +67,19 @@ if grep -q '^NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=' .env; then
 fi
 
 if lsof -i ":$RPC_PORT" >/dev/null 2>&1; then
-  log "solana-test-validator already running on port $RPC_PORT, reusing it"
+  log "A Surfnet (or something else) is already running on port $RPC_PORT, reusing it"
 else
-  log "Starting solana-test-validator in the background (log: $VALIDATOR_LOG)"
-  solana-test-validator --ledger "$LEDGER_DIR" --reset >"$VALIDATOR_LOG" 2>&1 &
-  VALIDATOR_PID=$!
-  echo "$VALIDATOR_PID" > "$LEDGER_DIR.pid"
+  log "Starting surfpool in the background, forking mainnet (logs: $SURFPOOL_LOG_DIR)"
+  mkdir -p "$(dirname "$SURFPOOL_PID_FILE")"
+  surfpool start \
+    --network mainnet \
+    --no-tui --no-studio --no-deploy \
+    --airdrop-keypair-path "$DEV_KEYPAIR" \
+    --log-path "$SURFPOOL_LOG_DIR" \
+    >"$SURFPOOL_LOG_DIR.out" 2>&1 &
+  echo "$!" > "$SURFPOOL_PID_FILE"
 
-  log "Waiting for the validator to accept RPC connections"
+  log "Waiting for the Surfnet to accept RPC connections"
   for _ in $(seq 1 60); do
     if solana cluster-version --url "http://127.0.0.1:$RPC_PORT" >/dev/null 2>&1; then
       break
@@ -64,13 +87,89 @@ else
     sleep 1
   done
   if ! solana cluster-version --url "http://127.0.0.1:$RPC_PORT" >/dev/null 2>&1; then
-    echo "error: validator did not come up in time, check $VALIDATOR_LOG" >&2
+    echo "error: Surfnet did not come up in time, check $SURFPOOL_LOG_DIR.out" >&2
     exit 1
   fi
 fi
 
+log "Airdropping USDC to the dev keypair"
+DEV_PUBKEY="$(solana-keygen pubkey "$DEV_KEYPAIR")"
+AIRDROP_RESPONSE="$(curl -s "http://127.0.0.1:$RPC_PORT" -X POST -H "Content-Type: application/json" -d "$(
+  cat <<JSON
+{"jsonrpc":"2.0","id":1,"method":"surfnet_setTokenAccount","params":["$DEV_PUBKEY","$USDC_MINT",{"amount":1000000000},"$TOKEN_PROGRAM_ID"]}
+JSON
+)")"
+if echo "$AIRDROP_RESPONSE" | grep -q '"error"'; then
+  echo "error: USDC airdrop failed: $AIRDROP_RESPONSE" >&2
+  exit 1
+fi
+echo "  1000 USDC -> $DEV_PUBKEY"
+
 log "Deploying the Anchor program to localnet"
 (cd "$ROOT_DIR" && anchor deploy --provider.cluster localnet)
+
+NEB_CONFIG="scripts/launch-neb/launch-neb.config.json"
+POOL_ADDR="$(grep -E '^NEXT_PUBLIC_NEB_DLMM_POOL="[^"]+"' .env | sed -E 's/^[^"]*"([^"]+)".*/\1/' || true)"
+# .env persists across restarts, but surfpool's forked state is in-memory by
+# default (no --db) — a torn-down-and-restarted Surfnet has none of the
+# previous run's local writes, even though .env still points at them. Check
+# the pool account actually exists on THIS Surfnet before trusting .env.
+POOL_EXISTS=""
+if [ -n "$POOL_ADDR" ]; then
+  POOL_EXISTS="$(curl -s "http://127.0.0.1:$RPC_PORT" -X POST -H "Content-Type: application/json" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"$POOL_ADDR\"]}" \
+    | python3 -c 'import json,sys; d=json.load(sys.stdin); print("yes" if d.get("result",{}).get("value") else "")' 2>/dev/null || true)"
+fi
+if [ -n "$POOL_EXISTS" ]; then
+  log "NEB already launched and its pool ($POOL_ADDR) exists on this Surfnet, skipping"
+else
+  log "Launching NEB: minting its supply and seeding the NEB/USDC DLMM pool"
+  if [ ! -f "$NEB_CONFIG" ]; then
+    cat > "$NEB_CONFIG" <<JSON
+{
+  "rpcUrl": "http://127.0.0.1:$RPC_PORT",
+  "cluster": "mainnet-beta",
+  "keypairFilePath": "$DEV_KEYPAIR",
+  "quoteMint": "$USDC_MINT",
+  "dryRun": false,
+  "token": {
+    "name": "Nebula",
+    "symbol": "NEB",
+    "decimals": 6,
+    "totalSupply": 1000000000,
+    "uri": "https://example.com/neb-metadata.json",
+    "revokeMintAuthority": true,
+    "isMutable": true
+  },
+  "pool": {
+    "binStep": 100,
+    "feeBps": 100,
+    "initialPrice": 0.001,
+    "priceRounding": "up",
+    "activationType": "timestamp",
+    "activationPoint": null,
+    "creatorPoolOnOffControl": false
+  }
+}
+JSON
+  fi
+
+  LAUNCH_LOG="$(mktemp)"
+  npx tsx scripts/launch-neb/index.ts --config="$NEB_CONFIG" | tee "$LAUNCH_LOG"
+  # The script's own final "Set these in app/.env:" lines are already valid
+  # KEY="VALUE" assignments — pull them out and apply the same way the
+  # program id gets synced above.
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    if grep -q "^${key}=" .env; then
+      sed -i.bak "s|^${key}=.*|${line}|" .env
+      rm -f .env.bak
+    else
+      echo "$line" >> .env
+    fi
+  done < <(grep -oE 'NEXT_PUBLIC_(VOTE_TOKEN_MINT|NEB_DLMM_POOL)="[^"]*"' "$LAUNCH_LOG")
+  rm -f "$LAUNCH_LOG"
+fi
 
 log "Resetting and seeding the database"
 npm run db:reset
@@ -79,13 +178,13 @@ log "Done"
 cat <<EOF
 
 Local dev environment is ready:
-  - solana-test-validator running on 127.0.0.1:$RPC_PORT (log: $VALIDATOR_LOG)
+  - surfpool (mainnet fork) running on 127.0.0.1:$RPC_PORT (logs: $SURFPOOL_LOG_DIR)
+  - dev keypair funded with SOL + 1000 USDC
   - nebulous_world program deployed to localnet
+  - NEB minted and its DLMM pool created (or reused — see .env)
   - database reset and seeded
 
 Next steps:
   - Run 'npm run dev' to start the app (http://localhost:3000)
-  - Set NEXT_PUBLIC_VOTE_TOKEN_MINT in .env to a real SPL mint to exercise
-    on-chain voting/staking (leave blank to stay in simulation mode)
-  - Run 'npm run teardown:dev' to stop the validator and local Postgres
+  - Run 'npm run teardown:dev' to stop surfpool and local Postgres
 EOF
