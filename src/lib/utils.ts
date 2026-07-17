@@ -38,6 +38,15 @@ export function formatNumber(n: number): string {
   return new Intl.NumberFormat("en-US").format(n);
 }
 
+/** Extract a display-friendly hostname from a URL: "https://www.jup.ag/x" -> "jup.ag". */
+export function hostname(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 export function formatDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
   return date.toLocaleDateString("en-US", {
