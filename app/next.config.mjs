@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // /token (buying NEB) was folded into /rewards, alongside pool analytics
-  // and reward claiming — redirect old links/bookmarks rather than 404.
+  // Old routes folded into other pages — redirect rather than 404.
   async redirects() {
-    return [{ source: "/token", destination: "/rewards", permanent: true }];
+    return [
+      // Buying NEB moved into /rewards, alongside pool analytics and reward claiming.
+      { source: "/token", destination: "/rewards", permanent: true },
+      // App submission moved into a "Create app" modal on the Discover page.
+      { source: "/submit", destination: "/", permanent: true },
+    ];
   },
   images: {
     remotePatterns: [

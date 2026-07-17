@@ -8,6 +8,8 @@ import {
   FilterPanel,
   type RangeFilters,
 } from "@/components/discover/FilterPanel";
+import { CreateAppForm } from "@/components/discover/CreateAppForm";
+import { Modal } from "@/components/ui/Modal";
 import { SORT_OPTIONS } from "@/lib/constants";
 import type { SearchResult } from "@/lib/types";
 
@@ -36,6 +38,12 @@ export function Discover({ initial }: Props) {
   });
   const [result, setResult] = useState<SearchResult>(initial);
   const [loading, setLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  // Bumped after a successful create to force the fetch effect below to
+  // re-run against the current params (new app shows up immediately if it
+  // matches the active filters/sort, and the count updates either way) —
+  // without touching the URL, which would reset the user's filters.
+  const [refreshKey, setRefreshKey] = useState(0);
   // One timer per debounced field — a single shared timer would let typing in
   // a second field (e.g. a range input) cancel a still-pending navigate for
   // the first (e.g. the fuzzy box), silently dropping that field's update.
@@ -105,7 +113,7 @@ export function Discover({ initial }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [params, refreshKey]);
 
   // Debounced text search.
   const onQueryChange = (value: string) => {
@@ -192,6 +200,13 @@ export function Discover({ initial }: Props) {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          className="btn-primary shrink-0"
+          onClick={() => setCreateOpen(true)}
+        >
+          Create app
+        </button>
       </div>
 
       <FilterPanel
@@ -218,9 +233,13 @@ export function Discover({ initial }: Props) {
             <p>No apps match your search.</p>
             <p className="mt-1 text-xs">
               Try removing a filter — or{" "}
-              <a href="/submit" className="text-cobalt hover:underline">
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="text-cobalt hover:underline"
+              >
                 submit the app yourself
-              </a>
+              </button>
               .
             </p>
           </div>
@@ -258,6 +277,15 @@ export function Discover({ initial }: Props) {
           </div>
         )}
       </section>
+
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create app">
+        <CreateAppForm
+          onSuccess={() => {
+            setCreateOpen(false);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      </Modal>
     </div>
   );
 }
