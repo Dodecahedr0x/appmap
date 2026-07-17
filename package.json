@@ -16,7 +16,8 @@
     "pretest": "DATABASE_URL=\"file:./test.db\" npx prisma db push --skip-generate --accept-data-loss",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:anchor": "npx anchor test"
+    "test:anchor": "npx anchor test",
+    "settle:epoch": "tsx scripts/settleEpoch.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
