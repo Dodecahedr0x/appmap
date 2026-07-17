@@ -43,7 +43,12 @@ interface ForceMapProps<RawNode, RawLink> {
   linkMetrics: MapMetric[];
   ariaLabel: string;
   sourceLabel: string;
-  onNodeClick?: (node: MapNode) => void;
+  // Fired when a node is clicked (selecting it) or when the background is
+  // clicked/an already-selected node is clicked again (deselecting, called
+  // with null). `neighborIds` is every node directly connected to `node` —
+  // "connected peers" — so callers can build a related-items list without
+  // re-deriving adjacency themselves.
+  onSelect?: (node: MapNode | null, neighborIds: string[]) => void;
 }
 
 const NODE_FILL = "#0068f9";
@@ -51,16 +56,30 @@ const NODE_FILL_DIM = "#a5a5a5";
 const EDGE_STROKE = "#0068f9";
 const LABEL_INK = "#121722";
 const LABEL_DIM = "#a5a5a5";
-// A pointer that moved less than this while a node was grabbed still counts
-// as a click, not a drag — real pointers rarely stay perfectly still.
+const SELECTED_RING = "#6736eb";
+// A pointer that moved less than this while a node was grabbed (or the
+// background was pressed) still counts as a click/tap, not a drag/pan —
+// real pointers rarely stay perfectly still.
 const CLICK_DRAG_THRESHOLD_PX = 4;
+// Node radius range, in CSS px — wide enough that the smallest and largest
+// nodes in a typical power-law distribution (a few heavily-staked/tagged
+// items, a long tail of small ones) read as clearly different at a glance,
+// not just "a bit bigger." Radius uses sqrt(fraction) so on-screen AREA
+// (the visual quantity a viewer actually compares) scales closer to
+// linearly with the underlying metric than raw radius would.
+const MIN_RADIUS = 5;
+const RADIUS_RANGE = 33;
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 4;
+const ZOOM_BUTTON_FACTOR = 1.4;
 
 /**
  * Generic force-directed map: nodes sized by a chosen metric, linked by a
- * chosen metric, with hover-to-highlight, drag-to-reposition, and (if
- * `onNodeClick` is given) click-to-open. Fetches live data from `fetchUrl`
- * and falls back to a representative static graph if that fails. Shared by
- * the tag map and app map on the Explore page so the drag/hover/resize/
+ * chosen metric, with hover-to-highlight, drag-to-reposition,
+ * click-to-select (via `onSelect`), wheel/pinch/button zoom, and
+ * drag-the-background-to-pan. Fetches live data from `fetchUrl` and falls
+ * back to a representative static graph if that fails. Shared by the tag
+ * map and app map on the Explore page so the pan/zoom/drag/hover/resize/
  * accessibility plumbing lives in exactly one place.
  */
 export function ForceMap<RawNode, RawLink>({
@@ -73,7 +92,7 @@ export function ForceMap<RawNode, RawLink>({
   linkMetrics,
   ariaLabel,
   sourceLabel,
-  onNodeClick,
+  onSelect,
 }: ForceMapProps<RawNode, RawLink>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [source, setSource] = useState<"live" | "sample">("sample");
@@ -81,8 +100,10 @@ export function ForceMap<RawNode, RawLink>({
   // Hover-to-highlight and drag are pointer-only (replicating them via
   // keyboard would need a whole separate nav model for what's a
   // supplementary view) — this sr-only list is the WCAG text alternative,
-  // giving screen reader/keyboard users the same underlying data directly.
+  // giving screen reader/keyboard users the same underlying data directly,
+  // including the same select behavior as clicking a node on the canvas.
   const [nodeList, setNodeList] = useState<MapNode[]>(fallbackNodes);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCustomize, setShowCustomize] = useState(false);
   const [sizeKey, setSizeKey] = useState(sizeMetrics[0].key);
   const [linkKey, setLinkKey] = useState(linkMetrics[0].key);
@@ -95,6 +116,13 @@ export function ForceMap<RawNode, RawLink>({
   const sizeKeyRef = useRef(sizeKey);
   const linkKeyRef = useRef(linkKey);
   const applyMetricsRef = useRef<((size?: string, link?: string) => void) | undefined>(undefined);
+  const zoomActionsRef = useRef<{ zoomIn: () => void; zoomOut: () => void; reset: () => void } | undefined>(
+    undefined,
+  );
+  // Exposes the same adjacency map the canvas click handler uses, so the
+  // sr-only list's select action (keyboard/screen-reader path) reports the
+  // same "connected peers" a mouse click would, instead of an empty array.
+  const neighborsRef = useRef<Map<string, Set<string>>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -135,8 +163,9 @@ export function ForceMap<RawNode, RawLink>({
       const sortKey = sizeMetrics[0].key;
       setNodeList([...rawNodes].sort((a, b) => (b.metrics[sortKey] ?? 0) - (a.metrics[sortKey] ?? 0)));
 
-      // Direct-neighbor lookup for the hover-highlight, built once per
-      // dataset rather than walked on every pointer move.
+      // Direct-neighbor lookup for hover-highlight, selection-highlight, and
+      // the "connected peers" list passed to onSelect — built once per
+      // dataset rather than walked on every pointer move/click.
       const neighbors = new Map<string, Set<string>>();
       for (const n of nodes) neighbors.set(n.id, new Set());
       for (const l of links) {
@@ -145,9 +174,11 @@ export function ForceMap<RawNode, RawLink>({
         neighbors.get(s)?.add(t);
         neighbors.get(t)?.add(s);
       }
+      neighborsRef.current = neighbors;
 
       let maxSize = Math.max(1, ...nodes.map((n) => n.metrics[activeSizeKey] ?? 0));
-      const radius = (n: MapNode) => 6 + Math.sqrt((n.metrics[activeSizeKey] ?? 0) / maxSize) * 20;
+      const radius = (n: MapNode) =>
+        MIN_RADIUS + Math.sqrt((n.metrics[activeSizeKey] ?? 0) / maxSize) * RADIUS_RANGE;
 
       let maxLink = Math.max(1, ...links.map((l) => l.metrics[activeLinkKey] ?? 0));
       const distance = (l: MapLink) => {
@@ -160,6 +191,16 @@ export function ForceMap<RawNode, RawLink>({
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       let hoveredNode: MapNode | null = null;
+      let selectedNode: MapNode | null = null;
+
+      // Pan/zoom view transform: node/simulation coordinates ("world" space)
+      // stay centered on (0, 0) regardless of pan — only this transform
+      // decides where that appears on screen, and by how much it's scaled.
+      // Kept in a plain object (not React state) since it changes on every
+      // wheel tick/pointer move and is only ever read by the rAF paint loop
+      // and pointer-position math below, never by JSX.
+      const view = { k: 1, x: 0, y: 0 };
+      let transformInitialized = false;
 
       function resize() {
         if (!canvas) return;
@@ -168,8 +209,14 @@ export function ForceMap<RawNode, RawLink>({
         height = rect.height;
         canvas.width = Math.max(1, Math.floor(width * dpr));
         canvas.height = Math.max(1, Math.floor(height * dpr));
-        ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-        simulation.force("center", forceCenter(width / 2, height / 2));
+        simulation.force("center", forceCenter(0, 0));
+        if (!transformInitialized) {
+          // Only on first layout — center the world origin on screen. Later
+          // resizes (e.g. a window resize) must not clobber a user's pan/zoom.
+          view.x = width / 2;
+          view.y = height / 2;
+          transformInitialized = true;
+        }
         simulation.alpha(0.6).restart();
       }
 
@@ -203,14 +250,45 @@ export function ForceMap<RawNode, RawLink>({
         }
       };
 
+      // Zooms so that the point currently under `screenPoint` stays fixed on
+      // screen — the standard "zoom to cursor" (or "zoom to button, from the
+      // canvas center") formula, clamped to [MIN_ZOOM, MAX_ZOOM].
+      function zoomAt(screenPoint: { x: number; y: number }, factor: number) {
+        const nextK = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.k * factor));
+        const applied = nextK / view.k;
+        view.x = screenPoint.x - (screenPoint.x - view.x) * applied;
+        view.y = screenPoint.y - (screenPoint.y - view.y) * applied;
+        view.k = nextK;
+      }
+
+      zoomActionsRef.current = {
+        zoomIn: () => zoomAt({ x: width / 2, y: height / 2 }, ZOOM_BUTTON_FACTOR),
+        zoomOut: () => zoomAt({ x: width / 2, y: height / 2 }, 1 / ZOOM_BUTTON_FACTOR),
+        reset: () => {
+          view.k = 1;
+          view.x = width / 2;
+          view.y = height / 2;
+        },
+      };
+
       function isDimmed(id: string) {
-        if (!hoveredNode) return false;
-        return id !== hoveredNode.id && !neighbors.get(hoveredNode.id)?.has(id);
+        // Hover takes priority over selection while active; otherwise a
+        // selection alone highlights itself + its neighbors the same way.
+        const focus = hoveredNode ?? selectedNode;
+        if (!focus) return false;
+        return id !== focus.id && !neighbors.get(focus.id)?.has(id);
       }
 
       function draw() {
         if (!ctx) return;
+        // Device-pixel-ratio correction is the base transform every frame;
+        // pan/zoom is layered on top via translate/scale below, so none of
+        // the node/link drawing code needs to know about either.
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
+        ctx.save();
+        ctx.translate(view.x, view.y);
+        ctx.scale(view.k, view.k);
 
         ctx.lineCap = "round";
         for (const l of links) {
@@ -218,11 +296,12 @@ export function ForceMap<RawNode, RawLink>({
           const t = l.target as MapNode;
           if (s.x == null || t.x == null) continue;
           const dim = isDimmed(s.id) || isDimmed(t.id);
-          const highlighted = hoveredNode && (s.id === hoveredNode.id || t.id === hoveredNode.id);
+          const focus = hoveredNode ?? selectedNode;
+          const highlighted = focus != null && (s.id === focus.id || t.id === focus.id);
           const w = (l.metrics[activeLinkKey] ?? 0) / maxLink;
           ctx.strokeStyle = EDGE_STROKE;
           ctx.globalAlpha = dim ? 0.05 : highlighted ? 0.5 : 0.15 + Math.min(0.25, w * 0.4);
-          ctx.lineWidth = highlighted ? 2 : 1;
+          ctx.lineWidth = (highlighted ? 2 : 1) / view.k;
           ctx.beginPath();
           ctx.moveTo(s.x, s.y ?? 0);
           ctx.lineTo(t.x, t.y ?? 0);
@@ -235,6 +314,7 @@ export function ForceMap<RawNode, RawLink>({
           const r = radius(n);
           const dim = isDimmed(n.id);
           const isHovered = hoveredNode?.id === n.id;
+          const isSelected = selectedNode?.id === n.id;
 
           ctx.globalAlpha = dim ? 0.35 : 1;
           const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2);
@@ -249,20 +329,28 @@ export function ForceMap<RawNode, RawLink>({
           ctx.beginPath();
           ctx.arc(n.x, n.y, isHovered ? r * 0.55 : r * 0.4, 0, Math.PI * 2);
           ctx.fill();
-          if (isHovered) {
+          if (isSelected) {
+            ctx.strokeStyle = SELECTED_RING;
+            ctx.lineWidth = 2.5 / view.k;
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, r * 0.4 + 4 / view.k, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (isHovered) {
             ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2 / view.k;
             ctx.stroke();
           }
 
+          const fontSize = isHovered ? 12 : 11;
           ctx.font = isHovered
-            ? "600 12px ui-sans-serif, system-ui, sans-serif"
-            : "11px ui-sans-serif, system-ui, sans-serif";
+            ? `600 ${fontSize}px ui-sans-serif, system-ui, sans-serif`
+            : `${fontSize}px ui-sans-serif, system-ui, sans-serif`;
           ctx.fillStyle = dim ? LABEL_DIM : LABEL_INK;
           ctx.textAlign = "center";
           ctx.fillText(n.label, n.x, n.y - r - 6);
         }
         ctx.globalAlpha = 1;
+        ctx.restore();
       }
 
       // The simulation runs its own internal timer regardless of listeners;
@@ -287,17 +375,23 @@ export function ForceMap<RawNode, RawLink>({
       ro.observe(canvas);
       resize();
 
-      function pos(e: PointerEvent) {
+      function screenPos(e: PointerEvent | WheelEvent) {
         const rect = canvas!.getBoundingClientRect();
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
       }
-      function nodeAt(p: { x: number; y: number }): MapNode | null {
+      function toWorld(p: { x: number; y: number }) {
+        return { x: (p.x - view.x) / view.k, y: (p.y - view.y) / view.k };
+      }
+      function nodeAt(world: { x: number; y: number }): MapNode | null {
         let closest: MapNode | null = null;
         let closestDist = Infinity;
         for (const n of nodes) {
           if (n.x == null || n.y == null) continue;
-          const dist = Math.hypot(n.x - p.x, n.y - p.y);
-          if (dist < radius(n) + 6 && dist < closestDist) {
+          const dist = Math.hypot(n.x - world.x, n.y - world.y);
+          // Hit-radius padding is generous and NOT divided by zoom, so
+          // zoomed-out nodes (and touch targets in general) stay easy to
+          // hit rather than shrinking to unusable pixel sizes.
+          if (dist < radius(n) + 10 / view.k && dist < closestDist) {
             closest = n;
             closestDist = dist;
           }
@@ -305,49 +399,88 @@ export function ForceMap<RawNode, RawLink>({
         return closest;
       }
 
-      // Drag-to-reposition. Listeners live on the canvas itself, not
-      // window: setPointerCapture below routes every subsequent event for
-      // this pointerId to the canvas regardless of where the cursor
-      // physically is, so a window-level listener isn't needed for the
-      // drag to keep working once the cursor leaves the canvas mid-drag.
-      let dragging: MapNode | null = null;
+      function selectNode(node: MapNode | null) {
+        selectedNode = node;
+        setSelectedId(node?.id ?? null);
+        onSelect?.(node, node ? [...(neighbors.get(node.id) ?? [])] : []);
+      }
+
+      // Wheel = zoom to cursor. Listened natively (not React's onWheel) so
+      // preventDefault reliably stops page scroll while the cursor is over
+      // the map, which requires an explicit non-passive listener.
+      function onWheel(e: WheelEvent) {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        zoomAt(screenPos(e), factor);
+      }
+
+      // Drag-to-reposition a node, OR drag-the-background-to-pan — decided
+      // by whether the pointer went down on a node. Listeners live on the
+      // canvas itself, not window: setPointerCapture below routes every
+      // subsequent event for this pointerId to the canvas regardless of
+      // where the cursor physically is, so a window-level listener isn't
+      // needed for either gesture to keep working once the cursor leaves
+      // the canvas mid-drag.
+      let draggingNode: MapNode | null = null;
+      let panning = false;
       let downPos: { x: number; y: number } | null = null;
+      let panOrigin = { x: 0, y: 0 };
       function onDown(e: PointerEvent) {
-        const p = pos(e);
-        const hit = nodeAt(p);
+        const p = screenPos(e);
+        downPos = p;
+        const hit = nodeAt(toWorld(p));
         if (hit) {
-          dragging = hit;
-          downPos = p;
-          dragging.fx = dragging.x;
-          dragging.fy = dragging.y;
+          draggingNode = hit;
+          draggingNode.fx = draggingNode.x;
+          draggingNode.fy = draggingNode.y;
           simulation.alphaTarget(0.3).restart();
-          canvas!.setPointerCapture(e.pointerId);
+        } else {
+          panning = true;
+          panOrigin = { x: view.x, y: view.y };
         }
+        canvas!.setPointerCapture(e.pointerId);
       }
       function onMove(e: PointerEvent) {
-        const p = pos(e);
-        if (dragging) {
-          dragging.fx = p.x;
-          dragging.fy = p.y;
+        const p = screenPos(e);
+        if (draggingNode) {
+          const w = toWorld(p);
+          draggingNode.fx = w.x;
+          draggingNode.fy = w.y;
           return;
         }
-        const hit = nodeAt(p);
+        if (panning && downPos) {
+          view.x = panOrigin.x + (p.x - downPos.x);
+          view.y = panOrigin.y + (p.y - downPos.y);
+          return;
+        }
+        const hit = nodeAt(toWorld(p));
         if (hit?.id !== hoveredNode?.id) {
           hoveredNode = hit;
           setHovered(hit);
         }
-        canvas!.style.cursor = hit ? (onNodeClick ? "pointer" : "grab") : "default";
+        canvas!.style.cursor = hit ? (onSelect ? "pointer" : "grab") : "default";
       }
       function onUp(e: PointerEvent) {
-        if (!dragging) return;
-        const node = dragging;
-        const moved = downPos ? Math.hypot(pos(e).x - downPos.x, pos(e).y - downPos.y) : Infinity;
-        dragging.fx = null;
-        dragging.fy = null;
-        simulation.alphaTarget(0);
-        dragging = null;
+        const moved = downPos ? Math.hypot(screenPos(e).x - downPos.x, screenPos(e).y - downPos.y) : Infinity;
+        const wasClick = moved < CLICK_DRAG_THRESHOLD_PX;
+
+        if (draggingNode) {
+          const node = draggingNode;
+          draggingNode.fx = null;
+          draggingNode.fy = null;
+          simulation.alphaTarget(0);
+          draggingNode = null;
+          if (onSelect && wasClick) {
+            selectNode(selectedNode?.id === node.id ? null : node);
+          }
+        } else if (panning && wasClick && onSelect) {
+          // A background "click" (not a real pan) with something already
+          // selected clears it — same as clicking empty space in any other
+          // selectable UI.
+          selectNode(null);
+        }
+        panning = false;
         downPos = null;
-        if (onNodeClick && moved < CLICK_DRAG_THRESHOLD_PX) onNodeClick(node);
       }
       function onLeave() {
         hoveredNode = null;
@@ -357,6 +490,7 @@ export function ForceMap<RawNode, RawLink>({
       canvas.addEventListener("pointerleave", onLeave);
       canvas.addEventListener("pointermove", onMove);
       canvas.addEventListener("pointerup", onUp);
+      canvas.addEventListener("wheel", onWheel, { passive: false });
 
       cleanup = () => {
         stopped = true;
@@ -365,10 +499,13 @@ export function ForceMap<RawNode, RawLink>({
         io.disconnect();
         ro.disconnect();
         applyMetricsRef.current = undefined;
+        zoomActionsRef.current = undefined;
+        neighborsRef.current = new Map();
         canvas!.removeEventListener("pointerdown", onDown);
         canvas!.removeEventListener("pointerleave", onLeave);
         canvas!.removeEventListener("pointermove", onMove);
         canvas!.removeEventListener("pointerup", onUp);
+        canvas!.removeEventListener("wheel", onWheel);
       };
     }
 
@@ -391,6 +528,11 @@ export function ForceMap<RawNode, RawLink>({
     setLinkKey(key);
     linkKeyRef.current = key;
     applyMetricsRef.current?.(undefined, key);
+  }
+  function handleNodeListSelect(n: MapNode) {
+    const deselecting = selectedId === n.id;
+    onSelect?.(deselecting ? null : n, deselecting ? [] : [...(neighborsRef.current.get(n.id) ?? [])]);
+    setSelectedId(deselecting ? null : n.id);
   }
 
   const activeSizeMetric = sizeMetrics.find((m) => m.key === sizeKey) ?? sizeMetrics[0];
@@ -416,14 +558,42 @@ export function ForceMap<RawNode, RawLink>({
             ))}
           </div>
         )}
+        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-hairline bg-white shadow-subtle">
+          <button
+            type="button"
+            onClick={() => zoomActionsRef.current?.zoomIn()}
+            aria-label="Zoom in"
+            className="grid h-8 w-8 place-items-center text-ink hover:bg-ivory"
+          >
+            +
+          </button>
+          <div className="h-px bg-hairline" />
+          <button
+            type="button"
+            onClick={() => zoomActionsRef.current?.zoomOut()}
+            aria-label="Zoom out"
+            className="grid h-8 w-8 place-items-center text-ink hover:bg-ivory"
+          >
+            −
+          </button>
+          <div className="h-px bg-hairline" />
+          <button
+            type="button"
+            onClick={() => zoomActionsRef.current?.reset()}
+            aria-label="Reset zoom and pan"
+            className="grid h-8 w-8 place-items-center text-sm text-ink hover:bg-ivory"
+          >
+            ⟲
+          </button>
+        </div>
       </div>
       <ul className="sr-only">
         {nodeList.map((n) => {
           const summary = `${n.label}: ${sizeMetrics.map((m) => (m.format ?? String)(n.metrics[m.key] ?? 0)).join(", ")}`;
           return (
             <li key={n.id}>
-              {onNodeClick ? (
-                <button type="button" onClick={() => onNodeClick(n)}>
+              {onSelect ? (
+                <button type="button" onClick={() => handleNodeListSelect(n)}>
                   {summary}
                 </button>
               ) : (
@@ -436,7 +606,9 @@ export function ForceMap<RawNode, RawLink>({
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-caption text-slate">
         <span>
           {source === "live" ? `Live ${sourceLabel}.` : `Sample ${sourceLabel}.`}{" "}
-          {onNodeClick ? "Drag to rearrange, click to open." : "Drag to rearrange, hover to see connections."}
+          {onSelect
+            ? "Drag a node to reposition, drag the background to pan, scroll to zoom, click to select."
+            : "Drag to rearrange, hover to see connections."}
         </span>
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">

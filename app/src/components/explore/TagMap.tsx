@@ -39,9 +39,10 @@ const FALLBACK_LINKS: MapLink[] = [
 /**
  * Which tags travel together, and which ones the community has backed
  * most. Node size and link strength are both user-selectable — defaults to
- * total stake / how often two tags are used together.
+ * total stake / how often two tags are used together. Click a tag to select
+ * it and see apps carrying it (and its closest neighbor tags) below the map.
  */
-export function TagMap() {
+export function TagMap({ onSelect }: { onSelect?: (node: MapNode | null, neighborIds: string[]) => void }) {
   return (
     <ForceMap<TagGraphNode, TagGraphEdge>
       fetchUrl="/api/tags/graph"
@@ -50,7 +51,8 @@ export function TagMap() {
       fallbackNodes={FALLBACK_NODES}
       fallbackLinks={FALLBACK_LINKS}
       sourceLabel="tags"
-      ariaLabel="Map of nebulous.world tags. Circle size and connection strength depend on the selected options; by default, size reflects total stake and connections show how often two tags appear on the same app. Hover a tag to see its connections; drag to reposition."
+      ariaLabel="Map of nebulous.world tags. Circle size and connection strength depend on the selected options; by default, size reflects total stake and connections show how often two tags appear on the same app. Click a tag to select it and see related apps below; drag a node to reposition, drag the background to pan, scroll to zoom."
+      onSelect={onSelect}
       sizeMetrics={[
         { key: "stake", label: "Stake", format: (v) => `${formatToken(v, TOKEN_SYMBOL)} staked` },
         { key: "appCount", label: "Apps using it", format: (v) => `${formatNumber(v)} apps` },
