@@ -2,25 +2,25 @@
 use carbon_core::CarbonDeserialize;
 use carbon_core::borsh;
 use carbon_core::deserialize::CarbonDeserialize;
-use solana_pubkey::Pubkey;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, borsh::BorshSerialize, CarbonDeserialize, PartialEq)]
-pub struct StakePosition {
-    pub app_tag_stake: Pubkey,
-    pub owner: Pubkey,
-    pub amount: u64,
-    pub reward_debt: u128,
+pub struct Tag {
+    /// The variable seed used to derive this PDA. Capped at
+    /// `MAX_TAG_ID_LEN` (32) bytes — same PDA-seed constraint as
+    /// `AppAccount::app_id`.
+    pub tag_id: String,
+    /// PDA bump for `[TAG_SEED, tag_id.as_bytes()]`.
     pub bump: u8,
 }
 
-impl StakePosition {
+impl Tag {
     pub fn decode(data: &[u8]) -> Option<Self> {
         if data.len() < 8 {
             return None;
         }
         let discriminator = &data[0..8];
-        if discriminator != &[78, 165, 30, 111, 171, 125, 11, 220] {
+        if discriminator != &[145, 209, 53, 147, 161, 98, 8, 114] {
             return None;
         }
 

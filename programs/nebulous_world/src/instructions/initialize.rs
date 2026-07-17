@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::Mint;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::constants::CONFIG_SEED;
 use crate::error::ErrorCode;
@@ -15,6 +16,18 @@ pub struct Initialize<'info> {
         bump,
     )]
     pub config: Account<'info, Config>,
+    /// The single global token vault every instruction transfers through —
+    /// an Associated Token Account owned by `config`, holding vote-stake
+    /// principal, tag-stake principal, and both reward pools all together.
+    /// See the design note on `Config` for why this is one shared vault
+    /// rather than one per app/tag.
+    #[account(
+        init,
+        payer = authority,
+        associated_token::mint = vote_mint,
+        associated_token::authority = config,
+    )]
+    pub vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub vote_mint: Account<'info, Mint>,
@@ -34,6 +47,8 @@ pub struct Initialize<'info> {
     pub program: Program<'info, crate::program::NebulousWorld>,
     #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()) @ ErrorCode::Unauthorized)]
     pub program_data: Account<'info, ProgramData>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 

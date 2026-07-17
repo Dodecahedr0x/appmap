@@ -36,9 +36,17 @@ const poolSchema = z.object({
   feeBps: z.number().int().min(1).max(1000),
   // Starting price, quote per base (e.g. USDC per NEB).
   initialPrice: z.number().positive(),
+  // Multiplier applied to initialPrice for the top of the seeded liquidity
+  // range — e.g. 100 spreads the full NEB supply single-sided across every
+  // bin from initialPrice up to initialPrice * 100, instead of dumping it
+  // all into one fixed-price bin. This lets the pool act as a genuine
+  // liquidity provider across a price range as buyers push the price up,
+  // rather than selling everything at a single price then going empty.
+  maxPriceMultiplier: z.number().min(1).default(100),
   // Which way to round initialPrice to the nearest bin boundary. Used for
-  // both the pool's starting active bin and the single bin liquidity gets
-  // seeded into — they must agree, or the seed deposit lands on an empty bin.
+  // both the pool's starting active bin and the bottom of the seeded
+  // liquidity range — they must agree, or the seed deposit's lowest bin
+  // doesn't match the pool's active bin.
   priceRounding: z.enum(["up", "down"]).default("up"),
   // Whether the pool activates by "slot" or by wall-clock "timestamp".
   activationType: z.enum(["slot", "timestamp"]).default("timestamp"),

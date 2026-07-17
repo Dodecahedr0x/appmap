@@ -34,18 +34,16 @@ use sqlx::PgPool;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use nebulous_world::constants::{
+    APP_SEED, APP_TAG_STAKE_SEED, CONFIG_SEED, STAKE_POSITION_SEED, TAG_SEED, VOTE_POSITION_SEED,
+};
+
 const TOKEN_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const SYSTEM_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("11111111111111111111111111111111111111");
 const ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
-
-// Must match programs/nebulous_world/src/constants.rs exactly.
-const APP_SEED: &[u8] = b"app";
-const VOTE_POSITION_SEED: &[u8] = b"vote_pos";
-const TAG_SEED: &[u8] = b"tag";
-const STAKE_POSITION_SEED: &[u8] = b"stake_pos";
 
 // Anchor instruction discriminators — copied verbatim from the matching
 // `decode()` methods in decoder/src/instructions/*.rs (generated from the
@@ -141,6 +139,10 @@ fn parse_u64(field: &str, s: &str) -> Result<u64, ApiError> {
 // seeds, same order). Pure crypto, no RPC/DB involved.
 // ---------------------------------------------------------------------
 
+fn config_pda(program_id: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[CONFIG_SEED], program_id).0
+}
+
 fn app_pda(program_id: &Pubkey, app_id: &str) -> Pubkey {
     Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id).0
 }
@@ -153,13 +155,26 @@ fn vote_position_pda(program_id: &Pubkey, app: &Pubkey, user: &Pubkey) -> Pubkey
     .0
 }
 
-fn app_tag_pda(program_id: &Pubkey, app: &Pubkey, tag_id: &str) -> Pubkey {
-    Pubkey::find_program_address(&[TAG_SEED, app.as_ref(), tag_id.as_bytes()], program_id).0
+/// The GLOBAL tag identity — seeded only by the tag string, no `app`. The
+/// same tag_id always derives the same `Tag` PDA no matter which app
+/// suggested it.
+fn tag_pda(program_id: &Pubkey, tag_id: &str) -> Pubkey {
+    Pubkey::find_program_address(&[TAG_SEED, tag_id.as_bytes()], program_id).0
 }
 
-fn stake_position_pda(program_id: &Pubkey, app_tag: &Pubkey, user: &Pubkey) -> Pubkey {
+/// The stake-accounting connection for one (app, tag) pair — replaces the
+/// old single `AppTagAccount` PDA now that tags are global (see `tag_pda`).
+fn app_tag_stake_pda(program_id: &Pubkey, app: &Pubkey, tag: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(
-        &[STAKE_POSITION_SEED, app_tag.as_ref(), user.as_ref()],
+        &[APP_TAG_STAKE_SEED, app.as_ref(), tag.as_ref()],
+        program_id,
+    )
+    .0
+}
+
+fn stake_position_pda(program_id: &Pubkey, app_tag_stake: &Pubkey, user: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[STAKE_POSITION_SEED, app_tag_stake.as_ref(), user.as_ref()],
         program_id,
     )
     .0
@@ -171,6 +186,12 @@ fn associated_token_address(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
         &ASSOCIATED_TOKEN_PROGRAM_ID,
     )
     .0
+}
+
+/// The single global vault every instruction transfers through — an ATA
+/// owned by the `config` PDA (see programs/nebulous_world/src/state/config.rs).
+fn vault_address(config: &Pubkey, mint: &Pubkey) -> Pubkey {
+    associated_token_address(config, mint)
 }
 
 // ---------------------------------------------------------------------
@@ -190,9 +211,6 @@ fn associated_token_address(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
 #[derive(Deserialize)]
 struct AppAccountRow {
     app_id: String,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
     total_vote_stake: u64,
     vote_acc_reward_per_share: u128,
     total_tag_stake: u64,
@@ -201,10 +219,9 @@ struct AppAccountRow {
 }
 
 #[derive(Deserialize)]
-struct AppTagAccountRow {
+struct AppTagStakeRow {
     app: Pubkey,
-    tag_id: String,
-    principal_vault: Pubkey,
+    tag: Pubkey,
     stake_amount: u64,
     bump: u8,
 }
@@ -222,9 +239,6 @@ struct PositionRow {
 struct AppAccountDto {
     pda: String,
     app_id: String,
-    vote_vault: String,
-    vote_reward_vault: String,
-    tags_reward_vault: String,
     total_vote_stake: String,
     vote_acc_reward_per_share: String,
     total_tag_stake: String,
@@ -234,11 +248,15 @@ struct AppAccountDto {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct AppTagAccountDto {
+struct AppTagStakeDto {
     pda: String,
     app: String,
+    tag: String,
+    /// Not read off the account (it no longer stores this — the tag_id
+    /// string lives on the separate global `Tag` account instead): this is
+    /// simply the `tag_slug` path param, which is exactly the string that
+    /// derived `tag` above.
     tag_id: String,
-    principal_vault: String,
     stake_amount: String,
     bump: u8,
 }
@@ -289,9 +307,6 @@ async fn get_app_account(
     Ok(Json(AppAccountDto {
         pda: pda.to_string(),
         app_id: row.app_id,
-        vote_vault: row.vote_vault.to_string(),
-        vote_reward_vault: row.vote_reward_vault.to_string(),
-        tags_reward_vault: row.tags_reward_vault.to_string(),
         total_vote_stake: row.total_vote_stake.to_string(),
         vote_acc_reward_per_share: row.vote_acc_reward_per_share.to_string(),
         total_tag_stake: row.total_tag_stake.to_string(),
@@ -303,17 +318,18 @@ async fn get_app_account(
 async fn get_app_tag_account(
     State(state): State<Arc<ApiState>>,
     Path((app_id, tag_slug)): Path<(String, String)>,
-) -> Result<Json<AppTagAccountDto>, ApiError> {
+) -> Result<Json<AppTagStakeDto>, ApiError> {
     let app = app_pda(&state.program_id, &app_id);
-    let pda = app_tag_pda(&state.program_id, &app, &tag_slug);
-    let row: AppTagAccountRow = fetch_account(&state.pool, &pda, "AppTagAccount")
+    let tag = tag_pda(&state.program_id, &tag_slug);
+    let pda = app_tag_stake_pda(&state.program_id, &app, &tag);
+    let row: AppTagStakeRow = fetch_account(&state.pool, &pda, "AppTagStake")
         .await?
         .ok_or_else(|| not_found(format!("tag {tag_slug} on app {app_id} is not indexed yet")))?;
-    Ok(Json(AppTagAccountDto {
+    Ok(Json(AppTagStakeDto {
         pda: pda.to_string(),
         app: row.app.to_string(),
-        tag_id: row.tag_id,
-        principal_vault: row.principal_vault.to_string(),
+        tag: row.tag.to_string(),
+        tag_id: tag_slug,
         stake_amount: row.stake_amount.to_string(),
         bump: row.bump,
     }))
@@ -344,8 +360,9 @@ async fn get_stake_position(
 ) -> Result<Json<PositionDto>, ApiError> {
     let owner_pk = parse_pubkey("owner", &owner)?;
     let app = app_pda(&state.program_id, &app_id);
-    let app_tag = app_tag_pda(&state.program_id, &app, &tag_slug);
-    let pda = stake_position_pda(&state.program_id, &app_tag, &owner_pk);
+    let tag = tag_pda(&state.program_id, &tag_slug);
+    let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+    let pda = stake_position_pda(&state.program_id, &app_tag_stake, &owner_pk);
     let row: PositionRow = fetch_account(&state.pool, &pda, "StakePosition")
         .await?
         .ok_or_else(|| not_found("no stake position yet".to_string()))?;
@@ -443,8 +460,9 @@ async fn proxy_post(
 // ---------------------------------------------------------------------
 // Transaction building — raw instruction construction (discriminator +
 // borsh-encoded args, both copied from the generated decoder) rather than
-// pulling in anchor-client, so this doesn't need the nebulous_world
-// program crate as a Rust library dependency. Account order and
+// pulling in anchor-client. `nebulous_world` is still a Cargo path
+// dependency (see Cargo.toml) — but only for its `constants` module (PDA
+// seed bytes), never as an Anchor CPI/client crate. Account order and
 // is_signer/is_writable flags mirror programs/nebulous_world/src/
 // instructions/*.rs's `#[derive(Accounts)]` structs exactly.
 // ---------------------------------------------------------------------
@@ -483,11 +501,11 @@ async fn build_vote(
     let amount = parse_u64("amount", &req.amount)?;
     let app = app_pda(&state.program_id, &req.app_id);
     let position = vote_position_pda(&state.program_id, &app, &user);
-    let app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
+    let _app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
         .await?
         .ok_or_else(|| not_found(format!("app {} is not indexed yet", req.app_id)))?;
-    let vote_vault = app_row.vote_vault;
-    let vote_reward_vault = app_row.vote_reward_vault;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
     let mut data = VOTE_DISC.to_vec();
@@ -496,8 +514,8 @@ async fn build_vote(
     let accounts = vec![
         AccountMeta::new(app, false),
         AccountMeta::new(position, false),
-        AccountMeta::new(vote_vault, false),
-        AccountMeta::new(vote_reward_vault, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
         AccountMeta::new(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -516,11 +534,11 @@ async fn build_withdraw_vote(
     let amount = parse_u64("amount", &req.amount)?;
     let app = app_pda(&state.program_id, &req.app_id);
     let position = vote_position_pda(&state.program_id, &app, &user);
-    let app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
+    let _app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
         .await?
         .ok_or_else(|| not_found(format!("app {} is not indexed yet", req.app_id)))?;
-    let vote_vault = app_row.vote_vault;
-    let vote_reward_vault = app_row.vote_reward_vault;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
     let mut data = WITHDRAW_VOTE_DISC.to_vec();
@@ -534,8 +552,8 @@ async fn build_withdraw_vote(
     let accounts = vec![
         AccountMeta::new(app, false),
         AccountMeta::new(position, false),
-        AccountMeta::new(vote_vault, false),
-        AccountMeta::new(vote_reward_vault, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -561,16 +579,18 @@ async fn build_stake_tag(
     let user = parse_pubkey("user", &req.user)?;
     let amount = parse_u64("amount", &req.amount)?;
     let app = app_pda(&state.program_id, &req.app_id);
-    let app_tag = app_tag_pda(&state.program_id, &app, &req.tag_slug);
-    let position = stake_position_pda(&state.program_id, &app_tag, &user);
-    let app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
+    let tag = tag_pda(&state.program_id, &req.tag_slug);
+    let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+    let position = stake_position_pda(&state.program_id, &app_tag_stake, &user);
+    let _app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
         .await?
         .ok_or_else(|| not_found(format!("app {} is not indexed yet", req.app_id)))?;
-    let app_tag_row: AppTagAccountRow = fetch_account(&state.pool, &app_tag, "AppTagAccount")
-        .await?
-        .ok_or_else(|| not_found(format!("tag {} is not indexed yet", req.tag_slug)))?;
-    let principal_vault = app_tag_row.principal_vault;
-    let tags_reward_vault = app_row.tags_reward_vault;
+    let _app_tag_stake_row: AppTagStakeRow =
+        fetch_account(&state.pool, &app_tag_stake, "AppTagStake")
+            .await?
+            .ok_or_else(|| not_found(format!("tag {} is not indexed yet", req.tag_slug)))?;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
     let mut data = STAKE_TAG_DISC.to_vec();
@@ -578,10 +598,10 @@ async fn build_stake_tag(
 
     let accounts = vec![
         AccountMeta::new(app, false),
-        AccountMeta::new(app_tag, false),
+        AccountMeta::new(app_tag_stake, false),
         AccountMeta::new(position, false),
-        AccountMeta::new(principal_vault, false),
-        AccountMeta::new(tags_reward_vault, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
         AccountMeta::new(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -599,16 +619,18 @@ async fn build_withdraw_tag_stake(
     let user = parse_pubkey("user", &req.user)?;
     let amount = parse_u64("amount", &req.amount)?;
     let app = app_pda(&state.program_id, &req.app_id);
-    let app_tag = app_tag_pda(&state.program_id, &app, &req.tag_slug);
-    let position = stake_position_pda(&state.program_id, &app_tag, &user);
-    let app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
+    let tag = tag_pda(&state.program_id, &req.tag_slug);
+    let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+    let position = stake_position_pda(&state.program_id, &app_tag_stake, &user);
+    let _app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
         .await?
         .ok_or_else(|| not_found(format!("app {} is not indexed yet", req.app_id)))?;
-    let app_tag_row: AppTagAccountRow = fetch_account(&state.pool, &app_tag, "AppTagAccount")
-        .await?
-        .ok_or_else(|| not_found(format!("tag {} is not indexed yet", req.tag_slug)))?;
-    let principal_vault = app_tag_row.principal_vault;
-    let tags_reward_vault = app_row.tags_reward_vault;
+    let _app_tag_stake_row: AppTagStakeRow =
+        fetch_account(&state.pool, &app_tag_stake, "AppTagStake")
+            .await?
+            .ok_or_else(|| not_found(format!("tag {} is not indexed yet", req.tag_slug)))?;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
     let mut data = WITHDRAW_TAG_STAKE_DISC.to_vec();
@@ -616,10 +638,10 @@ async fn build_withdraw_tag_stake(
 
     let accounts = vec![
         AccountMeta::new(app, false),
-        AccountMeta::new(app_tag, false),
+        AccountMeta::new(app_tag_stake, false),
         AccountMeta::new(position, false),
-        AccountMeta::new(principal_vault, false),
-        AccountMeta::new(tags_reward_vault, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -643,10 +665,11 @@ async fn build_claim_vote_reward(
     let user = parse_pubkey("user", &req.user)?;
     let app = app_pda(&state.program_id, &req.app_id);
     let position = vote_position_pda(&state.program_id, &app, &user);
-    let app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
+    let _app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
         .await?
         .ok_or_else(|| not_found(format!("app {} is not indexed yet", req.app_id)))?;
-    let vote_reward_vault = app_row.vote_reward_vault;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
     let data = CLAIM_VOTE_REWARD_DISC.to_vec();
@@ -656,7 +679,8 @@ async fn build_claim_vote_reward(
     let accounts = vec![
         AccountMeta::new_readonly(app, false),
         AccountMeta::new(position, false),
-        AccountMeta::new(vote_reward_vault, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -680,29 +704,33 @@ async fn build_claim_tag_reward(
 ) -> Result<Json<BuiltTxDto>, ApiError> {
     let user = parse_pubkey("user", &req.user)?;
     let app = app_pda(&state.program_id, &req.app_id);
-    let app_tag = app_tag_pda(&state.program_id, &app, &req.tag_slug);
-    let position = stake_position_pda(&state.program_id, &app_tag, &user);
-    let app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
+    let tag = tag_pda(&state.program_id, &req.tag_slug);
+    let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+    let position = stake_position_pda(&state.program_id, &app_tag_stake, &user);
+    let _app_row: AppAccountRow = fetch_account(&state.pool, &app, "AppAccount")
         .await?
         .ok_or_else(|| not_found(format!("app {} is not indexed yet", req.app_id)))?;
-    // app_tag only needs to exist for PDA/ownership purposes here — its
-    // fields aren't read for account resolution (tags_reward_vault comes
-    // from `app`, not `app_tag`).
-    let _app_tag_row: AppTagAccountRow = fetch_account(&state.pool, &app_tag, "AppTagAccount")
-        .await?
-        .ok_or_else(|| not_found(format!("tag {} is not indexed yet", req.tag_slug)))?;
-    let tags_reward_vault = app_row.tags_reward_vault;
+    // app_tag_stake only needs to exist for PDA/ownership purposes here —
+    // its fields aren't read for account resolution (the vault is derived
+    // from `config`, not `app_tag_stake`).
+    let _app_tag_stake_row: AppTagStakeRow =
+        fetch_account(&state.pool, &app_tag_stake, "AppTagStake")
+            .await?
+            .ok_or_else(|| not_found(format!("tag {} is not indexed yet", req.tag_slug)))?;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
     let data = CLAIM_TAG_REWARD_DISC.to_vec();
 
-    // `app` and `app_tag` are both read-only (see ClaimTagReward's doc
+    // `app` and `app_tag_stake` are both read-only (see ClaimTagReward's doc
     // comments — neither field is ever mutated by this instruction).
     let accounts = vec![
         AccountMeta::new_readonly(app, false),
-        AccountMeta::new_readonly(app_tag, false),
+        AccountMeta::new_readonly(app_tag_stake, false),
         AccountMeta::new(position, false),
-        AccountMeta::new(tags_reward_vault, false),
+        AccountMeta::new_readonly(config, false),
+        AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -756,7 +784,7 @@ mod tests {
     use super::*;
 
     /// Cross-checked against app/src/lib/anchorClient.ts's appPda/
-    /// votePositionPda/appTagPda/stakePositionPda for the same
+    /// votePositionPda/tagPda/appTagStakePda/stakePositionPda for the same
     /// (programId, appId, user, tagSlug) inputs — these two implementations
     /// must derive byte-identical PDAs, since the app signs against
     /// whichever address it independently computes, but only this API's
@@ -769,14 +797,18 @@ mod tests {
         let user = Pubkey::from_str("5Hs51hUxpr9cBz8gwbsFNVcJqdtPeJR8MoUNxoUSGP8a").unwrap();
         let tag_slug = "example-tag";
 
+        let config = config_pda(&program_id);
         let app = app_pda(&program_id, app_id);
         let vote_pos = vote_position_pda(&program_id, &app, &user);
-        let app_tag = app_tag_pda(&program_id, &app, tag_slug);
-        let stake_pos = stake_position_pda(&program_id, &app_tag, &user);
+        let tag = tag_pda(&program_id, tag_slug);
+        let app_tag_stake = app_tag_stake_pda(&program_id, &app, &tag);
+        let stake_pos = stake_position_pda(&program_id, &app_tag_stake, &user);
 
+        assert_eq!(config.to_string(), "aSsmFCbhZeCtkk6jaqmtUHALDkBeYWkDVbcrEzsLaa5");
         assert_eq!(app.to_string(), "WFFEeYwFZEwqG6u39gmyeVdQpZZ2saJ1NdumT2ibf54");
         assert_eq!(vote_pos.to_string(), "5HyY7dqWi1xLjijrViq1Xm7dSSBfVFf4EwL26kLHGFL5");
-        assert_eq!(app_tag.to_string(), "GEsE2kMC7WCtzLGv67HhqsF7odAJY6Hjn6kcADf5ia9J");
-        assert_eq!(stake_pos.to_string(), "Eqk1F4R5yhNKiHH3DmwUXdHCcvAC72KWXStJTUXGhXgG");
+        assert_eq!(tag.to_string(), "EwCP1sFK2Reuu4RiiwvygBffzCt8rEqxKocHFSTSenCF");
+        assert_eq!(app_tag_stake.to_string(), "Amrp4xm898tGgeeXZ2zKoj2YEdfoRNF1NSFPw51ivLjR");
+        assert_eq!(stake_pos.to_string(), "27N8WYexQynYkqkfP6vjts4ZCAd4KErdDqfEw2t77BcS");
     }
 }

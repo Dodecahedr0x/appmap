@@ -7,11 +7,9 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    anchor_spl::associated_token::{get_associated_token_address, ID as ASSOCIATED_TOKEN_PROGRAM_ID},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    nebulous_world::constants::{
-        APP_SEED, CONFIG_SEED, REWARD_PRECISION, TAGS_REWARD_VAULT_SEED, VOTE_POSITION_SEED,
-        VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
-    },
+    nebulous_world::constants::{APP_SEED, CONFIG_SEED, REWARD_PRECISION, VOTE_POSITION_SEED},
     litesvm::LiteSVM,
     solana_account::Account,
     solana_keypair::Keypair,
@@ -45,34 +43,20 @@ fn set_upgrade_authority(
     program_data_address
 }
 
-struct AppPdas {
+/// PDAs for the single global `Config`/vault plus one registered app — see
+/// the identical struct in `test_vote.rs` for context on why there is only
+/// one vault for the whole program now.
+struct Pdas {
+    config: Pubkey,
+    vault: Pubkey,
     app: Pubkey,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
-}
-
-fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
-    let (app, _) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id);
-    let (vote_vault, _) =
-        Pubkey::find_program_address(&[VOTE_VAULT_SEED, app.as_ref()], program_id);
-    let (vote_reward_vault, _) =
-        Pubkey::find_program_address(&[VOTE_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    let (tags_reward_vault, _) =
-        Pubkey::find_program_address(&[TAGS_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    AppPdas {
-        app,
-        vote_vault,
-        vote_reward_vault,
-        tags_reward_vault,
-    }
 }
 
 /// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
-/// initialized, and a single `AppAccount` (with its three vaults) already
-/// registered via `init_app`. Returns the SVM, the deployer keypair, the
-/// vote mint, and the registered app's PDAs.
-fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
+/// + the single global vault initialized (authority = `deployer`), and a
+/// single `AppAccount` already registered via `init_app`. Returns the SVM,
+/// the deployer keypair, the vote mint, and the relevant PDAs.
+fn setup() -> (LiteSVM, Keypair, Pubkey, Pdas) {
     let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
@@ -104,6 +88,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
 
     let program_data = set_upgrade_authority(&mut svm, &program_id, deployer.pubkey());
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let vault = get_associated_token_address(&config, &vote_mint);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::Initialize {
@@ -112,10 +97,13 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         .data(),
         nebulous_world::accounts::Initialize {
             config,
+            vault,
             authority: deployer.pubkey(),
             vote_mint,
             program: program_id,
             program_data,
+            token_program: TOKEN_PROGRAM_ID,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -127,7 +115,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         .expect("initialize must succeed in test setup");
 
     let app_id = "cid_wvote_test_app_000001".to_string();
-    let pdas = derive_app_pdas(&program_id, &app_id);
+    let (app, _bump) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], &program_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::InitApp {
@@ -135,14 +123,8 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint,
+            app,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -153,13 +135,15 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
     svm.send_transaction(tx)
         .expect("init_app must succeed in test setup");
 
-    (svm, deployer, vote_mint, pdas)
+    (svm, deployer, vote_mint, Pdas { config, vault, app })
 }
 
 /// Directly writes a funded, initialized SPL token account owned by `owner`
 /// for `mint`, holding `amount` tokens — bypassing the token program's
 /// `InitializeAccount`/`MintTo` instructions since we only need the end
-/// state, mirroring how `setup()` above fabricates the mint account.
+/// state, mirroring how `setup()` above fabricates the mint account. Also
+/// used to top up the single global vault directly (owner = `config`),
+/// standing in for a real `fund_app_rewards` call.
 fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pubkey, amount: u64) {
     let token_account = SplTokenAccount {
         mint,
@@ -188,8 +172,8 @@ fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pu
 
 /// Directly overwrites an already-created `AppAccount`'s
 /// `vote_acc_reward_per_share`, so tests can exercise the reward-payout leg
-/// of `withdraw_vote()` (normally only nonzero once `fund_app_rewards`, Task
-/// 15, exists) without needing that instruction. Deserializes the account's
+/// of `withdraw_vote()` (normally only nonzero once `fund_app_rewards` has
+/// been called) without needing that instruction. Deserializes the account's
 /// current data, mutates the one field, and re-serializes it (preserving the
 /// Anchor discriminator via `AccountSerialize`) back over the same account,
 /// keeping its existing lamports/owner.
@@ -207,7 +191,7 @@ fn set_app_vote_accumulator(svm: &mut LiteSVM, app: Pubkey, acc_reward_per_share
 
 fn vote_ix(
     program_id: &Pubkey,
-    pdas: &AppPdas,
+    pdas: &Pdas,
     position: &Pubkey,
     user_token_account: &Pubkey,
     user: &Pubkey,
@@ -219,8 +203,8 @@ fn vote_ix(
         nebulous_world::accounts::Vote {
             app: pdas.app,
             position: *position,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
+            config: pdas.config,
+            vault: pdas.vault,
             user_token_account: *user_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
@@ -232,7 +216,7 @@ fn vote_ix(
 
 fn withdraw_vote_ix(
     program_id: &Pubkey,
-    pdas: &AppPdas,
+    pdas: &Pdas,
     position: &Pubkey,
     user_token_account: &Pubkey,
     user: &Pubkey,
@@ -244,8 +228,8 @@ fn withdraw_vote_ix(
         nebulous_world::accounts::WithdrawVote {
             app: pdas.app,
             position: *position,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
+            config: pdas.config,
+            vault: pdas.vault,
             user_token_account: *user_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
@@ -260,7 +244,7 @@ fn withdraw_vote_ix(
 fn setup_with_position(
     initial_stake: u64,
     wallet_amount: u64,
-) -> (LiteSVM, Pubkey, AppPdas, Keypair, Pubkey, Pubkey, Pubkey) {
+) -> (LiteSVM, Pubkey, Pdas, Keypair, Pubkey, Pubkey, Pubkey) {
     let program_id = nebulous_world::id();
     let (mut svm, _deployer, vote_mint, pdas) = setup();
 
@@ -355,7 +339,7 @@ fn test_withdraw_vote_full_withdrawal_returns_principal_and_zeroes_position() {
     let app_account = fetch_app(&svm, pdas.app);
     assert_eq!(app_account.total_vote_stake, 0);
 
-    assert_eq!(fetch_token_amount(&svm, pdas.vote_vault), 0);
+    assert_eq!(fetch_token_amount(&svm, pdas.vault), 0);
     assert_eq!(fetch_token_amount(&svm, user_token_account), wallet_amount);
 }
 
@@ -391,7 +375,7 @@ fn test_withdraw_vote_partial_withdrawal_leaves_remaining_stake() {
     );
 
     assert_eq!(
-        fetch_token_amount(&svm, pdas.vote_vault),
+        fetch_token_amount(&svm, pdas.vault),
         initial_stake - withdraw_amount
     );
     assert_eq!(
@@ -449,20 +433,20 @@ fn test_withdraw_vote_rejects_amount_exceeding_stake() {
     // Nothing moved: the position and vault are untouched.
     let position_account = fetch_position(&svm, position);
     assert_eq!(position_account.amount, initial_stake);
-    assert_eq!(fetch_token_amount(&svm, pdas.vote_vault), initial_stake);
+    assert_eq!(fetch_token_amount(&svm, pdas.vault), initial_stake);
 }
 
 /// Exercises the reward-payout CPI leg of `withdraw_vote()` end-to-end on a
 /// PARTIAL withdrawal (not just a full one) — the highest-risk path (the
-/// `app` PDA signing two separate transfers out of two separate vaults in
-/// the same instruction: `vote_reward_vault` for the pending reward, then
-/// `vote_vault` for the returned principal). Mirrors
-/// `test_vote_pays_out_pending_reward_on_second_vote` in `test_vote.rs`:
-/// manually bumps the app's accumulator (standing in for `fund_app_rewards`,
-/// Task 15, which doesn't exist yet) and pre-funds `vote_reward_vault`, then
-/// withdraws part of the stake and asserts both the pending reward AND the
-/// principal actually land in the user's wallet, with the position's
-/// `reward_debt` re-checkpointed against the new (smaller) remaining amount.
+/// `config` PDA signing two separate transfers out of the single global
+/// vault in the same instruction: the pending reward, then the returned
+/// principal). Mirrors `test_vote_pays_out_pending_reward_on_second_vote` in
+/// `test_vote.rs`: manually bumps the app's accumulator (standing in for
+/// `fund_app_rewards`) and tops up the vault with extra "reward" balance on
+/// top of the principal it already holds, then withdraws part of the stake
+/// and asserts both the pending reward AND the principal actually land in
+/// the user's wallet, with the position's `reward_debt` re-checkpointed
+/// against the new (smaller) remaining amount.
 #[test]
 fn test_withdraw_vote_pays_out_pending_reward_on_partial_withdrawal() {
     let initial_stake = 1_000u64;
@@ -470,17 +454,19 @@ fn test_withdraw_vote_pays_out_pending_reward_on_partial_withdrawal() {
     let (mut svm, program_id, pdas, user, user_token_account, position, vote_mint) =
         setup_with_position(initial_stake, wallet_amount);
 
-    // Stand in for `fund_app_rewards` (Task 15): bump the accumulator to 1
-    // reward token per staked token, and pre-fund the reward vault so the
-    // payout CPI has something to actually transfer.
+    // Stand in for `fund_app_rewards`: bump the accumulator to 1 reward
+    // token per staked token, and top up the vault (which already holds
+    // `initial_stake` in principal) with extra balance so the payout CPI has
+    // something to actually transfer.
     let acc_reward_per_share = REWARD_PRECISION; // 1.0 reward token per staked token
     set_app_vote_accumulator(&mut svm, pdas.app, acc_reward_per_share);
+    let reward_topup = 50_000u64;
     fund_token_account(
         &mut svm,
-        pdas.vote_reward_vault,
+        pdas.vault,
         vote_mint,
-        pdas.app,
-        50_000,
+        pdas.config,
+        initial_stake + reward_topup,
     );
 
     let withdraw_amount = 400u64;
@@ -517,6 +503,10 @@ fn test_withdraw_vote_pays_out_pending_reward_on_partial_withdrawal() {
         wallet_amount - initial_stake + withdraw_amount + expected_pending
     );
 
-    // The principal vault only lost `withdraw_amount`.
-    assert_eq!(fetch_token_amount(&svm, pdas.vote_vault), remaining);
+    // The single global vault: held (initial_stake + reward_topup) before
+    // this instruction, paid out `expected_pending` and `withdraw_amount`.
+    assert_eq!(
+        fetch_token_amount(&svm, pdas.vault),
+        initial_stake + reward_topup - expected_pending - withdraw_amount
+    );
 }

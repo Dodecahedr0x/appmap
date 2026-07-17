@@ -26,6 +26,7 @@ chrono = { version = "0.4.45", features = ["serde"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.11"
 log = "0.4.33"
+nebulous_world = { path = "../programs/nebulous_world" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"

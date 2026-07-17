@@ -9,8 +9,9 @@ import { apiPost, signAndSubmit } from "@/lib/txClient";
 /**
  * Stake/withdraw a tag position against the real Anchor program. Mirrors
  * useVoteProgram, but keyed by (appId, tagSlug) instead of just appId — the
- * on-chain AppTagAccount PDA uses the tag's slug as its seed (see
- * constants.rs's MAX_TAG_ID_LEN note).
+ * tag itself is a global on-chain `Tag` PDA seeded only by the tag slug, and
+ * the per-app stake accounting lives on a separate `AppTagStake` PDA keyed
+ * by (app, tag) (see constants.rs's MAX_TAG_ID_LEN note).
  */
 export function useTagStakeProgram() {
   const wallet = useWallet();

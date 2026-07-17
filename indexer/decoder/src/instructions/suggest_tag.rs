@@ -16,12 +16,9 @@ pub struct SuggestTag {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SuggestTagInstructionAccounts {
     pub app: solana_pubkey::Pubkey,
-    pub app_tag: solana_pubkey::Pubkey,
-    pub config: solana_pubkey::Pubkey,
-    pub principal_vault: solana_pubkey::Pubkey,
-    pub vote_mint: solana_pubkey::Pubkey,
+    pub tag: solana_pubkey::Pubkey,
+    pub app_tag_stake: solana_pubkey::Pubkey,
     pub payer: solana_pubkey::Pubkey,
-    pub token_program: solana_pubkey::Pubkey,
     pub system_program: solana_pubkey::Pubkey,
     pub remaining: Vec<solana_instruction::AccountMeta>,
 }
@@ -53,24 +50,18 @@ impl ArrangeAccounts for SuggestTag {
         let mut iter = accounts.iter();
 
         let app = next_account(&mut iter)?;
-        let app_tag = next_account(&mut iter)?;
-        let config = next_account(&mut iter)?;
-        let principal_vault = next_account(&mut iter)?;
-        let vote_mint = next_account(&mut iter)?;
+        let tag = next_account(&mut iter)?;
+        let app_tag_stake = next_account(&mut iter)?;
         let payer = next_account(&mut iter)?;
-        let token_program = next_account(&mut iter)?;
         let system_program = next_account(&mut iter)?;
 
         let remaining = iter.as_slice();
 
         Some(SuggestTagInstructionAccounts {
             app,
-            app_tag,
-            config,
-            principal_vault,
-            vote_mint,
+            tag,
+            app_tag_stake,
             payer,
-            token_program,
             system_program,
             remaining: remaining.to_vec(),
         })

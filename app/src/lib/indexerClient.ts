@@ -61,9 +61,6 @@ async function getOrNull(path: string): Promise<unknown | null> {
 export interface AppAccountData {
   pda: string;
   appId: string;
-  voteVault: string;
-  voteRewardVault: string;
-  tagsRewardVault: string;
   totalVoteStake: string;
   voteAccRewardPerShare: string;
   totalTagStake: string;
@@ -71,11 +68,11 @@ export interface AppAccountData {
   bump: number;
 }
 
-export interface AppTagAccountData {
+export interface AppTagStakeData {
   pda: string;
   app: string;
+  tag: string;
   tagId: string;
-  principalVault: string;
   stakeAmount: string;
   bump: number;
 }
@@ -92,13 +89,13 @@ export async function fetchAppAccount(appId: string): Promise<AppAccountData | n
   return (await getOrNull(`/accounts/app/${encodeURIComponent(appId)}`)) as AppAccountData | null;
 }
 
-export async function fetchAppTagAccount(
+export async function fetchAppTagStake(
   appId: string,
   tagSlug: string,
-): Promise<AppTagAccountData | null> {
+): Promise<AppTagStakeData | null> {
   return (await getOrNull(
     `/accounts/app-tag/${encodeURIComponent(appId)}/${encodeURIComponent(tagSlug)}`,
-  )) as AppTagAccountData | null;
+  )) as AppTagStakeData | null;
 }
 
 export async function fetchVotePosition(

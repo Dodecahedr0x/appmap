@@ -16,7 +16,7 @@
 use solana_pubkey::Pubkey;
 pub struct NebulousWorldDecoder;
 pub const PROGRAM_ID: Pubkey =
-    solana_pubkey::Pubkey::from_str_const("EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx");
+    solana_pubkey::Pubkey::from_str_const("7AAwB8aHgmuz9yzYdo6gKjZRx5KkjePYHyuJEmrcRXgX");
 
 pub mod accounts;
 pub mod instructions;

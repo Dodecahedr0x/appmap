@@ -10,9 +10,10 @@ use std::sync::Arc;
 fn account_type_name(account: &NebulousWorldAccount) -> &'static str {
     match account {
         NebulousWorldAccount::AppAccount(_) => "AppAccount",
-        NebulousWorldAccount::AppTagAccount(_) => "AppTagAccount",
+        NebulousWorldAccount::AppTagStake(_) => "AppTagStake",
         NebulousWorldAccount::Config(_) => "Config",
         NebulousWorldAccount::StakePosition(_) => "StakePosition",
+        NebulousWorldAccount::Tag(_) => "Tag",
         NebulousWorldAccount::VotePosition(_) => "VotePosition",
     }
 }

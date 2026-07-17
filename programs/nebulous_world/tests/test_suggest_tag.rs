@@ -1,197 +1,78 @@
 use {
-    anchor_lang::solana_program::{
-        bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-        program_option::COption,
-        program_pack::Pack,
-        pubkey::Pubkey,
-        system_program,
-    },
+    anchor_lang::solana_program::{pubkey::Pubkey, system_program},
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
-    anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    nebulous_world::constants::{
-        APP_SEED, CONFIG_SEED, TAGS_REWARD_VAULT_SEED, TAG_SEED, TAG_VAULT_SEED,
-        VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
-    },
+    nebulous_world::constants::{APP_SEED, APP_TAG_STAKE_SEED, TAG_SEED},
     litesvm::LiteSVM,
-    solana_account::Account,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
     solana_signer::Signer,
     solana_transaction::versioned::VersionedTransaction,
-    spl_token_interface::state::{Account as SplTokenAccount, Mint},
 };
 
-/// See `test_init_app.rs` for context: overwrites the nebulous_world program's
-/// `ProgramData` account so `upgrade_authority` is its recorded upgrade
-/// authority, which is required to call `initialize`.
-fn set_upgrade_authority(
-    svm: &mut LiteSVM,
-    program_id: &Pubkey,
-    upgrade_authority: Pubkey,
-) -> Pubkey {
-    let program_data_address = bpf_loader_upgradeable::get_program_data_address(program_id);
-    let mut account = svm
-        .get_account(&program_data_address)
-        .expect("programdata account must exist (call after add_program)");
-
-    let header = bincode::serialize(&UpgradeableLoaderState::ProgramData {
-        slot: 0,
-        upgrade_authority_address: Some(upgrade_authority),
-    })
-    .unwrap();
-    account.data[..header.len()].copy_from_slice(&header);
-
-    svm.set_account(program_data_address, account).unwrap();
-    program_data_address
-}
-
-/// Bundles the handful of pubkeys every helper in this file needs (the
-/// program id, the `Config` PDA, and the configured vote mint), so helper
-/// functions take one `&Env` instead of three separate `&Pubkey` params.
-struct Env {
-    program_id: Pubkey,
-    config: Pubkey,
-    vote_mint: Pubkey,
-}
-
-/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, a funded
-/// deployer/payer, and a fake SPL mint account, then initializes `Config`.
-fn setup() -> (LiteSVM, Keypair, Env) {
+/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded
+/// and a funded deployer/payer. Neither `init_app` nor `suggest_tag`
+/// reference `Config`/a vote mint/any vault at all (see `init_app.rs` and
+/// `suggest_tag.rs`), so unlike `test_init_app.rs`'s `setup()` this one
+/// skips `initialize()` entirely — spinning up a fake mint and an
+/// upgrade-authority-gated `initialize` call here would be unused overhead.
+fn setup() -> (LiteSVM, Keypair, Pubkey) {
     let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
     let bytes = include_bytes!("../../../target/deploy/nebulous_world.so");
     svm.add_program(program_id, bytes).unwrap();
     svm.airdrop(&deployer.pubkey(), 1_000_000_000).unwrap();
+    (svm, deployer, program_id)
+}
 
-    let vote_mint = Pubkey::new_unique();
-    let mint = Mint {
-        mint_authority: COption::Some(deployer.pubkey()),
-        supply: 0,
-        decimals: 6,
-        is_initialized: true,
-        freeze_authority: COption::None,
-    };
-    let mut mint_data = vec![0u8; Mint::LEN];
-    Mint::pack(mint, &mut mint_data).unwrap();
-    svm.set_account(
-        vote_mint,
-        Account {
-            lamports: svm.minimum_balance_for_rent_exemption(Mint::LEN),
-            data: mint_data,
-            owner: spl_token_interface::ID,
-            executable: false,
-            rent_epoch: 0,
-        },
-    )
-    .unwrap();
+fn derive_app(program_id: &Pubkey, app_id: &str) -> Pubkey {
+    Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id).0
+}
 
-    let program_data = set_upgrade_authority(&mut svm, &program_id, deployer.pubkey());
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
-    let initialize_ix = Instruction::new_with_bytes(
+/// The GLOBAL `Tag` PDA: seeded ONLY by `tag_id`, with no `app` in the
+/// derivation — every app that suggests the same `tag_id` string resolves
+/// to this exact same address.
+fn derive_tag(program_id: &Pubkey, tag_id: &str) -> Pubkey {
+    Pubkey::find_program_address(&[TAG_SEED, tag_id.as_bytes()], program_id).0
+}
+
+/// The per-(app, tag) stake-accounting PDA: seeded by `app.key()` and
+/// `tag.key()` (the `Tag` account's pubkey, not the raw `tag_id` string).
+fn derive_app_tag_stake(program_id: &Pubkey, app: &Pubkey, tag: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[APP_TAG_STAKE_SEED, app.as_ref(), tag.as_ref()],
         program_id,
-        &nebulous_world::instruction::Initialize {
-            protocol_fee_bps: 250,
-        }
-        .data(),
-        nebulous_world::accounts::Initialize {
-            config,
-            authority: deployer.pubkey(),
-            vote_mint,
-            program: program_id,
-            program_data,
-            system_program: system_program::ID,
-        }
-        .to_account_metas(None),
-    );
-    let blockhash = svm.latest_blockhash();
-    let msg = Message::new_with_blockhash(&[initialize_ix], Some(&deployer.pubkey()), &blockhash);
-    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&deployer]).unwrap();
-    svm.send_transaction(tx)
-        .expect("initialize must succeed in test setup");
-
-    (
-        svm,
-        deployer,
-        Env {
-            program_id,
-            config,
-            vote_mint,
-        },
     )
+    .0
 }
 
-struct AppPdas {
-    app: Pubkey,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
-}
-
-fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
-    let (app, _) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id);
-    let (vote_vault, _) =
-        Pubkey::find_program_address(&[VOTE_VAULT_SEED, app.as_ref()], program_id);
-    let (vote_reward_vault, _) =
-        Pubkey::find_program_address(&[VOTE_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    let (tags_reward_vault, _) =
-        Pubkey::find_program_address(&[TAGS_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    AppPdas {
-        app,
-        vote_vault,
-        vote_reward_vault,
-        tags_reward_vault,
-    }
-}
-
-fn init_app_ix(env: &Env, payer: &Pubkey, app_id: &str, pdas: &AppPdas) -> Instruction {
+fn init_app_ix(program_id: &Pubkey, payer: &Pubkey, app_id: &str, app: &Pubkey) -> Instruction {
     Instruction::new_with_bytes(
-        env.program_id,
+        *program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config: env.config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint: env.vote_mint,
+            app: *app,
             payer: *payer,
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
     )
 }
 
-struct TagPdas {
-    app_tag: Pubkey,
-    principal_vault: Pubkey,
-}
-
-fn derive_tag_pdas(program_id: &Pubkey, app: &Pubkey, tag_id: &str) -> TagPdas {
-    let (app_tag, _) =
-        Pubkey::find_program_address(&[TAG_SEED, app.as_ref(), tag_id.as_bytes()], program_id);
-    let (principal_vault, _) =
-        Pubkey::find_program_address(&[TAG_VAULT_SEED, app_tag.as_ref()], program_id);
-    TagPdas {
-        app_tag,
-        principal_vault,
-    }
-}
-
 fn suggest_tag_ix(
-    env: &Env,
+    program_id: &Pubkey,
     payer: &Pubkey,
     app: &Pubkey,
     app_id: &str,
+    tag: &Pubkey,
     tag_id: &str,
-    tag_pdas: &TagPdas,
+    app_tag_stake: &Pubkey,
 ) -> Instruction {
     Instruction::new_with_bytes(
-        env.program_id,
+        *program_id,
         &nebulous_world::instruction::SuggestTag {
             app_id: app_id.to_string(),
             tag_id: tag_id.to_string(),
@@ -199,12 +80,9 @@ fn suggest_tag_ix(
         .data(),
         nebulous_world::accounts::SuggestTag {
             app: *app,
-            app_tag: tag_pdas.app_tag,
-            config: env.config,
-            principal_vault: tag_pdas.principal_vault,
-            vote_mint: env.vote_mint,
+            tag: *tag,
+            app_tag_stake: *app_tag_stake,
             payer: *payer,
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -225,73 +103,72 @@ fn send(
     svm.send_transaction(tx).map(|_| ()).map_err(Box::new)
 }
 
-fn register_app(svm: &mut LiteSVM, env: &Env, payer: &Keypair, app_id: &str) -> AppPdas {
-    let pdas = derive_app_pdas(&env.program_id, app_id);
-    let ix = init_app_ix(env, &payer.pubkey(), app_id, &pdas);
+fn register_app(svm: &mut LiteSVM, program_id: &Pubkey, payer: &Keypair, app_id: &str) -> Pubkey {
+    let app = derive_app(program_id, app_id);
+    let ix = init_app_ix(program_id, &payer.pubkey(), app_id, &app);
     send(svm, payer, ix).expect("init_app must succeed in test setup");
-    pdas
+    app
 }
 
 #[test]
 fn test_suggest_tag_happy_path() {
-    let (mut svm, deployer, env) = setup();
+    let (mut svm, deployer, program_id) = setup();
 
     let app_id = "cid_test_app_0000000001".to_string();
-    let app_pdas = register_app(&mut svm, &env, &deployer, &app_id);
+    let app = register_app(&mut svm, &program_id, &deployer, &app_id);
 
     let tag_id = "defi".to_string();
-    let tag_pdas = derive_tag_pdas(&env.program_id, &app_pdas.app, &tag_id);
+    let tag = derive_tag(&program_id, &tag_id);
+    let app_tag_stake = derive_app_tag_stake(&program_id, &app, &tag);
     let ix = suggest_tag_ix(
-        &env,
+        &program_id,
         &deployer.pubkey(),
-        &app_pdas.app,
+        &app,
         &app_id,
+        &tag,
         &tag_id,
-        &tag_pdas,
+        &app_tag_stake,
     );
     let res = send(&mut svm, &deployer, ix);
     assert!(res.is_ok(), "suggest_tag failed: {:?}", res);
 
-    let raw = svm
-        .get_account(&tag_pdas.app_tag)
-        .expect("app_tag account must exist");
-    let app_tag: nebulous_world::AppTagAccount =
-        anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap();
-    assert_eq!(app_tag.app, app_pdas.app);
-    assert_eq!(app_tag.tag_id, tag_id);
-    assert_eq!(app_tag.principal_vault, tag_pdas.principal_vault);
-    assert_eq!(app_tag.stake_amount, 0);
+    let tag_raw = svm.get_account(&tag).expect("tag account must exist");
+    let tag_account: nebulous_world::Tag =
+        anchor_lang::AccountDeserialize::try_deserialize(&mut tag_raw.data.as_slice()).unwrap();
+    assert_eq!(tag_account.tag_id, tag_id);
 
-    let vault_raw = svm
-        .get_account(&tag_pdas.principal_vault)
-        .expect("principal_vault must exist");
-    assert_eq!(vault_raw.owner, TOKEN_PROGRAM_ID);
-    let token_account = SplTokenAccount::unpack(&vault_raw.data).unwrap();
-    assert_eq!(token_account.mint, env.vote_mint);
-    assert_eq!(token_account.owner, tag_pdas.app_tag);
-    assert_eq!(token_account.amount, 0);
+    let stake_raw = svm
+        .get_account(&app_tag_stake)
+        .expect("app_tag_stake account must exist");
+    let stake_account: nebulous_world::AppTagStake =
+        anchor_lang::AccountDeserialize::try_deserialize(&mut stake_raw.data.as_slice()).unwrap();
+    assert_eq!(stake_account.app, app);
+    assert_eq!(stake_account.tag, tag);
+    assert_eq!(stake_account.stake_amount, 0);
 }
 
 #[test]
 fn test_suggest_tag_is_permissionless() {
-    let (mut svm, deployer, env) = setup();
+    let (mut svm, deployer, program_id) = setup();
 
     let app_id = "cid_test_app_0000000002".to_string();
-    let app_pdas = register_app(&mut svm, &env, &deployer, &app_id);
+    let app = register_app(&mut svm, &program_id, &deployer, &app_id);
 
     // A stranger (not the deployer/upgrade authority) can suggest a tag.
     let stranger = Keypair::new();
     svm.airdrop(&stranger.pubkey(), 1_000_000_000).unwrap();
 
     let tag_id = "gaming".to_string();
-    let tag_pdas = derive_tag_pdas(&env.program_id, &app_pdas.app, &tag_id);
+    let tag = derive_tag(&program_id, &tag_id);
+    let app_tag_stake = derive_app_tag_stake(&program_id, &app, &tag);
     let ix = suggest_tag_ix(
-        &env,
+        &program_id,
         &stranger.pubkey(),
-        &app_pdas.app,
+        &app,
         &app_id,
+        &tag,
         &tag_id,
-        &tag_pdas,
+        &app_tag_stake,
     );
     let res = send(&mut svm, &stranger, ix);
     assert!(
@@ -303,33 +180,37 @@ fn test_suggest_tag_is_permissionless() {
 
 #[test]
 fn test_suggest_tag_rejects_duplicate_tag_for_same_app() {
-    let (mut svm, deployer, env) = setup();
+    let (mut svm, deployer, program_id) = setup();
 
     let app_id = "cid_test_app_0000000003".to_string();
-    let app_pdas = register_app(&mut svm, &env, &deployer, &app_id);
+    let app = register_app(&mut svm, &program_id, &deployer, &app_id);
 
     let tag_id = "defi".to_string();
-    let tag_pdas = derive_tag_pdas(&env.program_id, &app_pdas.app, &tag_id);
+    let tag = derive_tag(&program_id, &tag_id);
+    let app_tag_stake = derive_app_tag_stake(&program_id, &app, &tag);
     let ix1 = suggest_tag_ix(
-        &env,
+        &program_id,
         &deployer.pubkey(),
-        &app_pdas.app,
+        &app,
         &app_id,
+        &tag,
         &tag_id,
-        &tag_pdas,
+        &app_tag_stake,
     );
     send(&mut svm, &deployer, ix1).expect("first suggest_tag must succeed");
 
     // Suggesting the exact same (app, tag_id) pair again must fail cleanly —
-    // Anchor's `init` constraint on `app_tag` requires the account not
-    // already exist.
+    // Anchor's plain `init` constraint on `app_tag_stake` requires the
+    // account not already exist. (`tag` itself is `init_if_needed` and would
+    // happily be reused; it's `app_tag_stake` that blocks the duplicate.)
     let ix2 = suggest_tag_ix(
-        &env,
+        &program_id,
         &deployer.pubkey(),
-        &app_pdas.app,
+        &app,
         &app_id,
+        &tag,
         &tag_id,
-        &tag_pdas,
+        &app_tag_stake,
     );
     let res = send(&mut svm, &deployer, ix2);
     assert!(
@@ -340,10 +221,10 @@ fn test_suggest_tag_rejects_duplicate_tag_for_same_app() {
 
 #[test]
 fn test_suggest_tag_rejects_tag_id_over_32_bytes() {
-    let (mut svm, deployer, env) = setup();
+    let (mut svm, deployer, program_id) = setup();
 
     let app_id = "cid_test_app_0000000004".to_string();
-    let app_pdas = register_app(&mut svm, &env, &deployer, &app_id);
+    let app = register_app(&mut svm, &program_id, &deployer, &app_id);
 
     // 33 bytes exceeds Solana's 32-byte-per-seed limit — mirrors
     // `test_init_app.rs`'s oversized app_id test. We can't derive the "real"
@@ -351,17 +232,16 @@ fn test_suggest_tag_rejects_tag_id_over_32_bytes() {
     // pubkeys in those slots; the program's own seed derivation during
     // account resolution panics on the oversized seed regardless.
     let tag_id = "a".repeat(33);
-    let tag_pdas = TagPdas {
-        app_tag: Pubkey::new_unique(),
-        principal_vault: Pubkey::new_unique(),
-    };
+    let tag = Pubkey::new_unique();
+    let app_tag_stake = Pubkey::new_unique();
     let ix = suggest_tag_ix(
-        &env,
+        &program_id,
         &deployer.pubkey(),
-        &app_pdas.app,
+        &app,
         &app_id,
+        &tag,
         &tag_id,
-        &tag_pdas,
+        &app_tag_stake,
     );
     let res = send(&mut svm, &deployer, ix);
     assert!(
@@ -370,55 +250,81 @@ fn test_suggest_tag_rejects_tag_id_over_32_bytes() {
     );
 }
 
+/// The core new behavior of the two-account split: the SAME `tag_id` string
+/// suggested by two DIFFERENT apps now resolves to the exact SAME global
+/// `Tag` account (since its seeds are `[TAG_SEED, tag_id]`, with no `app`),
+/// while each app still gets its OWN `app_tag_stake` account (since those
+/// seeds include `app.key()`). This replaces the old (pre-refactor)
+/// `..._no_collision` test, which asserted the opposite — that the two apps'
+/// tag accounts were different — back when `AppTagAccount` was seeded by
+/// both `app` and `tag_id` together.
 #[test]
-fn test_suggest_tag_same_tag_id_different_apps_no_collision() {
-    let (mut svm, deployer, env) = setup();
+fn test_suggest_tag_same_tag_id_shared_across_apps() {
+    let (mut svm, deployer, program_id) = setup();
 
     let app_id_a = "cid_test_app_aaaaaaaaaaa".to_string();
     let app_id_b = "cid_test_app_bbbbbbbbbbb".to_string();
-    let app_pdas_a = register_app(&mut svm, &env, &deployer, &app_id_a);
-    let app_pdas_b = register_app(&mut svm, &env, &deployer, &app_id_b);
-    assert_ne!(app_pdas_a.app, app_pdas_b.app);
+    let app_a = register_app(&mut svm, &program_id, &deployer, &app_id_a);
+    let app_b = register_app(&mut svm, &program_id, &deployer, &app_id_b);
+    assert_ne!(app_a, app_b);
 
-    // The SAME tag_id string suggested for two DIFFERENT apps must not
-    // collide, since the `app_tag` PDA's seeds include `app.key()`.
     let tag_id = "defi".to_string();
-    let tag_pdas_a = derive_tag_pdas(&env.program_id, &app_pdas_a.app, &tag_id);
-    let tag_pdas_b = derive_tag_pdas(&env.program_id, &app_pdas_b.app, &tag_id);
-    assert_ne!(tag_pdas_a.app_tag, tag_pdas_b.app_tag);
+    let tag_a = derive_tag(&program_id, &tag_id);
+    let tag_b = derive_tag(&program_id, &tag_id);
+    // Same tag_id -> same global Tag PDA, regardless of which app suggests it.
+    assert_eq!(tag_a, tag_b);
+    let tag = tag_a;
+
+    let app_tag_stake_a = derive_app_tag_stake(&program_id, &app_a, &tag);
+    let app_tag_stake_b = derive_app_tag_stake(&program_id, &app_b, &tag);
+    // But the per-(app, tag) stake-accounting PDAs differ, since their seeds
+    // include `app.key()`.
+    assert_ne!(app_tag_stake_a, app_tag_stake_b);
 
     let ix_a = suggest_tag_ix(
-        &env,
+        &program_id,
         &deployer.pubkey(),
-        &app_pdas_a.app,
+        &app_a,
         &app_id_a,
+        &tag,
         &tag_id,
-        &tag_pdas_a,
+        &app_tag_stake_a,
     );
     let res_a = send(&mut svm, &deployer, ix_a);
     assert!(res_a.is_ok(), "suggest_tag for app A failed: {:?}", res_a);
 
     let ix_b = suggest_tag_ix(
-        &env,
+        &program_id,
         &deployer.pubkey(),
-        &app_pdas_b.app,
+        &app_b,
         &app_id_b,
+        &tag,
         &tag_id,
-        &tag_pdas_b,
+        &app_tag_stake_b,
     );
     let res_b = send(&mut svm, &deployer, ix_b);
     assert!(res_b.is_ok(), "suggest_tag for app B failed: {:?}", res_b);
 
-    let raw_a = svm.get_account(&tag_pdas_a.app_tag).unwrap();
-    let app_tag_a: nebulous_world::AppTagAccount =
-        anchor_lang::AccountDeserialize::try_deserialize(&mut raw_a.data.as_slice()).unwrap();
-    let raw_b = svm.get_account(&tag_pdas_b.app_tag).unwrap();
-    let app_tag_b: nebulous_world::AppTagAccount =
-        anchor_lang::AccountDeserialize::try_deserialize(&mut raw_b.data.as_slice()).unwrap();
+    // Exactly one `Tag` account was ever created (app B's suggestion reused
+    // it via `init_if_needed`), and both apps' `app_tag_stake` accounts
+    // point at that identical `Tag` pubkey.
+    let tag_raw = svm.get_account(&tag).unwrap();
+    let tag_account: nebulous_world::Tag =
+        anchor_lang::AccountDeserialize::try_deserialize(&mut tag_raw.data.as_slice()).unwrap();
+    assert_eq!(tag_account.tag_id, tag_id);
 
-    assert_eq!(app_tag_a.app, app_pdas_a.app);
-    assert_eq!(app_tag_b.app, app_pdas_b.app);
-    assert_eq!(app_tag_a.tag_id, tag_id);
-    assert_eq!(app_tag_b.tag_id, tag_id);
-    assert_ne!(app_tag_a.principal_vault, app_tag_b.principal_vault);
+    let stake_raw_a = svm.get_account(&app_tag_stake_a).unwrap();
+    let stake_a: nebulous_world::AppTagStake =
+        anchor_lang::AccountDeserialize::try_deserialize(&mut stake_raw_a.data.as_slice())
+            .unwrap();
+    let stake_raw_b = svm.get_account(&app_tag_stake_b).unwrap();
+    let stake_b: nebulous_world::AppTagStake =
+        anchor_lang::AccountDeserialize::try_deserialize(&mut stake_raw_b.data.as_slice())
+            .unwrap();
+
+    assert_eq!(stake_a.app, app_a);
+    assert_eq!(stake_b.app, app_b);
+    assert_eq!(stake_a.tag, tag);
+    assert_eq!(stake_b.tag, tag);
+    assert_ne!(stake_a.app, stake_b.app);
 }

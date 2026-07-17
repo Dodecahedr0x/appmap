@@ -7,17 +7,16 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    anchor_spl::associated_token::{get_associated_token_address, ID as ASSOCIATED_TOKEN_PROGRAM_ID},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    nebulous_world::constants::{
-        APP_SEED, CONFIG_SEED, TAGS_REWARD_VAULT_SEED, VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
-    },
+    nebulous_world::constants::{APP_SEED, CONFIG_SEED},
     litesvm::LiteSVM,
     solana_account::Account,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
     solana_signer::Signer,
     solana_transaction::versioned::VersionedTransaction,
-    spl_token_interface::state::{Account as SplTokenAccount, Mint},
+    spl_token_interface::state::Mint,
 };
 
 /// See `test_initialize.rs` for context: overwrites the nebulous_world program's
@@ -47,9 +46,9 @@ fn set_upgrade_authority(
 
 /// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, a funded
 /// deployer/payer, and a fake SPL mint account. Then initializes `Config`
-/// (seeds = [CONFIG_SEED]) so `init_app` has a singleton to read
-/// `vote_mint` from. Returns the SVM, the deployer keypair (the program's
-/// upgrade authority), and the vote mint pubkey.
+/// (seeds = [CONFIG_SEED]) and the single global vault so `init_app` has a
+/// singleton to read `vote_mint` from. Returns the SVM, the deployer keypair
+/// (the program's upgrade authority), and the vote mint pubkey.
 fn setup() -> (LiteSVM, Keypair, Pubkey) {
     let program_id = nebulous_world::id();
     let deployer = Keypair::new();
@@ -82,6 +81,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey) {
 
     let program_data = set_upgrade_authority(&mut svm, &program_id, deployer.pubkey());
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let vault = get_associated_token_address(&config, &vote_mint);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::Initialize {
@@ -90,10 +90,13 @@ fn setup() -> (LiteSVM, Keypair, Pubkey) {
         .data(),
         nebulous_world::accounts::Initialize {
             config,
+            vault,
             authority: deployer.pubkey(),
             vote_mint,
             program: program_id,
             program_data,
+            token_program: TOKEN_PROGRAM_ID,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -107,37 +110,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey) {
     (svm, deployer, vote_mint)
 }
 
-struct AppPdas {
-    app: Pubkey,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
-}
-
-fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
-    let (app, _) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id);
-    let (vote_vault, _) =
-        Pubkey::find_program_address(&[VOTE_VAULT_SEED, app.as_ref()], program_id);
-    let (vote_reward_vault, _) =
-        Pubkey::find_program_address(&[VOTE_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    let (tags_reward_vault, _) =
-        Pubkey::find_program_address(&[TAGS_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    AppPdas {
-        app,
-        vote_vault,
-        vote_reward_vault,
-        tags_reward_vault,
-    }
-}
-
-fn init_app_ix(
-    program_id: &Pubkey,
-    config: &Pubkey,
-    vote_mint: &Pubkey,
-    payer: &Pubkey,
-    app_id: &str,
-    pdas: &AppPdas,
-) -> Instruction {
+fn init_app_ix(program_id: &Pubkey, payer: &Pubkey, app_id: &str, app: &Pubkey) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
         &nebulous_world::instruction::InitApp {
@@ -145,14 +118,8 @@ fn init_app_ix(
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config: *config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint: *vote_mint,
+            app: *app,
             payer: *payer,
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -162,8 +129,7 @@ fn init_app_ix(
 #[test]
 fn test_init_app() {
     let program_id = nebulous_world::id();
-    let (mut svm, deployer, vote_mint) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let (mut svm, deployer, _vote_mint) = setup();
 
     // Registering an app is permissionless: use a payer that is *not* the
     // program's upgrade authority (unlike `initialize`, which requires it),
@@ -172,15 +138,8 @@ fn test_init_app() {
     svm.airdrop(&stranger.pubkey(), 1_000_000_000).unwrap();
 
     let app_id = "cid_test_app_0000000001".to_string();
-    let pdas = derive_app_pdas(&program_id, &app_id);
-    let instruction = init_app_ix(
-        &program_id,
-        &config,
-        &vote_mint,
-        &stranger.pubkey(),
-        &app_id,
-        &pdas,
-    );
+    let (app, _bump) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], &program_id);
+    let instruction = init_app_ix(&program_id, &stranger.pubkey(), &app_id, &app);
 
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[instruction], Some(&stranger.pubkey()), &blockhash);
@@ -189,35 +148,17 @@ fn test_init_app() {
     let res = svm.send_transaction(tx);
     assert!(res.is_ok(), "transaction failed: {:?}", res);
 
-    // The `AppAccount` was created with zeroed counters and the right vault
-    // pubkeys.
-    let app_account_raw = svm.get_account(&pdas.app).expect("app account must exist");
+    // The `AppAccount` was created with zeroed counters and no vault
+    // pubkeys of its own — every app shares the single global vault.
+    let app_account_raw = svm.get_account(&app).expect("app account must exist");
     let app_account: nebulous_world::AppAccount =
         anchor_lang::AccountDeserialize::try_deserialize(&mut app_account_raw.data.as_slice())
             .unwrap();
     assert_eq!(app_account.app_id, app_id);
-    assert_eq!(app_account.vote_vault, pdas.vote_vault);
-    assert_eq!(app_account.vote_reward_vault, pdas.vote_reward_vault);
-    assert_eq!(app_account.tags_reward_vault, pdas.tags_reward_vault);
     assert_eq!(app_account.total_vote_stake, 0);
     assert_eq!(app_account.vote_acc_reward_per_share, 0);
     assert_eq!(app_account.total_tag_stake, 0);
     assert_eq!(app_account.tags_acc_reward_per_share, 0);
-
-    // All three vaults exist, are owned (as SPL token accounts) by the
-    // `app` PDA, and hold the configured vote mint.
-    for vault in [
-        pdas.vote_vault,
-        pdas.vote_reward_vault,
-        pdas.tags_reward_vault,
-    ] {
-        let raw = svm.get_account(&vault).expect("vault account must exist");
-        assert_eq!(raw.owner, TOKEN_PROGRAM_ID);
-        let token_account = SplTokenAccount::unpack(&raw.data).unwrap();
-        assert_eq!(token_account.mint, vote_mint);
-        assert_eq!(token_account.owner, pdas.app);
-        assert_eq!(token_account.amount, 0);
-    }
 
     let _ = deployer;
 }
@@ -225,38 +166,25 @@ fn test_init_app() {
 #[test]
 fn test_init_app_rejects_app_id_over_32_bytes() {
     let program_id = nebulous_world::id();
-    let (mut svm, _deployer, vote_mint) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let (mut svm, _deployer, _vote_mint) = setup();
 
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
 
     // 33 bytes exceeds Solana's 32-byte-per-seed limit. `Pubkey::find_program_address`
     // panics on an oversized seed on *any* target (not just on-chain), so we
-    // can't even derive the "real" PDAs for this app_id here — the same way
-    // a client can't either (`PublicKey.findProgramAddressSync` throws
-    // client-side too, see `tests/nebulous_world.ts`). That's fine: we only need
-    // *some* pubkeys in the `app`/vault account slots, because the program's
-    // own `find_program_address` call (during account resolution, before the
+    // can't even derive the "real" `app` PDA for this app_id here — the same
+    // way a client can't either (`PublicKey.findProgramAddressSync` throws
+    // client-side too, see `tests/nebulous_world.ts`). That's fine: we only
+    // need *some* pubkey in the `app` slot, because the program's own
+    // `find_program_address` call (during account resolution, before the
     // handler body or any other constraint runs — see the comment in
-    // `init_app.rs`) panics on the oversized seed regardless of what keys we
+    // `init_app.rs`) panics on the oversized seed regardless of what key we
     // pass. What we're asserting is that the transaction is rejected either
     // way.
     let app_id = "a".repeat(33);
-    let pdas = AppPdas {
-        app: Pubkey::new_unique(),
-        vote_vault: Pubkey::new_unique(),
-        vote_reward_vault: Pubkey::new_unique(),
-        tags_reward_vault: Pubkey::new_unique(),
-    };
-    let instruction = init_app_ix(
-        &program_id,
-        &config,
-        &vote_mint,
-        &payer.pubkey(),
-        &app_id,
-        &pdas,
-    );
+    let app = Pubkey::new_unique();
+    let instruction = init_app_ix(&program_id, &payer.pubkey(), &app_id, &app);
 
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[instruction], Some(&payer.pubkey()), &blockhash);

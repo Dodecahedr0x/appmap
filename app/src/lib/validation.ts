@@ -87,13 +87,6 @@ export const submitTxSchema = z.object({
   signedTransaction: z.string().min(1),
 });
 
-export const authVerifySchema = z.object({
-  wallet: z.string().min(32).max(64),
-  signature: z.string().min(32).max(200),
-  nonce: z.string().min(8),
-  message: z.string().min(8).max(1000),
-});
-
 // Filters are either onchain (tags, and the token stake behind them) or
 // offchain (OpenGraph-derived text: name/tagline/description) — there is no
 // separate "category" taxonomy on the search API.

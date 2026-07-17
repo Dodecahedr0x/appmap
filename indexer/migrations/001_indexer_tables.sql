@@ -6,7 +6,7 @@
 -- Raw indexed account state, keyed by pubkey — one row per account, upserted
 -- on every observed change (initial getProgramAccounts backfill, then
 -- ongoing programSubscribe updates). Heterogeneous account types (Config,
--- AppAccount, VotePosition, AppTagAccount, StakePosition, NebPool) share
+-- AppAccount, VotePosition, Tag, AppTagStake, StakePosition, NebPool) share
 -- this table via JSONB, mirroring Carbon's own postgres-graphql example
 -- rather than one table per account type.
 CREATE TABLE IF NOT EXISTS indexed_account (
