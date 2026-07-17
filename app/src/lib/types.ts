@@ -37,8 +37,6 @@ export interface SearchResult {
   page: number;
   pageSize: number;
   facets: {
-    categories: { value: string; count: number }[];
-    chains: { value: string; count: number }[];
     tags: { slug: string; name: string; count: number }[];
   };
 }

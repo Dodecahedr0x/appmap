@@ -3,15 +3,17 @@ import { prisma } from "./prisma";
 import { appInclude, serializeApp } from "./serialize";
 import { combineSearchScore } from "./ranking";
 import { AppStatus } from "./constants";
+import { fuzzyMatch } from "./fuzzy";
 import type { SearchInput } from "./validation";
 import type { AppDTO, SearchResult } from "./types";
 
 // Advanced search + ranking.
 //
 // SQLite has no first-class full-text index we can drive through Prisma, so we
-// filter candidate rows in the database (status, category, chain, tag, and a
-// coarse LIKE on the query) and then compute a precise relevance score in JS,
-// which is combined with each app's cached rank score for final ordering.
+// filter candidate rows in the database (status, stake/view ranges, tag, and a
+// coarse LIKE on the query) and then compute a precise relevance score plus
+// the remaining range/fuzzy filters in JS, combined with each app's cached
+// rank score for final ordering.
 
 /** Tokenise a free-text query into lowercase terms. */
 function tokenize(q: string): string[] {
@@ -51,8 +53,19 @@ export function textRelevance(app: AppDTO, terms: string[]): number {
 function buildWhere(input: SearchInput): Prisma.AppWhereInput {
   const where: Prisma.AppWhereInput = { status: AppStatus.APPROVED };
 
-  if (input.category) where.category = input.category;
-  if (input.chain) where.chain = input.chain;
+  if (input.appStakeMin !== undefined || input.appStakeMax !== undefined) {
+    where.stakeTotal = {
+      ...(input.appStakeMin !== undefined && { gte: input.appStakeMin }),
+      ...(input.appStakeMax !== undefined && { lte: input.appStakeMax }),
+    };
+  }
+
+  if (input.pageviewsMin !== undefined || input.pageviewsMax !== undefined) {
+    where.viewCount = {
+      ...(input.pageviewsMin !== undefined && { gte: input.pageviewsMin }),
+      ...(input.pageviewsMax !== undefined && { lte: input.pageviewsMax }),
+    };
+  }
 
   if (input.tags && input.tags.length > 0) {
     // App must carry every selected tag (AND semantics across facets).
@@ -109,6 +122,26 @@ function sortComparator(
 }
 
 /**
+ * The "tags stake" of an app for filtering purposes: when tags are selected,
+ * the stake behind those specific tags (summed); otherwise the app's single
+ * strongest tag, so the filter means something even with no tags picked.
+ */
+function tagsStakeValue(app: AppDTO, selectedTags: string[]): number {
+  if (selectedTags.length > 0) {
+    return app.tags
+      .filter((t) => selectedTags.includes(t.slug))
+      .reduce((sum, t) => sum + t.stakeTotal, 0);
+  }
+  return app.tags.reduce((max, t) => Math.max(max, t.stakeTotal), 0);
+}
+
+function inRange(value: number, min: number | undefined, max: number | undefined): boolean {
+  if (min !== undefined && value < min) return false;
+  if (max !== undefined && value > max) return false;
+  return true;
+}
+
+/**
  * Run a search. Returns a page of apps plus facet counts computed over the full
  * (unpaginated) filtered set so the UI can render accurate filter badges.
  */
@@ -125,6 +158,27 @@ export async function searchApps(input: SearchInput): Promise<SearchResult> {
     apps = apps.filter((a) => textRelevance(a, terms) > 0);
   }
 
+  if (input.tagsCountMin !== undefined || input.tagsCountMax !== undefined) {
+    apps = apps.filter((a) =>
+      inRange(a.tags.length, input.tagsCountMin, input.tagsCountMax),
+    );
+  }
+
+  if (input.tagsStakeMin !== undefined || input.tagsStakeMax !== undefined) {
+    apps = apps.filter((a) =>
+      inRange(tagsStakeValue(a, input.tags), input.tagsStakeMin, input.tagsStakeMax),
+    );
+  }
+
+  // Fuzzy-match against the OpenGraph-derived text (name/tagline/description),
+  // distinct from the coarse substring search above.
+  const fuzzy = input.fuzzy.trim();
+  if (fuzzy.length > 0) {
+    apps = apps.filter((a) =>
+      fuzzyMatch(`${a.name} ${a.tagline} ${a.description}`, fuzzy),
+    );
+  }
+
   const maxRank = apps.reduce((m, a) => Math.max(m, a.rankScore), 0);
   apps.sort(sortComparator(input.sort, maxRank, terms));
 
@@ -138,13 +192,9 @@ export async function searchApps(input: SearchInput): Promise<SearchResult> {
 }
 
 function computeFacets(apps: AppDTO[]): SearchResult["facets"] {
-  const categories = new Map<string, number>();
-  const chains = new Map<string, number>();
   const tags = new Map<string, { name: string; count: number }>();
 
   for (const app of apps) {
-    categories.set(app.category, (categories.get(app.category) ?? 0) + 1);
-    chains.set(app.chain, (chains.get(app.chain) ?? 0) + 1);
     for (const t of app.tags) {
       const entry = tags.get(t.slug) ?? { name: t.name, count: 0 };
       entry.count += 1;
@@ -153,12 +203,6 @@ function computeFacets(apps: AppDTO[]): SearchResult["facets"] {
   }
 
   return {
-    categories: [...categories.entries()]
-      .map(([value, count]) => ({ value, count }))
-      .sort((a, b) => b.count - a.count),
-    chains: [...chains.entries()]
-      .map(([value, count]) => ({ value, count }))
-      .sort((a, b) => b.count - a.count),
     tags: [...tags.entries()]
       .map(([slug, v]) => ({ slug, name: v.name, count: v.count }))
       .sort((a, b) => b.count - a.count)

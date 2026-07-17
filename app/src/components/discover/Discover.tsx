@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppCard } from "@/components/AppCard";
-import { Facets } from "@/components/discover/Facets";
+import {
+  EMPTY_RANGE_FILTERS,
+  FilterPanel,
+  type RangeFilters,
+} from "@/components/discover/FilterPanel";
 import { SORT_OPTIONS } from "@/lib/constants";
 import type { SearchResult } from "@/lib/types";
 
@@ -11,24 +15,37 @@ interface Props {
   initial: SearchResult;
 }
 
+const RANGE_KEYS = Object.keys(EMPTY_RANGE_FILTERS) as (keyof RangeFilters)[];
+
 /**
- * The Discover experience: a search box, faceted filters, sort control, and a
- * results grid. All state lives in the URL so results are shareable and the
- * back button works; changing any control pushes new query params and refetches
- * from /api/apps.
+ * The Discover experience: a search box, a floating filter panel, a sort
+ * control, and a results grid. All state lives in the URL so results are
+ * shareable and the back button works; changing any control pushes new query
+ * params and refetches from /api/apps.
  */
 export function Discover({ initial }: Props) {
   const router = useRouter();
   const params = useSearchParams();
 
   const [query, setQuery] = useState(params.get("q") ?? "");
+  const [fuzzy, setFuzzy] = useState(params.get("fuzzy") ?? "");
+  const [ranges, setRanges] = useState<RangeFilters>(() => {
+    const next = { ...EMPTY_RANGE_FILTERS };
+    for (const key of RANGE_KEYS) next[key] = params.get(key) ?? "";
+    return next;
+  });
   const [result, setResult] = useState<SearchResult>(initial);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  // One timer per debounced field — a single shared timer would let typing in
+  // a second field (e.g. a range input) cancel a still-pending navigate for
+  // the first (e.g. the fuzzy box), silently dropping that field's update.
+  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const debounce = useCallback((key: string, fn: () => void) => {
+    clearTimeout(debounceRefs.current[key]);
+    debounceRefs.current[key] = setTimeout(fn, 300);
+  }, []);
 
   const selectedTags = useMemo(() => params.getAll("tags"), [params]);
-  const category = params.get("category") ?? "";
-  const chain = params.get("chain") ?? "";
   const sort = params.get("sort") ?? "rank";
   const page = Number(params.get("page") ?? "1");
 
@@ -39,11 +56,13 @@ export function Discover({ initial }: Props) {
       const q = overrides.q !== undefined ? overrides.q : query;
       if (q && typeof q === "string") next.set("q", q);
 
-      const cat = overrides.category !== undefined ? overrides.category : category;
-      if (cat && typeof cat === "string") next.set("category", cat);
+      const fz = overrides.fuzzy !== undefined ? overrides.fuzzy : fuzzy;
+      if (fz && typeof fz === "string") next.set("fuzzy", fz);
 
-      const ch = overrides.chain !== undefined ? overrides.chain : chain;
-      if (ch && typeof ch === "string") next.set("chain", ch);
+      for (const key of RANGE_KEYS) {
+        const v = overrides[key] !== undefined ? overrides[key] : ranges[key];
+        if (v && typeof v === "string") next.set(key, v);
+      }
 
       const s = overrides.sort !== undefined ? overrides.sort : sort;
       if (s && typeof s === "string" && s !== "rank") next.set("sort", s);
@@ -59,7 +78,7 @@ export function Discover({ initial }: Props) {
 
       return next;
     },
-    [query, category, chain, sort, selectedTags],
+    [query, fuzzy, ranges, sort, selectedTags],
   );
 
   const navigate = useCallback(
@@ -91,8 +110,17 @@ export function Discover({ initial }: Props) {
   // Debounced text search.
   const onQueryChange = (value: string) => {
     setQuery(value);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => navigate({ q: value, page: "1" }), 300);
+    debounce("q", () => navigate({ q: value, page: "1" }));
+  };
+
+  const onFuzzyChange = (value: string) => {
+    setFuzzy(value);
+    debounce("fuzzy", () => navigate({ fuzzy: value, page: "1" }));
+  };
+
+  const onRangeChange = (key: keyof RangeFilters, value: string) => {
+    setRanges((prev) => ({ ...prev, [key]: value }));
+    debounce(key, () => navigate({ [key]: value, page: "1" }));
   };
 
   const toggleTag = (slug: string) => {
@@ -100,6 +128,18 @@ export function Discover({ initial }: Props) {
       ? selectedTags.filter((t) => t !== slug)
       : [...selectedTags, slug];
     navigate({ tags: next, page: "1" });
+  };
+
+  const clearFilters = () => {
+    setFuzzy("");
+    setRanges({ ...EMPTY_RANGE_FILTERS });
+    const overrides: Record<string, string | string[] | undefined> = {
+      tags: [],
+      fuzzy: "",
+      q: query,
+    };
+    for (const key of RANGE_KEYS) overrides[key] = "";
+    navigate(overrides);
   };
 
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
@@ -121,7 +161,7 @@ export function Discover({ initial }: Props) {
         <div className="relative flex-1">
           <input
             className="input pl-10"
-            placeholder="Search apps, tags, categories…"
+            placeholder="Search apps, tags, descriptions…"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             aria-label="Search apps"
@@ -154,80 +194,70 @@ export function Discover({ initial }: Props) {
         </select>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-        <aside className="space-y-6">
-          <Facets
-            facets={result.facets}
-            selectedTags={selectedTags}
-            category={category}
-            chain={chain}
-            onToggleTag={toggleTag}
-            onSelectCategory={(c) =>
-              navigate({ category: c === category ? "" : c, page: "1" })
-            }
-            onSelectChain={(c) =>
-              navigate({ chain: c === chain ? "" : c, page: "1" })
-            }
-            onClear={() =>
-              navigate({ category: "", chain: "", tags: [], q: query })
-            }
-          />
-        </aside>
+      <FilterPanel
+        facets={result.facets}
+        selectedTags={selectedTags}
+        onToggleTag={toggleTag}
+        ranges={ranges}
+        onRangeChange={onRangeChange}
+        fuzzy={fuzzy}
+        onFuzzyChange={onFuzzyChange}
+        onClear={clearFilters}
+      />
 
-        <section>
-          <div className="mb-3 flex items-center justify-between text-sm text-slate">
-            <span>
-              {loading ? "Searching…" : `${result.total} apps`}
-              {query && !loading && ` for “${query}”`}
-            </span>
+      <section>
+        <div className="mb-3 flex items-center justify-between text-sm text-slate">
+          <span>
+            {loading ? "Searching…" : `${result.total} apps`}
+            {query && !loading && ` for “${query}”`}
+          </span>
+        </div>
+
+        {result.apps.length === 0 ? (
+          <div className="card grid place-items-center p-12 text-center text-slate-steel">
+            <p>No apps match your search.</p>
+            <p className="mt-1 text-xs">
+              Try removing a filter — or{" "}
+              <a href="/submit" className="text-cobalt hover:underline">
+                submit the app yourself
+              </a>
+              .
+            </p>
           </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {result.apps.map((app, i) => (
+              <AppCard
+                key={app.id}
+                app={app}
+                rank={sort === "rank" ? startRank + i + 1 : undefined}
+              />
+            ))}
+          </div>
+        )}
 
-          {result.apps.length === 0 ? (
-            <div className="card grid place-items-center p-12 text-center text-slate-steel">
-              <p>No apps match your search.</p>
-              <p className="mt-1 text-xs">
-                Try removing a filter — or{" "}
-                <a href="/submit" className="text-cobalt hover:underline">
-                  submit the app yourself
-                </a>
-                .
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {result.apps.map((app, i) => (
-                <AppCard
-                  key={app.id}
-                  app={app}
-                  rank={sort === "rank" ? startRank + i + 1 : undefined}
-                />
-              ))}
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button
-                className="btn-secondary"
-                disabled={page <= 1}
-                onClick={() => navigate({ page: String(page - 1) })}
-              >
-                Previous
-              </button>
-              <span className="text-sm text-slate">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                className="btn-secondary"
-                disabled={page >= totalPages}
-                onClick={() => navigate({ page: String(page + 1) })}
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </section>
-      </div>
+        {totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <button
+              className="btn-secondary"
+              disabled={page <= 1}
+              onClick={() => navigate({ page: String(page - 1) })}
+            >
+              Previous
+            </button>
+            <span className="text-sm text-slate">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              className="btn-secondary"
+              disabled={page >= totalPages}
+              onClick={() => navigate({ page: String(page + 1) })}
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
