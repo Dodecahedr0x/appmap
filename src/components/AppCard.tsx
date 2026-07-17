@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AppDTO } from "@/lib/types";
-import { formatToken, formatNumber, cn } from "@/lib/utils";
+import { formatToken, formatNumber, hostname, cn } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 
 /** Compact metric with a label. */
@@ -19,41 +19,48 @@ export function AppCard({ app, rank }: { app: AppDTO; rank?: number }) {
   return (
     <Link
       href={`/app/${app.slug}`}
-      className="card group flex flex-col gap-3 p-4 transition-colors hover:border-cobalt/40"
+      className="card group flex flex-col overflow-hidden transition-colors hover:border-cobalt/40"
     >
-      <div className="flex items-start gap-3">
+      {/* Hero image — the app's own OpenGraph image when available, so the
+          card reads like a link preview rather than a bare list row. */}
+      <div className="relative aspect-[1200/630] w-full shrink-0 overflow-hidden bg-mist">
+        {app.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={app.iconUrl}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-4xl font-bold text-violet">
+            {app.name.charAt(0).toUpperCase()}
+          </div>
+        )}
         {typeof rank === "number" && (
-          <span className="mt-1 w-6 shrink-0 text-center text-sm font-bold text-slate-steel">
+          <span className="absolute left-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-full bg-ink/80 text-[11px] font-bold text-white">
             {rank}
           </span>
         )}
-        <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-card bg-mist text-lg font-bold text-violet">
-          {app.iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={app.iconUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            app.name.charAt(0).toUpperCase()
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate font-semibold text-ink group-hover:text-cobalt">
-              {app.name}
-            </h3>
-            <span className="chip shrink-0 capitalize">{app.category}</span>
-          </div>
-          <p className="mt-0.5 line-clamp-2 text-sm text-slate">
-            {app.tagline || app.description}
-          </p>
-        </div>
+        <span className="chip absolute right-2.5 top-2.5 border-none bg-white/90 capitalize shadow-subtle">
+          {app.category}
+        </span>
+      </div>
+
+      {/* Domain + title strip, mirroring how a shared link preview unfurls. */}
+      <div className="border-t border-hairline bg-ivory/60 px-4 py-3">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-steel">
+          {hostname(app.url)}
+        </span>
+        <h3 className="mt-0.5 truncate text-base font-bold text-ink group-hover:text-cobalt">
+          {app.name}
+        </h3>
+        <p className="mt-0.5 line-clamp-2 text-sm text-slate">
+          {app.tagline || app.description}
+        </p>
       </div>
 
       {app.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 px-4 pt-3">
           {app.tags.slice(0, 5).map((t) => (
             <span
               key={t.id}
@@ -78,7 +85,7 @@ export function AppCard({ app, rank }: { app: AppDTO; rank?: number }) {
         </div>
       )}
 
-      <div className="mt-auto grid grid-cols-4 gap-2 border-t border-hairline pt-3">
+      <div className="mt-auto grid grid-cols-4 gap-2 border-t border-hairline p-4">
         <Stat label="Rank" value={app.rankScore.toFixed(2)} />
         <Stat label="Votes" value={formatToken(app.voteWeight, "")} />
         <Stat label="Staked" value={formatToken(app.stakeTotal, "")} />
