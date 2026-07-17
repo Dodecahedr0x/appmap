@@ -15,7 +15,7 @@ const PRESETS = [10, 50, 100, 500];
  * The vote widget. Commits vote-tokens to an app: settles an on-chain transfer
  * (or simulates it), then records the vote server-side where it feeds ranking.
  */
-export function VotePanel({ appId, slug }: { appId: string; slug: string }) {
+export function VotePanel({ appId }: { appId: string }) {
   const { user } = useAuth();
   const router = useRouter();
   const toast = useToast();

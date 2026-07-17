@@ -9,9 +9,18 @@ export function getAppmapProgram(
   connection: Connection,
   wallet: WalletContextState,
 ): Program<Appmap> {
-  const provider = new AnchorProvider(connection, wallet as any, {
-    commitment: "confirmed",
-  });
+  if (!wallet.publicKey || !wallet.signTransaction || !wallet.signAllTransactions) {
+    throw new Error("Wallet must be connected and support transaction signing");
+  }
+  const provider = new AnchorProvider(
+    connection,
+    {
+      publicKey: wallet.publicKey,
+      signTransaction: wallet.signTransaction,
+      signAllTransactions: wallet.signAllTransactions,
+    },
+    { commitment: "confirmed" },
+  );
   return new Program(idl as Appmap, provider);
 }
 

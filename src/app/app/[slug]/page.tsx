@@ -131,7 +131,7 @@ export default async function AppDetailPage({ params }: Props) {
           </section>
 
           {/* Tags + staking */}
-          <TagStakePanel appId={app.id} slug={app.slug} tags={app.tags} />
+          <TagStakePanel appId={app.id} tags={app.tags} />
 
           {/* Recent activity */}
           <section className="card p-6">
@@ -167,7 +167,7 @@ export default async function AppDetailPage({ params }: Props) {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <VotePanel appId={app.id} slug={app.slug} />
+          <VotePanel appId={app.id} />
 
           <AdSlot appId={app.id} />
 

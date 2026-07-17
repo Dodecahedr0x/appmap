@@ -16,11 +16,9 @@ import type { TagDTO } from "@/lib/types";
  */
 export function TagStakePanel({
   appId,
-  slug,
   tags,
 }: {
   appId: string;
-  slug: string;
   tags: TagDTO[];
 }) {
   const { user } = useAuth();

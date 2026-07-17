@@ -37,7 +37,7 @@ export const POST = handler(async (req: NextRequest) => {
   const chain = CHAINS.includes(body.chain as never) ? body.chain : "solana";
 
   // Derive a unique slug.
-  let base = slugify(body.name);
+  const base = slugify(body.name);
   if (!base) throw new ApiError("App name must contain letters or numbers", 400);
   let slug = base;
   for (let i = 2; await prisma.app.findUnique({ where: { slug } }); i++) {
