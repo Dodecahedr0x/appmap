@@ -53,6 +53,11 @@ export const authVerifySchema = z.object({
   message: z.string().min(8).max(1000),
 });
 
+export const buyNebSchema = z.object({
+  solAmount: z.number().positive().max(1_000_000),
+  txSig: z.string().min(32).max(128).optional(),
+});
+
 export const searchSchema = z.object({
   q: z.string().max(120).optional().default(""),
   tags: z.array(z.string()).optional().default([]),

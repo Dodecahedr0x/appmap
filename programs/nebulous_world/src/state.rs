@@ -145,6 +145,47 @@ impl StakePosition {
     pub const SPACE: usize = 32 + 8 + 16 + 1;
 }
 
+/// A single-sided bonding-curve sale pool for NEB (`Config.vote_mint`) — in
+/// the style of Meteora's Dynamic Bonding Curve (DBC): seeded with ONLY the
+/// token side (`init_neb_pool` deposits `total_supply` NEB and zero real
+/// SOL), with `virtual_sol_reserves` providing a well-defined starting price
+/// for the constant-product curve without requiring the deployer to front
+/// any SOL. See `pool_math::compute_buy_out` for the pricing formula and
+/// `buy_neb` for how a purchase moves real SOL/NEB.
+///
+/// One singleton per deployment (seeds: `[NEB_POOL_SEED]`), same pattern as
+/// `Config`.
+#[account]
+pub struct NebPool {
+    pub mint: Pubkey,
+    /// Vault (authority = this PDA) holding unsold NEB. Seeds:
+    /// `[NEB_POOL_VAULT_SEED, pool.key()]`.
+    pub token_vault: Pubkey,
+    /// Total NEB deposited at `init_neb_pool` time — fixed for the pool's
+    /// lifetime, never mutated after init.
+    pub total_supply: u64,
+    /// NEB remaining in `token_vault`. Cached here (rather than requiring a
+    /// separate token-account fetch) so quotes can be computed from this
+    /// account alone; `buy_neb` keeps it exactly in sync with the vault's
+    /// real balance.
+    pub remaining_supply: u64,
+    /// Real lamports raised so far — sits in this PDA's own SOL balance
+    /// (buyers pay via a plain System Program transfer into the PDA).
+    pub sol_raised: u64,
+    /// Constant-product curve's virtual SOL-side reserve, fixed at init and
+    /// never mutated afterward — never actually deposited, exists purely so
+    /// a single-sided pool has a well-defined starting price. Effective SOL
+    /// reserve at any point is `virtual_sol_reserves + sol_raised`;
+    /// effective token reserve is `remaining_supply` (no virtual token side,
+    /// since the entire `total_supply` was genuinely deposited).
+    pub virtual_sol_reserves: u64,
+    pub bump: u8,
+}
+
+impl NebPool {
+    pub const SPACE: usize = 32 + 32 + 8 + 8 + 8 + 8 + 1;
+}
+
 /// Selects which of `AppAccount`'s two reward pools an instruction operates
 /// on. Introduced by `fund_app_rewards` (Task 15), which needs to fund
 /// either pool through one instruction rather than two near-duplicate ones.

@@ -24,7 +24,7 @@ export function shortAddress(addr: string, chars = 4): string {
 }
 
 /** Format a token amount with thousands separators and sensible precision. */
-export function formatToken(amount: number, symbol = "APP"): string {
+export function formatToken(amount: number, symbol = "NEB"): string {
   const abs = Math.abs(amount);
   let str: string;
   if (abs >= 1_000_000) str = (amount / 1_000_000).toFixed(2) + "M";

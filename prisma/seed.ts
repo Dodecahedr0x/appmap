@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { computeRankScore, ageInDays } from "../src/lib/ranking";
+import { computeBuyQuote, type PoolState } from "../src/lib/pool";
 import { slugify } from "../src/lib/utils";
 import { fetchOpenGraph } from "../src/lib/opengraph";
 
@@ -8,8 +9,21 @@ import { fetchOpenGraph } from "../src/lib/opengraph";
 //
 // Apps point at their real, live URLs (not placeholders) so the OpenGraph
 // icon fetch below has something genuine to resolve against.
+//
+// Demo stakes are no longer fabricated as bare numbers: NEB's initial supply
+// is scarce (sold from a single-sided bonding-curve pool — see NebPool in
+// schema.prisma), so every simulated staker below first "buys" NEB from that
+// same pool (mutating its remaining supply, same as a real buy would) and
+// only then stakes what they bought. scripts/seed-live/index.ts (real app
+// data, no fabricated demo activity) never stakes at all.
 
 const prisma = new PrismaClient();
+
+// Demo-scale pool parameters — see the doc comment on NebPool
+// (programs/nebulous_world/src/state.rs) for what these mean. Sized comfortably
+// above the total demo stake volume this script can plausibly generate.
+const NEB_INITIAL_SUPPLY = 5_000_000;
+const NEB_VIRTUAL_SOL_RESERVES = 30;
 
 // Deterministic pseudo-random so seed output is stable across runs.
 let seed = 1337;
@@ -22,6 +36,9 @@ function pick<T>(arr: T[]): T {
 }
 function randInt(min: number, max: number): number {
   return Math.floor(rand() * (max - min + 1)) + min;
+}
+function randFloat(min: number, max: number): number {
+  return min + rand() * (max - min);
 }
 
 // Fake but valid-looking wallet addresses (base58, 44 chars-ish). Only used in
@@ -87,6 +104,8 @@ async function main() {
   await prisma.appTag.deleteMany();
   await prisma.tag.deleteMany();
   await prisma.app.deleteMany();
+  await prisma.nebPurchase.deleteMany();
+  await prisma.nebPool.deleteMany();
   await prisma.user.deleteMany();
 
   // Users.
@@ -97,6 +116,41 @@ async function main() {
       }),
     ),
   );
+
+  // The NEB sale pool — single-sided (NEB only, no SOL) at creation, same as
+  // init_neb_pool on-chain. Tracked in-memory as `poolState` through the
+  // simulated buys below, then persisted once at the end.
+  const nebPool = await prisma.nebPool.create({
+    data: {
+      totalSupply: NEB_INITIAL_SUPPLY,
+      remainingSupply: NEB_INITIAL_SUPPLY,
+      solRaised: 0,
+      virtualSolReserves: NEB_VIRTUAL_SOL_RESERVES,
+    },
+  });
+  const poolState: PoolState = {
+    totalSupply: nebPool.totalSupply,
+    remainingSupply: nebPool.remainingSupply,
+    solRaised: nebPool.solRaised,
+    virtualSolReserves: nebPool.virtualSolReserves,
+  };
+
+  /** Simulates one buy against the running pool state; returns the NEB received, or 0 if the buy couldn't be filled (pool sold out / trade too small). */
+  async function buyNebForStake(userId: string, createdAt: Date): Promise<number> {
+    const solIn = randFloat(0.02, 2);
+    let nebOut: number;
+    try {
+      nebOut = computeBuyQuote(poolState, solIn);
+    } catch {
+      return 0;
+    }
+    poolState.remainingSupply -= nebOut;
+    poolState.solRaised += solIn;
+    await prisma.nebPurchase.create({
+      data: { poolId: nebPool.id, userId, nebAmount: nebOut, solAmount: solIn, createdAt },
+    });
+    return nebOut;
+  }
 
   // Ads.
   const ads = await Promise.all(ADS.map((a) => prisma.ad.create({ data: a })));
@@ -167,15 +221,19 @@ async function main() {
           createdAt,
         },
       });
-      // A few stakers per tag.
+      // A few stakers per tag — each buys their NEB from the sale pool
+      // before staking it (see buyNebForStake), instead of a fabricated
+      // stake amount out of thin air.
       let appTagStake = 0;
       const numStakers = randInt(0, 3);
       for (let s = 0; s < numStakers; s++) {
-        const amount = randInt(50, 2000);
+        const userId = pick(users).id;
+        const amount = await buyNebForStake(userId, createdAt);
+        if (amount <= 0) continue; // pool sold out / trade too small
         await prisma.stake.create({
           data: {
             appTagId: appTag.id,
-            userId: pick(users).id,
+            userId,
             amount,
             active: true,
             createdAt,
@@ -276,6 +334,11 @@ async function main() {
     }
   }
 
+  await prisma.nebPool.update({
+    where: { id: nebPool.id },
+    data: { remainingSupply: poolState.remainingSupply, solRaised: poolState.solRaised },
+  });
+
   const counts = {
     users: await prisma.user.count(),
     apps: await prisma.app.count(),
@@ -284,6 +347,9 @@ async function main() {
     stakes: await prisma.stake.count(),
     views: await prisma.pageView.count(),
     impressions: await prisma.adImpression.count(),
+    nebPurchases: await prisma.nebPurchase.count(),
+    nebRemaining: Math.round(poolState.remainingSupply),
+    solRaised: Number(poolState.solRaised.toFixed(3)),
   };
   console.log("✅ Seed complete:", counts);
 }
