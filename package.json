@@ -15,7 +15,8 @@
     "db:studio": "prisma studio",
     "pretest": "DATABASE_URL=\"file:./test.db\" npx prisma db push --skip-generate --accept-data-loss",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:anchor": "npx anchor test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -42,15 +43,22 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@anchor-lang/core": "^1.1.2",
+    "@types/bn.js": "^5.2.0",
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.7.5",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "autoprefixer": "^10.4.20",
+    "chai": "^4.5.0",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.15",
+    "mocha": "^11.7.6",
     "postcss": "^8.4.47",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.14",
+    "ts-mocha": "^11.1.0",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.3"

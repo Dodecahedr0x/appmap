@@ -835,6 +835,8 @@ git add Anchor.toml Cargo.toml programs/appmap/Cargo.toml programs/appmap/Xargo.
 git commit -m "chore: scaffold the Anchor workspace for the appmap program"
 ```
 
+**Toolchain note (added after Task 10):** the installed anchor-cli is 1.0.2, which uses `@anchor-lang/core` as its TS client package instead of the `@coral-xyz/anchor` referenced in this plan's original code samples below. The API is compatible (`AnchorProvider`, `Program`, `Wallet`, `BN`, `setProvider`, `workspace` all present) — when implementing Tasks 11+, substitute the import source but keep the same API calls.
+
 ---
 
 ### Task 11: `Config` account + `initialize` instruction

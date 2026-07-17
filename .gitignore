@@ -40,6 +40,7 @@ yarn-error.log*
 .vercel
 
 # anchor / solana
+/target
 /programs/**/target
 .anchor
 test-ledger
