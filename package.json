@@ -17,7 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:anchor": "npx anchor test",
-    "settle:epoch": "tsx scripts/settleEpoch.ts"
+    "settle:epoch": "tsx scripts/settleEpoch.ts",
+    "snapshot:daily": "tsx scripts/dailySnapshot.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
