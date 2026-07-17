@@ -1,15 +1,14 @@
 // AppMap data model.
 //
-// SQLite is used for local development for zero-config setup. The schema avoids
-// SQLite-specific types so it can be migrated to Postgres by changing the
-// datasource provider and DATABASE_URL.
+// Postgres-backed (Render's managed Postgres in production). Local dev also
+// points at a Postgres instance via DATABASE_URL — see .env.example.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
