@@ -31,7 +31,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "Why on-chain at all?",
-    a: "Votes and stakes are financial signals — moving real value makes ranking manipulation costly. The Anchor program (programs/appmap) enforces the vote/stake/withdraw rules directly, so the rules aren't just policy, they're code.",
+    a: "Votes and stakes are financial signals — moving real value makes ranking manipulation costly. The Anchor program (programs/nebulous_world) enforces the vote/stake/withdraw rules directly, so the rules aren't just policy, they're code.",
   },
   {
     q: "Do I need a wallet to try it?",
@@ -73,7 +73,7 @@ export function FutureExperience() {
       <section style={{ minHeight: "100svh", display: "flex", alignItems: "center", padding: "0 clamp(1.25rem, 5vw, 4rem)" }}>
         <ShaderHero />
         <div className="hero-content">
-          <div className="future-eyebrow">AppMap · the future of app discovery</div>
+          <div className="future-eyebrow">nebulous.world · the future of app discovery</div>
           <h1 className="future-h1" style={{ marginTop: "1rem" }}>
             The app store, rebuilt in the open.
           </h1>
@@ -85,7 +85,7 @@ export function FutureExperience() {
             beyond what your browser already ships.
           </p>
           <Link href="/" className="future-cta" style={{ marginTop: "2rem", background: "var(--glow)", color: "var(--void-deep)" }}>
-            Explore AppMap →
+            Explore nebulous.world →
           </Link>
         </div>
       </section>
@@ -98,7 +98,7 @@ export function FutureExperience() {
           Most app stores rank by who pays, not by who&apos;s good.
         </h2>
         <p className="future-lede" style={{ marginTop: "1rem" }}>
-          AppMap flips that: the ranking inputs are public, the weights are public
+          nebulous.world flips that: the ranking inputs are public, the weights are public
           (<code>src/lib/ranking.ts</code>), and anyone staking behind a tag is putting real value
           behind their judgment — and getting paid when they&apos;re right.
         </p>
@@ -190,7 +190,7 @@ export function FutureExperience() {
           className="future-cta"
           style={{ marginTop: "2rem", background: "var(--paper)", color: "var(--void-deep)" }}
         >
-          Back to AppMap →
+          Back to nebulous.world →
         </Link>
       </section>
     </main>

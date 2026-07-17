@@ -6,7 +6,7 @@ import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { config, isSimulationMode } from "@/lib/config";
 import {
-  getAppmapProgram,
+  getNebulousWorldProgram,
   appPda,
   appTagPda,
   stakePositionPda,
@@ -29,7 +29,7 @@ export function useTagStakeProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getAppmapProgram(connection, wallet);
+      const program = getNebulousWorldProgram(connection, wallet);
       const app = appPda(program.programId, appId);
       const appTag = appTagPda(program.programId, app, tagSlug);
       const position = stakePositionPda(program.programId, appTag, wallet.publicKey);
@@ -61,7 +61,7 @@ export function useTagStakeProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getAppmapProgram(connection, wallet);
+      const program = getNebulousWorldProgram(connection, wallet);
       const app = appPda(program.programId, appId);
       const appTag = appTagPda(program.programId, app, tagSlug);
       const position = stakePositionPda(program.programId, appTag, wallet.publicKey);

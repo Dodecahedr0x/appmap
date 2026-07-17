@@ -41,9 +41,9 @@ if ! anchor build 2>&1 | tee "$BUILD_LOG"; then
   fi
 fi
 
-PROGRAM_ID="$(solana-keygen pubkey target/deploy/appmap-keypair.json)"
-if grep -q '^NEXT_PUBLIC_APPMAP_PROGRAM_ID=' .env; then
-  sed -i.bak "s|^NEXT_PUBLIC_APPMAP_PROGRAM_ID=.*|NEXT_PUBLIC_APPMAP_PROGRAM_ID=\"$PROGRAM_ID\"|" .env
+PROGRAM_ID="$(solana-keygen pubkey target/deploy/nebulous_world-keypair.json)"
+if grep -q '^NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=' .env; then
+  sed -i.bak "s|^NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=.*|NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=\"$PROGRAM_ID\"|" .env
   rm -f .env.bak
 fi
 
@@ -79,7 +79,7 @@ cat <<EOF
 
 Local dev environment is ready:
   - solana-test-validator running on 127.0.0.1:$RPC_PORT (log: $VALIDATOR_LOG)
-  - appmap program deployed to localnet
+  - nebulous_world program deployed to localnet
   - database reset and seeded
 
 Next steps:

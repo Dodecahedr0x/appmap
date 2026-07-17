@@ -8,11 +8,11 @@ use {
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    appmap::constants::{
+    nebulous_world::constants::{
         APP_SEED, CONFIG_SEED, STAKE_POSITION_SEED, TAGS_REWARD_VAULT_SEED, TAG_SEED,
         TAG_VAULT_SEED, VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
     },
-    appmap::RewardPool,
+    nebulous_world::RewardPool,
     litesvm::LiteSVM,
     solana_account::Account,
     solana_keypair::Keypair,
@@ -22,7 +22,7 @@ use {
     spl_token_interface::state::{Account as SplTokenAccount, AccountState, Mint},
 };
 
-/// See `test_initialize.rs` for context: overwrites the appmap program's
+/// See `test_initialize.rs` for context: overwrites the nebulous_world program's
 /// `ProgramData` account so `upgrade_authority` is its recorded upgrade
 /// authority, which is required to call `initialize`.
 fn set_upgrade_authority(
@@ -91,15 +91,15 @@ fn derive_tag_pdas(program_id: &Pubkey, app: &Pubkey, tag_id: &str) -> TagPdas {
     }
 }
 
-/// Sets up a fresh LiteSVM instance with the appmap program loaded, `Config`
+/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
 /// initialized, a single `AppAccount` (with its three vaults) registered via
 /// `init_app`, and one tag suggested via `suggest_tag`. Returns the SVM, the
 /// deployer keypair, the vote mint, the app's PDAs, and the tag's PDAs.
 fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/appmap.so");
+    let bytes = include_bytes!("../../../target/deploy/nebulous_world.so");
     svm.add_program(program_id, bytes).unwrap();
     svm.airdrop(&deployer.pubkey(), 1_000_000_000).unwrap();
 
@@ -129,11 +129,11 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::Initialize {
+        &nebulous_world::instruction::Initialize {
             protocol_fee_bps: 250,
         }
         .data(),
-        appmap::accounts::Initialize {
+        nebulous_world::accounts::Initialize {
             config,
             authority: deployer.pubkey(),
             vote_mint,
@@ -153,11 +153,11 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
     let pdas = derive_app_pdas(&program_id, &app_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::InitApp {
+        &nebulous_world::instruction::InitApp {
             app_id: app_id.clone(),
         }
         .data(),
-        appmap::accounts::InitApp {
+        nebulous_world::accounts::InitApp {
             app: pdas.app,
             config,
             vote_vault: pdas.vote_vault,
@@ -180,12 +180,12 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
     let tag_pdas = derive_tag_pdas(&program_id, &pdas.app, &tag_id);
     let suggest_tag_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::SuggestTag {
+        &nebulous_world::instruction::SuggestTag {
             app_id: app_id.clone(),
             tag_id: tag_id.clone(),
         }
         .data(),
-        appmap::accounts::SuggestTag {
+        nebulous_world::accounts::SuggestTag {
             app: pdas.app,
             app_tag: tag_pdas.app_tag,
             config,
@@ -217,17 +217,17 @@ fn register_second_app_and_tag(
     app_id: &str,
     tag_id: &str,
 ) -> (AppPdas, TagPdas) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
     let pdas = derive_app_pdas(&program_id, app_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::InitApp {
+        &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
         }
         .data(),
-        appmap::accounts::InitApp {
+        nebulous_world::accounts::InitApp {
             app: pdas.app,
             config,
             vote_vault: pdas.vote_vault,
@@ -249,12 +249,12 @@ fn register_second_app_and_tag(
     let tag_pdas = derive_tag_pdas(&program_id, &pdas.app, tag_id);
     let suggest_tag_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::SuggestTag {
+        &nebulous_world::instruction::SuggestTag {
             app_id: app_id.to_string(),
             tag_id: tag_id.to_string(),
         }
         .data(),
-        appmap::accounts::SuggestTag {
+        nebulous_world::accounts::SuggestTag {
             app: pdas.app,
             app_tag: tag_pdas.app_tag,
             config,
@@ -286,17 +286,17 @@ fn suggest_additional_tag(
     app: Pubkey,
     tag_id: &str,
 ) -> TagPdas {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
     let tag_pdas = derive_tag_pdas(&program_id, &app, tag_id);
     let suggest_tag_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::SuggestTag {
+        &nebulous_world::instruction::SuggestTag {
             app_id: APP_ID.to_string(),
             tag_id: tag_id.to_string(),
         }
         .data(),
-        appmap::accounts::SuggestTag {
+        nebulous_world::accounts::SuggestTag {
             app,
             app_tag: tag_pdas.app_tag,
             config,
@@ -357,8 +357,8 @@ fn stake_tag_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::StakeTag { amount }.data(),
-        appmap::accounts::StakeTag {
+        &nebulous_world::instruction::StakeTag { amount }.data(),
+        nebulous_world::accounts::StakeTag {
             app: pdas.app,
             app_tag: tag_pdas.app_tag,
             position: *position,
@@ -384,8 +384,8 @@ fn fund_app_rewards_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::FundAppRewards { pool, amount }.data(),
-        appmap::accounts::FundAppRewards {
+        &nebulous_world::instruction::FundAppRewards { pool, amount }.data(),
+        nebulous_world::accounts::FundAppRewards {
             app: pdas.app,
             config: *config,
             vote_reward_vault: pdas.vote_reward_vault,
@@ -408,8 +408,8 @@ fn claim_tag_reward_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::ClaimTagReward {}.data(),
-        appmap::accounts::ClaimTagReward {
+        &nebulous_world::instruction::ClaimTagReward {}.data(),
+        nebulous_world::accounts::ClaimTagReward {
             app: pdas.app,
             app_tag: tag_pdas.app_tag,
             position: *position,
@@ -429,14 +429,14 @@ fn send(svm: &mut LiteSVM, ix: Instruction, payer: &Pubkey, signers: &[&Keypair]
     svm.send_transaction(tx).is_ok()
 }
 
-fn fetch_position(svm: &LiteSVM, position: Pubkey) -> appmap::StakePosition {
+fn fetch_position(svm: &LiteSVM, position: Pubkey) -> nebulous_world::StakePosition {
     let raw = svm
         .get_account(&position)
         .expect("position account must exist");
     anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
 }
 
-fn fetch_app_tag(svm: &LiteSVM, app_tag: Pubkey) -> appmap::AppTagAccount {
+fn fetch_app_tag(svm: &LiteSVM, app_tag: Pubkey) -> nebulous_world::AppTagAccount {
     let raw = svm
         .get_account(&app_tag)
         .expect("app_tag account must exist");
@@ -459,7 +459,7 @@ fn setup_staked_and_funded(
     wallet_amount: u64,
     fund_amount: u64,
 ) -> (LiteSVM, Pubkey, AppPdas, TagPdas, Keypair, Pubkey, Pubkey) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, pdas, tag_pdas) = setup();
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
@@ -645,7 +645,7 @@ fn test_claim_tag_reward_zero_pending_is_a_harmless_no_op() {
     // Stake in, but never fund the tags pool: pending is genuinely 0.
     let stake = 1_000u64;
     let wallet_amount = 10_000u64;
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, _deployer, vote_mint, pdas, tag_pdas) = setup();
 
     let user = Keypair::new();
@@ -712,7 +712,7 @@ fn test_claim_tag_reward_zero_pending_is_a_harmless_no_op() {
 /// rejected with `TagAppMismatch` specifically.
 #[test]
 fn test_claim_tag_reward_rejects_mismatched_app_and_app_tag() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, victim_pdas, _victim_tag_pdas) = setup();
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
@@ -877,7 +877,7 @@ fn test_claim_tag_reward_rejects_mismatched_app_and_app_tag() {
 /// different property).
 #[test]
 fn test_claim_tag_reward_splits_shared_accumulator_proportionally_across_two_tags() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, pdas, tag_a_pdas) = setup(); // tag A = "defi"
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
@@ -957,7 +957,7 @@ fn test_claim_tag_reward_splits_shared_accumulator_proportionally_across_two_tag
 
     // total_tag_stake is now 4_000, shared across both tags — not tracked
     // per-tag anywhere.
-    let app_account: appmap::AppAccount = {
+    let app_account: nebulous_world::AppAccount = {
         let raw = svm.get_account(&pdas.app).unwrap();
         anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
     };

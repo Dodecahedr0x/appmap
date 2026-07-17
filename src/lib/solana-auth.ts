@@ -9,7 +9,7 @@ import { PublicKey } from "@solana/web3.js";
 // verifies the signature against the claimed public key. No private key ever
 // leaves the wallet and the nonce prevents replay.
 
-const APP_NAME = "AppMap";
+const APP_NAME = "nebulous.world";
 
 export interface AuthChallenge {
   nonce: string;

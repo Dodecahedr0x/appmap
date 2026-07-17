@@ -49,7 +49,7 @@ export const SORT_OPTIONS = [
 export const TOKEN_SYMBOL = "APP";
 
 /** Public site name, used for OpenGraph og:site_name and page titles. */
-export const SITE_NAME = "AppMap";
+export const SITE_NAME = "nebulous.world";
 
 /** Public tagline, used as the default OpenGraph/Twitter description. */
 export const SITE_DESCRIPTION =

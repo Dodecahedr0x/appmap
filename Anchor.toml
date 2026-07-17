@@ -6,10 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-appmap = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
+nebulous_world = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
 
 [programs.localnet]
-appmap = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
+nebulous_world = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
 
 [provider]
 # Devnet's public RPC is currently unreliable for program deploys (repeated

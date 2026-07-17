@@ -18,7 +18,7 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
     pub vote_mint: Account<'info, Mint>,
-    /// The appmap program itself, used only to look up its `ProgramData`
+    /// The nebulous_world program itself, used only to look up its `ProgramData`
     /// account so we can verify `authority` is the program's upgrade
     /// authority. This closes the front-running window where anyone could
     /// otherwise race the legitimate deployer to call `initialize` first and
@@ -31,7 +31,7 @@ pub struct Initialize<'info> {
     /// created — finalizing the program before initializing it permanently
     /// bricks deployment.
     #[account(constraint = program.programdata_address()? == Some(program_data.key()) @ ErrorCode::Unauthorized)]
-    pub program: Program<'info, crate::program::Appmap>,
+    pub program: Program<'info, crate::program::NebulousWorld>,
     #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()) @ ErrorCode::Unauthorized)]
     pub program_data: Account<'info, ProgramData>,
     pub system_program: Program<'info, System>,

@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <footer className="border-t border-hairline bg-white py-6 text-center text-caption text-slate-steel">
-        AppMap · crowd-sourced app discovery on Solana · built for
+        nebulous.world · crowd-sourced app discovery on Solana · built for
         transparent, stake-aligned rankings
       </footer>
     </div>

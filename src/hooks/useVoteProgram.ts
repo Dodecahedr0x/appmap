@@ -6,7 +6,7 @@ import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { config, isSimulationMode } from "@/lib/config";
 import {
-  getAppmapProgram,
+  getNebulousWorldProgram,
   appPda,
   votePositionPda,
   toRawAmount,
@@ -27,7 +27,7 @@ export function useVoteProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getAppmapProgram(connection, wallet);
+      const program = getNebulousWorldProgram(connection, wallet);
       const app = appPda(program.programId, appId);
       const position = votePositionPda(program.programId, app, wallet.publicKey);
       const mint = new PublicKey(config.solana.voteTokenMint);
@@ -56,7 +56,7 @@ export function useVoteProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getAppmapProgram(connection, wallet);
+      const program = getNebulousWorldProgram(connection, wallet);
       const app = appPda(program.programId, appId);
       const position = votePositionPda(program.programId, app, wallet.publicKey);
       const mint = new PublicKey(config.solana.voteTokenMint);

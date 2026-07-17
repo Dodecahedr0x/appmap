@@ -12,8 +12,8 @@ import { fetchAdsenseEarnings } from "../src/lib/adsense";
 import { allocateByTrafficShare } from "../src/lib/settlement";
 import { config } from "../src/lib/config";
 import { appPda, configPda } from "../src/lib/anchorClient";
-import idl from "../target/idl/appmap.json";
-import type { Appmap } from "../target/types/appmap";
+import idl from "../target/idl/nebulous_world.json";
+import type { NebulousWorld } from "../target/types/nebulous_world";
 
 const SETTLEMENT_LAG_DAYS = 3; // AdSense finalization lag, per the design doc
 const PROTOCOL_FEE = 0.1; // must match REVENUE_CONFIG.protocolFee in src/lib/revenue.ts
@@ -59,7 +59,7 @@ async function main() {
   const provider = new AnchorProvider(connection, new Wallet(treasuryKeypair), {
     commitment: "confirmed",
   });
-  const program = new Program<Appmap>(idl as Appmap, provider);
+  const program = new Program<NebulousWorld>(idl as NebulousWorld, provider);
   const cfgPda = configPda(program.programId);
   const mint = new PublicKey(config.solana.voteTokenMint);
   const treasuryAta = await getOrCreateAssociatedTokenAccount(

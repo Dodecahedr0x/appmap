@@ -8,7 +8,7 @@ import { config } from "./config";
 // server tracking secret. Both the auth challenge (nonce) and the resulting
 // session cookie are self-describing and tamper-evident.
 
-const SESSION_COOKIE = "appmap_session";
+const SESSION_COOKIE = "nebulous_world_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 

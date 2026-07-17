@@ -8,7 +8,7 @@ use {
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    appmap::constants::{
+    nebulous_world::constants::{
         APP_SEED, CONFIG_SEED, REWARD_PRECISION, TAGS_REWARD_VAULT_SEED, VOTE_POSITION_SEED,
         VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
     },
@@ -21,7 +21,7 @@ use {
     spl_token_interface::state::{Account as SplTokenAccount, AccountState, Mint},
 };
 
-/// See `test_initialize.rs` for context: overwrites the appmap program's
+/// See `test_initialize.rs` for context: overwrites the nebulous_world program's
 /// `ProgramData` account so `upgrade_authority` is its recorded upgrade
 /// authority, which is required to call `initialize`.
 fn set_upgrade_authority(
@@ -68,15 +68,15 @@ fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
     }
 }
 
-/// Sets up a fresh LiteSVM instance with the appmap program loaded, `Config`
+/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
 /// initialized, and a single `AppAccount` (with its three vaults) already
 /// registered via `init_app`. Returns the SVM, the deployer keypair, the
 /// vote mint, and the registered app's PDAs.
 fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/appmap.so");
+    let bytes = include_bytes!("../../../target/deploy/nebulous_world.so");
     svm.add_program(program_id, bytes).unwrap();
     svm.airdrop(&deployer.pubkey(), 1_000_000_000).unwrap();
 
@@ -106,11 +106,11 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::Initialize {
+        &nebulous_world::instruction::Initialize {
             protocol_fee_bps: 250,
         }
         .data(),
-        appmap::accounts::Initialize {
+        nebulous_world::accounts::Initialize {
             config,
             authority: deployer.pubkey(),
             vote_mint,
@@ -130,11 +130,11 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
     let pdas = derive_app_pdas(&program_id, &app_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::InitApp {
+        &nebulous_world::instruction::InitApp {
             app_id: app_id.clone(),
         }
         .data(),
-        appmap::accounts::InitApp {
+        nebulous_world::accounts::InitApp {
             app: pdas.app,
             config,
             vote_vault: pdas.vote_vault,
@@ -195,7 +195,7 @@ fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pu
 /// keeping its existing lamports/owner.
 fn set_app_vote_accumulator(svm: &mut LiteSVM, app: Pubkey, acc_reward_per_share: u128) {
     let mut raw = svm.get_account(&app).expect("app account must exist");
-    let mut app_account: appmap::AppAccount =
+    let mut app_account: nebulous_world::AppAccount =
         anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap();
     app_account.vote_acc_reward_per_share = acc_reward_per_share;
 
@@ -215,8 +215,8 @@ fn vote_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::Vote { amount }.data(),
-        appmap::accounts::Vote {
+        &nebulous_world::instruction::Vote { amount }.data(),
+        nebulous_world::accounts::Vote {
             app: pdas.app,
             position: *position,
             vote_vault: pdas.vote_vault,
@@ -240,8 +240,8 @@ fn withdraw_vote_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::WithdrawVote { amount }.data(),
-        appmap::accounts::WithdrawVote {
+        &nebulous_world::instruction::WithdrawVote { amount }.data(),
+        nebulous_world::accounts::WithdrawVote {
             app: pdas.app,
             position: *position,
             vote_vault: pdas.vote_vault,
@@ -261,7 +261,7 @@ fn setup_with_position(
     initial_stake: u64,
     wallet_amount: u64,
 ) -> (LiteSVM, Pubkey, AppPdas, Keypair, Pubkey, Pubkey, Pubkey) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, _deployer, vote_mint, pdas) = setup();
 
     let user = Keypair::new();
@@ -310,14 +310,14 @@ fn setup_with_position(
     )
 }
 
-fn fetch_position(svm: &LiteSVM, position: Pubkey) -> appmap::VotePosition {
+fn fetch_position(svm: &LiteSVM, position: Pubkey) -> nebulous_world::VotePosition {
     let raw = svm
         .get_account(&position)
         .expect("position account must exist");
     anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
 }
 
-fn fetch_app(svm: &LiteSVM, app: Pubkey) -> appmap::AppAccount {
+fn fetch_app(svm: &LiteSVM, app: Pubkey) -> nebulous_world::AppAccount {
     let raw = svm.get_account(&app).expect("app account must exist");
     anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
 }

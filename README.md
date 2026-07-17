@@ -1,4 +1,4 @@
-# AppMap
+# nebulous.world
 
 Crowd-sourced app discovery with **advanced search & visualization**,
 **Solana-powered voting**, **tag staking**, and **traffic-based ad-revenue
@@ -27,7 +27,7 @@ sharing**.
 | Wallet     | `@solana/wallet-adapter` (Phantom, Solflare, …)     |
 | Auth       | Sign-In-With-Solana (ed25519 signature, no passwords) |
 | Charts     | Recharts                                            |
-| On-chain   | Anchor program (`programs/appmap`) for vote/stake/revenue |
+| On-chain   | Anchor program (`programs/nebulous_world`) for vote/stake/revenue |
 
 ## Getting started
 
@@ -40,7 +40,7 @@ npm run dev                   # http://localhost:3000
 
 `db:reset` (and `db:push`/`test`) auto-provisions a local Postgres via
 Homebrew the first time you run them — installs `postgresql@15` if missing,
-starts it, and creates the `appmap_dev`/`appmap_test` role and database (see
+starts it, and creates the `nebulous_world_dev`/`nebulous_world_test` role and database (see
 `scripts/ensure-postgres.sh`). Point `DATABASE_URL` at your own instance
 instead if you'd rather manage Postgres yourself.
 
@@ -50,13 +50,13 @@ toolchain required. To exercise the real on-chain program (or before running
 generated IDL/types), you first need:
 
 ```bash
-anchor build                  # generates target/idl/appmap.json + target/types/appmap.ts
+anchor build                  # generates target/idl/nebulous_world.json + target/types/nebulous_world.ts
 solana-test-validator          # in a separate terminal — devnet's public RPC is currently
                                 # unreliable for program deploys, see Anchor.toml
 anchor deploy --provider.cluster localnet
 ```
 
-then set `NEXT_PUBLIC_APPMAP_PROGRAM_ID` and `NEXT_PUBLIC_VOTE_TOKEN_MINT` in
+then set `NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID` and `NEXT_PUBLIC_VOTE_TOKEN_MINT` in
 `.env` to the deployed program id and a real SPL mint.
 
 Or run all of the above (install, `.env`, `anchor build`, a local validator,
@@ -97,6 +97,6 @@ wallet. See `src/lib/config.ts`.
 - `src/lib/engine.ts` — bridges the pure math to the database (aggregate
   refresh, epoch settlement).
 - `src/app/api/**` — REST API (apps, tags, votes, stakes, tracking, ads, auth).
-- `programs/appmap` — the on-chain Anchor program.
+- `programs/nebulous_world` — the on-chain Anchor program.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.

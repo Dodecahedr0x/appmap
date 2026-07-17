@@ -9,7 +9,7 @@ import {
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { randomBytes } from "crypto";
-import { Appmap } from "../target/types/appmap";
+import { NebulousWorld } from "../target/types/nebulous_world";
 
 // The BPF Upgradeable Loader program owns every upgradeable program's
 // `ProgramData` PDA (seeds = [programId], program = BPF_LOADER_UPGRADEABLE).
@@ -17,10 +17,10 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
 );
 
-describe("appmap: config", () => {
+describe("nebulous_world: config", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   it("initializes the global config", async () => {
     const mint = await createMint(
@@ -58,10 +58,10 @@ describe("appmap: config", () => {
   });
 });
 
-describe("appmap: init_app", () => {
+describe("nebulous_world: init_app", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -71,7 +71,7 @@ describe("appmap: init_app", () => {
   let voteMint: PublicKey;
 
   // `Config` is a singleton PDA that can only be initialized once per test
-  // run. The "appmap: config" describe block above (which mocha always runs
+  // run. The "nebulous_world: config" describe block above (which mocha always runs
   // to completion before this one, since ts-mocha executes root `describe`s
   // sequentially in file order) already initializes it — reuse its
   // `voteMint` here instead of trying (and failing) to `initialize` again.
@@ -234,10 +234,10 @@ describe("appmap: init_app", () => {
   });
 });
 
-describe("appmap: suggest_tag", () => {
+describe("nebulous_world: suggest_tag", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -246,7 +246,7 @@ describe("appmap: suggest_tag", () => {
 
   let voteMint: PublicKey;
 
-  // Same reuse-or-initialize pattern as the "appmap: init_app" describe
+  // Same reuse-or-initialize pattern as the "nebulous_world: init_app" describe
   // block above: `Config` is a singleton, so reuse it if a prior describe
   // block in this file already created it.
   before(async () => {
@@ -504,10 +504,10 @@ describe("appmap: suggest_tag", () => {
   });
 });
 
-describe("appmap: vote", () => {
+describe("nebulous_world: vote", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -516,7 +516,7 @@ describe("appmap: vote", () => {
 
   let voteMint: PublicKey;
 
-  // Same reuse-or-initialize pattern as the "appmap: init_app" block above:
+  // Same reuse-or-initialize pattern as the "nebulous_world: init_app" block above:
   // `Config` is a singleton, so reuse it if a prior describe block in this
   // file already created it.
   before(async () => {
@@ -695,10 +695,10 @@ describe("appmap: vote", () => {
   });
 });
 
-describe("appmap: withdraw_vote", () => {
+describe("nebulous_world: withdraw_vote", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -707,7 +707,7 @@ describe("appmap: withdraw_vote", () => {
 
   let voteMint: PublicKey;
 
-  // Same reuse-or-initialize pattern as the "appmap: vote" describe block
+  // Same reuse-or-initialize pattern as the "nebulous_world: vote" describe block
   // above: `Config` is a singleton, so reuse it if a prior describe block in
   // this file already created it.
   before(async () => {
@@ -973,10 +973,10 @@ describe("appmap: withdraw_vote", () => {
   });
 });
 
-describe("appmap: fund_app_rewards + claim_vote_reward", () => {
+describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -1426,10 +1426,10 @@ describe("appmap: fund_app_rewards + claim_vote_reward", () => {
   });
 });
 
-describe("appmap: stake_tag", () => {
+describe("nebulous_world: stake_tag", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -1869,10 +1869,10 @@ describe("appmap: stake_tag", () => {
   });
 });
 
-describe("appmap: withdraw_tag_stake", () => {
+describe("nebulous_world: withdraw_tag_stake", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -2213,7 +2213,7 @@ describe("appmap: withdraw_tag_stake", () => {
   });
 
   // Regression test for a critical fund-drain vulnerability (see the
-  // matching test in the "appmap: stake_tag" block for the full exploit
+  // matching test in the "nebulous_world: stake_tag" block for the full exploit
   // writeup): without the `constraint = app_tag.app == app.key()` check on
   // `WithdrawTagStake::app_tag`, an attacker with their OWN legitimate
   // (app, appTag, position) could call `withdraw_tag_stake` passing their
@@ -2387,10 +2387,10 @@ describe("appmap: withdraw_tag_stake", () => {
   });
 });
 
-describe("appmap: claim_tag_reward", () => {
+describe("nebulous_world: claim_tag_reward", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace.Appmap as Program<Appmap>;
+  const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -2792,7 +2792,7 @@ describe("appmap: claim_tag_reward", () => {
   });
 
   // Regression test for a critical fund-drain vulnerability (see the
-  // matching tests in the "appmap: stake_tag" and "appmap: withdraw_tag_stake"
+  // matching tests in the "nebulous_world: stake_tag" and "nebulous_world: withdraw_tag_stake"
   // blocks for the full exploit writeup): without the
   // `constraint = app_tag.app == app.key()` check on
   // `ClaimTagReward::app_tag`, an attacker with their OWN legitimate

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: appmap
+    name: nebulous-world
     runtime: node
     repo: https://github.com/Dodecahedr0x/appmap
     plan: free
@@ -14,7 +14,7 @@ services:
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: appmap-db
+          name: nebulous-world-db
           property: connectionString
 
       # --- Solana ---
@@ -22,7 +22,7 @@ services:
         value: https://api.devnet.solana.com
       - key: NEXT_PUBLIC_SOLANA_CLUSTER
         value: devnet
-      - key: NEXT_PUBLIC_APPMAP_PROGRAM_ID
+      - key: NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID
         value: EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx
       - key: NEXT_PUBLIC_VOTE_TOKEN_DECIMALS
         value: "6"
@@ -49,7 +49,7 @@ services:
   # Writes the AppStatsSnapshot rows that power per-app trend charts
   # (see scripts/dailySnapshot.ts). No secrets beyond DATABASE_URL.
   - type: cron
-    name: appmap-daily-snapshot
+    name: nebulous-world-daily-snapshot
     runtime: node
     repo: https://github.com/Dodecahedr0x/appmap
     plan: starter
@@ -59,12 +59,12 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: appmap-db
+          name: nebulous-world-db
           property: connectionString
 
 databases:
-  - name: appmap-db
-    databaseName: appmap
+  - name: nebulous-world-db
+    databaseName: nebulous_world
     plan: free
     postgresMajorVersion: "16"
     ipAllowList: []

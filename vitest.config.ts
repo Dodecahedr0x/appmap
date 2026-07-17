@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     env: {
       DATABASE_URL:
-        process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/appmap_test",
+        process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/nebulous_world_test",
     },
     // Test files share one Postgres database (no per-file schema/
     // transaction isolation) and several files unconditionally wipe shared

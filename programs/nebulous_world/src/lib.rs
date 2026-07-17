@@ -13,7 +13,7 @@ pub use state::*;
 declare_id!("EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx");
 
 #[program]
-pub mod appmap {
+pub mod nebulous_world {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, protocol_fee_bps: u16) -> Result<()> {
