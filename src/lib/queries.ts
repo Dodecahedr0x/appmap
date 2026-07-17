@@ -16,6 +16,12 @@ export interface AppDetail {
   topStakers: { wallet: string; amount: number }[];
   viewsLast7d: number;
   dailyViews: { date: string; views: number }[];
+  snapshots: {
+    date: string;
+    voteWeight: number;
+    stakeTotal: number;
+    viewCount: number;
+  }[];
 }
 
 /** Load everything needed to render an app's detail page. */
@@ -27,7 +33,7 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
   if (!app) return null;
 
   const since = new Date(Date.now() - 7 * 86400_000);
-  const [recentVotes, topStakers, views] = await Promise.all([
+  const [recentVotes, topStakers, views, snapshots] = await Promise.all([
     prisma.vote.findMany({
       where: { appId: app.id },
       orderBy: { createdAt: "desc" },
@@ -44,6 +50,11 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
     prisma.pageView.findMany({
       where: { appId: app.id, createdAt: { gte: since } },
       select: { createdAt: true },
+    }),
+    prisma.appStatsSnapshot.findMany({
+      where: { appId: app.id },
+      orderBy: { date: "asc" },
+      select: { date: true, voteWeight: true, stakeTotal: true, viewCount: true },
     }),
   ]);
 
@@ -84,6 +95,12 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
     dailyViews: [...dailyMap.entries()].map(([date, v]) => ({
       date,
       views: v,
+    })),
+    snapshots: snapshots.map((s) => ({
+      date: s.date.toISOString(),
+      voteWeight: s.voteWeight,
+      stakeTotal: s.stakeTotal,
+      viewCount: s.viewCount,
     })),
   };
 }

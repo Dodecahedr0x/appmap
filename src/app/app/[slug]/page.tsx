@@ -9,6 +9,7 @@ import { TagStakePanel } from "@/components/app/TagStakePanel";
 import { TrafficBeacon } from "@/components/app/TrafficBeacon";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { Sparkline } from "@/components/charts/Sparkline";
+import { TrendChart } from "@/components/app/TrendChart";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function AppDetailPage({ params }: Props) {
   const detail = await getAppDetail(slug);
   if (!detail) notFound();
 
-  const { app, recentVotes, topStakers, viewsLast7d, dailyViews } = detail;
+  const { app, recentVotes, topStakers, viewsLast7d, dailyViews, snapshots } = detail;
 
   return (
     <div className="space-y-6">
@@ -119,6 +120,14 @@ export default async function AppDetailPage({ params }: Props) {
             <Sparkline
               data={dailyViews.map((d) => ({ label: d.date.slice(5), value: d.views }))}
             />
+          </section>
+
+          {/* Trend history */}
+          <section className="card p-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+              Trends
+            </h2>
+            <TrendChart data={snapshots} />
           </section>
 
           {/* Tags + staking */}

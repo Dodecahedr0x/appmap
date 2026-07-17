@@ -9,5 +9,12 @@ export default defineConfig({
       // prisma/prisma/test.db. Verified empirically; see pretest script.
       DATABASE_URL: "file:./test.db",
     },
+    // Test files share one on-disk SQLite database (no per-file schema/
+    // transaction isolation) and several files unconditionally wipe shared
+    // tables like `app` in beforeEach/setup — running files in parallel
+    // worker threads races those wipes against other files' inserts,
+    // surfacing as intermittent foreign-key-constraint failures once enough
+    // files touch the same tables (as adding snapshot.test.ts did).
+    fileParallelism: false,
   },
 });

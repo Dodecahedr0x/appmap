@@ -16,7 +16,7 @@ export const GET = handler(
     });
     if (!app) throw new ApiError("App not found", 404);
 
-    const [recentVotes, topStakers, viewsLast7d] = await Promise.all([
+    const [recentVotes, topStakers, viewsLast7d, snapshots] = await Promise.all([
       prisma.vote.findMany({
         where: { appId: app.id },
         orderBy: { createdAt: "desc" },
@@ -38,6 +38,11 @@ export const GET = handler(
           appId: app.id,
           createdAt: { gte: new Date(Date.now() - 7 * 86400_000) },
         },
+      }),
+      prisma.appStatsSnapshot.findMany({
+        where: { appId: app.id },
+        orderBy: { date: "asc" },
+        select: { date: true, voteWeight: true, stakeTotal: true, viewCount: true },
       }),
     ]);
 
@@ -65,6 +70,12 @@ export const GET = handler(
         amount: s._sum.amount ?? 0,
       })),
       viewsLast7d,
+      snapshots: snapshots.map((s) => ({
+        date: s.date.toISOString(),
+        voteWeight: s.voteWeight,
+        stakeTotal: s.stakeTotal,
+        viewCount: s.viewCount,
+      })),
     });
   },
 );
