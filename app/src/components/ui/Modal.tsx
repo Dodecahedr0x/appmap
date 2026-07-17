@@ -27,11 +27,15 @@ export function Modal({
   onClose,
   title,
   children,
+  maxWidthClassName = "max-w-lg",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Tailwind max-width class for the dialog card — widen it for content
+      that needs more than the default single-column form width. */
+  maxWidthClassName?: string;
 }) {
   const [rendered, setRendered] = useState(open);
   const [visible, setVisible] = useState(false);
@@ -78,8 +82,11 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "card my-8 w-full max-w-lg p-6 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
-          visible ? "opacity-100 motion-safe:scale-100" : "opacity-0 motion-safe:scale-95",
+          "card my-8 w-full p-6 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+          maxWidthClassName,
+          visible
+            ? "opacity-100 motion-safe:scale-100"
+            : "opacity-0 motion-safe:scale-95",
         )}
         onClick={(e) => e.stopPropagation()}
       >

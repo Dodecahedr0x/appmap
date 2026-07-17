@@ -7,7 +7,9 @@ import { TOKEN_SYMBOL } from "@/lib/constants";
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-sm font-semibold tabular-nums text-ink">{value}</span>
+      <span className="text-sm font-semibold tabular-nums text-ink">
+        {value}
+      </span>
       <span className="text-[10px] uppercase tracking-wide text-slate-steel">
         {label}
       </span>
@@ -15,12 +17,24 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function AppCard({ app, rank }: { app: AppDTO; rank?: number }) {
-  return (
-    <Link
-      href={`/app/${app.slug}`}
-      className="card group flex flex-col overflow-hidden transition-colors hover:border-cobalt/40"
-    >
+export function AppCard({
+  app,
+  rank,
+  preview = false,
+}: {
+  app: AppDTO;
+  rank?: number;
+  /** Renders as an inert div instead of a Link — used for the live preview
+      in CreateAppForm, where the card isn't a real, navigable app yet. */
+  preview?: boolean;
+}) {
+  const className = cn(
+    "card group flex flex-col overflow-hidden transition-colors",
+    !preview && "hover:border-cobalt/40",
+  );
+
+  const content = (
+    <>
       {/* Hero image — the app's own OpenGraph image when available, so the
           card reads like a link preview rather than a bare list row. */}
       <div className="relative aspect-[1200/630] w-full shrink-0 overflow-hidden bg-mist">
@@ -33,7 +47,7 @@ export function AppCard({ app, rank }: { app: AppDTO; rank?: number }) {
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-4xl font-bold text-violet">
-            {app.name.charAt(0).toUpperCase()}
+            {app.name.charAt(0).toUpperCase() || "?"}
           </div>
         )}
         {typeof rank === "number" && (
@@ -91,6 +105,16 @@ export function AppCard({ app, rank }: { app: AppDTO; rank?: number }) {
         <Stat label="Staked" value={formatToken(app.stakeTotal, "")} />
         <Stat label="Views" value={formatNumber(app.viewCount)} />
       </div>
+    </>
+  );
+
+  if (preview) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <Link href={`/app/${app.slug}`} className={className}>
+      {content}
     </Link>
   );
 }

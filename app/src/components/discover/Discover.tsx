@@ -47,7 +47,9 @@ export function Discover({ initial }: Props) {
   // One timer per debounced field — a single shared timer would let typing in
   // a second field (e.g. a range input) cancel a still-pending navigate for
   // the first (e.g. the fuzzy box), silently dropping that field's update.
-  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+    {},
+  );
   const debounce = useCallback((key: string, fn: () => void) => {
     clearTimeout(debounceRefs.current[key]);
     debounceRefs.current[key] = setTimeout(fn, 300);
@@ -230,7 +232,9 @@ export function Discover({ initial }: Props) {
 
         {result.apps.length === 0 ? (
           <div
-            key={query + JSON.stringify(ranges) + fuzzy + selectedTags.join(",")}
+            key={
+              query + JSON.stringify(ranges) + fuzzy + selectedTags.join(",")
+            }
             className="card animate-fade-in grid place-items-center p-12 text-center text-slate-steel"
           >
             <p>No apps match your search.</p>
@@ -281,7 +285,12 @@ export function Discover({ initial }: Props) {
         )}
       </section>
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create app">
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Create app"
+        maxWidthClassName="max-w-3xl"
+      >
         <CreateAppForm
           onSuccess={() => {
             setCreateOpen(false);
