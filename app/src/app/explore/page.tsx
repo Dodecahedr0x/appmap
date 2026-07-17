@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
-import { getPlatformStats } from "@/lib/analytics";
+import { getPlatformStats } from "@/lib/explore";
 import { searchApps } from "@/lib/search";
 import { searchSchema } from "@/lib/validation";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { AppCard } from "@/components/AppCard";
-import { TagConstellation } from "@/components/analytics/TagConstellation";
+import { TagMap } from "@/components/explore/TagMap";
+import { AppMap } from "@/components/explore/AppMap";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Analytics",
-  description: "Platform-wide stats, top-ranked apps, and a live tag constellation for nebulous.world.",
+  title: "Explore",
+  description: "See what's happening across nebulous.world — top apps, tag trends, and how apps and tags relate to each other.",
 };
 
 function StatTile({ label, value }: { label: string; value: string }) {
@@ -23,7 +24,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function AnalyticsPage() {
+export default async function ExplorePage() {
   const [stats, top] = await Promise.all([
     getPlatformStats(),
     searchApps(searchSchema.parse({ sort: "rank", pageSize: 6 })),
@@ -32,10 +33,10 @@ export default async function AnalyticsPage() {
   return (
     <div className="space-y-16">
       <div>
-        <h1 className="text-heading-xl font-semibold text-ink">Analytics</h1>
+        <h1 className="text-heading-xl font-semibold text-ink">Explore</h1>
         <p className="mt-2 max-w-2xl text-subheading text-slate">
-          Platform-wide totals, the current top-ranked apps, and a live map of how tags relate to
-          one another across every listed app.
+          A closer look at what&apos;s happening across nebulous.world: who the community is
+          backing, which apps are worth a look, and how it all connects.
         </p>
       </div>
 
@@ -50,15 +51,24 @@ export default async function AnalyticsPage() {
       </section>
 
       <section>
-        <h2 className="text-heading font-semibold text-ink">Tag constellation</h2>
+        <h2 className="text-heading font-semibold text-ink">Similar apps</h2>
         <p className="mt-1 max-w-2xl text-sm text-slate">
-          Each node is a tag, sized by total stake behind it; each edge is how often two tags
-          appear together on the same app — a live{" "}
-          <span className="font-medium text-ink">d3-force</span> physics simulation, not a static
-          chart.
+          Apps cluster together when they&apos;re tagged alike — a quick way to find something
+          close to an app you already use. Click any circle to open that app.
         </p>
         <div className="mt-6">
-          <TagConstellation />
+          <AppMap />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-heading font-semibold text-ink">Tags that travel together</h2>
+        <p className="mt-1 max-w-2xl text-sm text-slate">
+          Bigger circles have more stake behind them. Tags placed close together tend to show up
+          on the same apps — a way to browse by theme instead of by keyword.
+        </p>
+        <div className="mt-6">
+          <TagMap />
         </div>
       </section>
 

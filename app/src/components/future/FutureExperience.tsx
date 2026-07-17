@@ -88,8 +88,8 @@ export function FutureExperience() {
               <Link href="/" className="btn-primary">
                 Explore nebulous.world →
               </Link>
-              <Link href="/analytics" className="btn-secondary">
-                See the tag constellation
+              <Link href="/explore" className="btn-secondary">
+                Explore the data
               </Link>
             </div>
           </div>
@@ -146,8 +146,8 @@ export function FutureExperience() {
         <p className="future-lede mt-3">
           A live d3-force simulation of every tag, sized by total stake and linked by how often
           two tags share an app — now a real part of{" "}
-          <Link href="/analytics" className="font-medium text-cobalt hover:underline">
-            Analytics
+          <Link href="/explore" className="font-medium text-cobalt hover:underline">
+            Explore
           </Link>
           , not just a demo here.
         </p>
