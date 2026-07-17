@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getAppDetail } from "@/lib/queries";
 import { formatToken, formatNumber, shortAddress, timeAgo } from "@/lib/utils";
-import { TOKEN_SYMBOL } from "@/lib/constants";
+import { TOKEN_SYMBOL, SITE_URL, SITE_NAME } from "@/lib/constants";
 import { VotePanel } from "@/components/app/VotePanel";
 import { TagStakePanel } from "@/components/app/TagStakePanel";
 import { TrafficBeacon } from "@/components/app/TrafficBeacon";
@@ -20,10 +20,29 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const detail = await getAppDetail(slug);
-  if (!detail) return { title: "App not found — AppMap" };
+  if (!detail) return { title: "App not found" };
+
+  const { app } = detail;
+  const description = app.tagline || app.description;
+  const url = `${SITE_URL}/app/${app.slug}`;
+
   return {
-    title: `${detail.app.name} — AppMap`,
-    description: detail.app.tagline || detail.app.description,
+    title: app.name,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title: app.name,
+      description,
+      url,
+      siteName: SITE_NAME,
+      locale: "en_US",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: app.name,
+      description,
+    },
   };
 }
 

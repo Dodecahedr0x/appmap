@@ -47,3 +47,15 @@ export const SORT_OPTIONS = [
 
 /** Human-readable token symbol for the vote/stake token. */
 export const TOKEN_SYMBOL = "APP";
+
+/** Public site name, used for OpenGraph og:site_name and page titles. */
+export const SITE_NAME = "AppMap";
+
+/** Public tagline, used as the default OpenGraph/Twitter description. */
+export const SITE_DESCRIPTION =
+  "Crowd-sourced app discovery with advanced search, Solana-powered voting, tag staking, and traffic-based ad revenue sharing.";
+
+/** Canonical site origin, used for metadataBase and absolute OG/canonical URLs. */
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
