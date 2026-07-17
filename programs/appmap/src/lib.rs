@@ -55,4 +55,8 @@ pub mod appmap {
     pub fn withdraw_tag_stake(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
         withdraw_tag_stake::handler(ctx, amount)
     }
+
+    pub fn claim_tag_reward(ctx: Context<ClaimTagReward>) -> Result<()> {
+        claim_tag_reward::handler(ctx)
+    }
 }

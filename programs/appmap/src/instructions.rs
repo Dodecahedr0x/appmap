@@ -1,3 +1,4 @@
+pub mod claim_tag_reward;
 pub mod claim_vote_reward;
 pub mod fund_app_rewards;
 pub mod init_app;
@@ -17,6 +18,7 @@ pub mod withdraw_vote;
 // for the `#[program]` macro to find via `crate::`.
 #[allow(ambiguous_glob_reexports)]
 mod reexports {
+    pub use super::claim_tag_reward::*;
     pub use super::claim_vote_reward::*;
     pub use super::fund_app_rewards::*;
     pub use super::init_app::*;
