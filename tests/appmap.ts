@@ -424,3 +424,281 @@ describe("appmap: vote", () => {
     assert.isTrue(threw, "expected vote to reject a zero amount");
   });
 });
+
+describe("appmap: withdraw_vote", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  const program = anchor.workspace.Appmap as Program<Appmap>;
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId,
+  );
+
+  let voteMint: PublicKey;
+
+  // Same reuse-or-initialize pattern as the "appmap: vote" describe block
+  // above: `Config` is a singleton, so reuse it if a prior describe block in
+  // this file already created it.
+  before(async () => {
+    try {
+      const config = await program.account.config.fetch(configPda);
+      voteMint = config.voteMint;
+      return;
+    } catch {
+      // Config not initialized yet — fall through and initialize it.
+    }
+
+    voteMint = await createMint(
+      provider.connection,
+      (provider.wallet as any).payer,
+      provider.wallet.publicKey,
+      null,
+      6,
+    );
+    const [programDataPda] = PublicKey.findProgramAddressSync(
+      [program.programId.toBuffer()],
+      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+    );
+    await program.methods
+      .initialize(1000)
+      .accounts({
+        config: configPda,
+        authority: provider.wallet.publicKey,
+        voteMint,
+        programData: programDataPda,
+      })
+      .rpc();
+  });
+
+  function derivePdas(appId: string) {
+    const [app] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app"), Buffer.from(appId)],
+      program.programId,
+    );
+    const [voteVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [voteRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tags_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    return { app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  function derivePositionPda(app: PublicKey, user: PublicKey) {
+    const [position] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_pos"), app.toBuffer(), user.toBuffer()],
+      program.programId,
+    );
+    return position;
+  }
+
+  async function registerApp() {
+    const appId = `cid${randomBytes(11).toString("hex")}`;
+    const { app, voteVault, voteRewardVault, tagsRewardVault } =
+      derivePdas(appId);
+    await program.methods
+      .initApp(appId)
+      .accounts({
+        app,
+        config: configPda,
+        voteVault,
+        voteRewardVault,
+        tagsRewardVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+    return { appId, app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  // Registers a fresh app, funds a fresh user's wallet, and votes
+  // `initialStake` in to create a `VotePosition` — the common fixture every
+  // `withdraw_vote` test below builds on.
+  async function setupWithPosition(initialStake: number, walletAmount: number) {
+    const { app, voteVault, voteRewardVault } = await registerApp();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      userTokenAccount.address,
+      provider.wallet.publicKey,
+      walletAmount,
+    );
+
+    const position = derivePositionPda(app, user.publicKey);
+
+    await program.methods
+      .vote(new BN(initialStake))
+      .accounts({
+        app,
+        position,
+        voteVault,
+        voteRewardVault,
+        userTokenAccount: userTokenAccount.address,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    return {
+      app,
+      voteVault,
+      voteRewardVault,
+      user,
+      userTokenAccount: userTokenAccount.address,
+      position,
+    };
+  }
+
+  it("returns principal and zeroes the position on a full withdrawal", async () => {
+    const initialStake = 4_000;
+    const walletAmount = 10_000;
+    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, walletAmount);
+
+    await program.methods
+      .withdrawVote(new BN(initialStake))
+      .accounts({
+        app,
+        position,
+        voteVault,
+        voteRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const positionAccount = await program.account.votePosition.fetch(position);
+    assert.equal(positionAccount.amount.toString(), "0");
+    assert.equal(positionAccount.rewardDebt.toString(), "0");
+
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(appAccount.totalVoteStake.toString(), "0");
+
+    const voteVaultAfter = await getAccount(provider.connection, voteVault);
+    assert.equal(voteVaultAfter.amount.toString(), "0");
+
+    const userTokenAfter = await getAccount(provider.connection, userTokenAccount);
+    assert.equal(userTokenAfter.amount.toString(), walletAmount.toString());
+  });
+
+  it("leaves remaining stake on a partial withdrawal", async () => {
+    const initialStake = 4_000;
+    const walletAmount = 10_000;
+    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, walletAmount);
+
+    const withdrawAmount = 1_500;
+    await program.methods
+      .withdrawVote(new BN(withdrawAmount))
+      .accounts({
+        app,
+        position,
+        voteVault,
+        voteRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const positionAccount = await program.account.votePosition.fetch(position);
+    assert.equal(
+      positionAccount.amount.toString(),
+      (initialStake - withdrawAmount).toString(),
+    );
+
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(
+      appAccount.totalVoteStake.toString(),
+      (initialStake - withdrawAmount).toString(),
+    );
+
+    const voteVaultAfter = await getAccount(provider.connection, voteVault);
+    assert.equal(
+      voteVaultAfter.amount.toString(),
+      (initialStake - withdrawAmount).toString(),
+    );
+
+    const userTokenAfter = await getAccount(provider.connection, userTokenAccount);
+    assert.equal(
+      userTokenAfter.amount.toString(),
+      (walletAmount - initialStake + withdrawAmount).toString(),
+    );
+  });
+
+  it("rejects a zero-amount withdrawal", async () => {
+    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(4_000, 10_000);
+
+    let threw = false;
+    try {
+      await program.methods
+        .withdrawVote(new BN(0))
+        .accounts({
+          app,
+          position,
+          voteVault,
+          voteRewardVault,
+          userTokenAccount,
+          user: user.publicKey,
+        })
+        .signers([user])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(threw, "expected withdraw_vote to reject a zero amount");
+  });
+
+  it("rejects a withdrawal exceeding the position's staked amount", async () => {
+    const initialStake = 4_000;
+    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, 10_000);
+
+    let threw = false;
+    try {
+      await program.methods
+        .withdrawVote(new BN(initialStake + 1))
+        .accounts({
+          app,
+          position,
+          voteVault,
+          voteRewardVault,
+          userTokenAccount,
+          user: user.publicKey,
+        })
+        .signers([user])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(
+      threw,
+      "expected withdraw_vote to reject an over-withdrawal",
+    );
+
+    // Nothing moved: the position is untouched.
+    const positionAccount = await program.account.votePosition.fetch(position);
+    assert.equal(positionAccount.amount.toString(), initialStake.toString());
+  });
+});

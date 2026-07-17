@@ -1,6 +1,7 @@
 pub mod init_app;
 pub mod initialize;
 pub mod vote;
+pub mod withdraw_vote;
 
 // Each instruction module's `handler` fn is only ever called via its module
 // path (e.g. `init_app::handler(..)` in `lib.rs`), never through this glob,
@@ -14,5 +15,6 @@ mod reexports {
     pub use super::init_app::*;
     pub use super::initialize::*;
     pub use super::vote::*;
+    pub use super::withdraw_vote::*;
 }
 pub use reexports::*;

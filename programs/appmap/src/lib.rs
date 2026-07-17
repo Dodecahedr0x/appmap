@@ -27,4 +27,8 @@ pub mod appmap {
     pub fn vote(ctx: Context<Vote>, amount: u64) -> Result<()> {
         vote::handler(ctx, amount)
     }
+
+    pub fn withdraw_vote(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
+        withdraw_vote::handler(ctx, amount)
+    }
 }

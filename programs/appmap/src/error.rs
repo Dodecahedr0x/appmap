@@ -12,4 +12,6 @@ pub enum ErrorCode {
     ZeroAmount,
     #[msg("Arithmetic overflow")]
     MathOverflow,
+    #[msg("Withdrawal amount exceeds the position's staked amount")]
+    InsufficientStake,
 }
