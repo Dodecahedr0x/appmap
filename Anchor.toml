@@ -9,12 +9,9 @@ skip-lint = false
 nebulous_world = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
 
 [programs.localnet]
-nebulous_world = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
+nebulous_world = "7AAwB8aHgmuz9yzYdo6gKjZRx5KkjePYHyuJEmrcRXgX"
 
 [provider]
-# Devnet's public RPC is currently unreliable for program deploys (repeated
-# "Max retries exceeded" on data writes). Defaulting to localnet until that
-# clears up; pass --provider.cluster devnet to override for a one-off deploy.
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 

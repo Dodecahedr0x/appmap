@@ -10,7 +10,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx");
+declare_id!("7AAwB8aHgmuz9yzYdo6gKjZRx5KkjePYHyuJEmrcRXgX");
 
 #[program]
 pub mod nebulous_world {

@@ -1,6 +1,7 @@
 # dependencies
 /node_modules
 /.pnp
+/prisma
 .pnp.js
 
 # misc
