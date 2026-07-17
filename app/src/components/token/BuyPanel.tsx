@@ -75,8 +75,8 @@ export function BuyPanel() {
       </div>
 
       <div className="flex justify-between text-xs text-slate-steel">
-        <span>{formatToken(pool.nebReserve, TOKEN_SYMBOL)} in pool</span>
-        <span>1 {TOKEN_SYMBOL} ≈ {pool.price.toFixed(6)} USDC</span>
+        <span className="tabular-nums">{formatToken(pool.nebReserve, TOKEN_SYMBOL)} in pool</span>
+        <span className="tabular-nums">1 {TOKEN_SYMBOL} ≈ {pool.price.toFixed(6)} USDC</span>
       </div>
 
       {!user ? (
@@ -88,8 +88,8 @@ export function BuyPanel() {
         <>
           {balances.neb != null && balances.usdc != null && (
             <div className="flex justify-between text-xs text-slate-steel">
-              <span>Your balance: {formatToken(balances.neb, TOKEN_SYMBOL)}</span>
-              <span>{balances.usdc.toFixed(2)} USDC</span>
+              <span className="tabular-nums">Your balance: {formatToken(balances.neb, TOKEN_SYMBOL)}</span>
+              <span className="tabular-nums">{balances.usdc.toFixed(2)} USDC</span>
             </div>
           )}
           <div className="flex flex-wrap gap-2">
@@ -116,7 +116,7 @@ export function BuyPanel() {
             <span className="text-sm text-slate">USDC</span>
           </div>
           {quote != null && (
-            <p className="text-xs text-slate-steel">
+            <p className="text-xs tabular-nums text-slate-steel">
               ≈ {formatToken(quote, TOKEN_SYMBOL)} at the current price
             </p>
           )}

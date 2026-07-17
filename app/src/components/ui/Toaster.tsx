@@ -15,7 +15,13 @@ interface Toast {
   id: number;
   kind: ToastKind;
   message: string;
+  leaving: boolean;
 }
+
+// Matches the exit transition duration below — the toast is kept in the DOM
+// (marked `leaving`) for this long so the fade/translate can finish before
+// it's actually removed, instead of vanishing mid-animation.
+const EXIT_MS = 200;
 
 interface ToastApi {
   toast: (message: string, kind?: ToastKind) => void;
@@ -30,14 +36,19 @@ let counter = 0;
 export function Toaster({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // Marks the toast as leaving so it plays its exit transition, then drops
+  // it from state once that transition has had time to finish.
   const remove = useCallback((id: number) => {
-    setToasts((t) => t.filter((x) => x.id !== id));
+    setToasts((t) => t.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
+    setTimeout(() => {
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, EXIT_MS);
   }, []);
 
   const toast = useCallback(
     (message: string, kind: ToastKind = "info") => {
       const id = ++counter;
-      setToasts((t) => [...t, { id, kind, message }]);
+      setToasts((t) => [...t, { id, kind, message, leaving: false }]);
       setTimeout(() => remove(id), 4500);
     },
     [remove],
@@ -61,7 +72,8 @@ export function Toaster({ children }: { children: ReactNode }) {
             key={t.id}
             role="status"
             className={cn(
-              "pointer-events-auto animate-fade-in rounded-card border bg-white px-4 py-3 text-sm shadow-lg",
+              "pointer-events-auto rounded-card border bg-white px-4 py-3 text-sm shadow-lg transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+              t.leaving ? "translate-y-1 opacity-0" : "animate-fade-in translate-y-0 opacity-100",
               t.kind === "success" &&
                 "border-forest/30 bg-forest/5 text-forest",
               t.kind === "error" &&

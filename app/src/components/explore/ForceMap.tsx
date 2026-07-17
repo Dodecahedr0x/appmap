@@ -70,7 +70,7 @@ const SELECTED_RING = "#c4b5fd";
 // deliberately not the shared `.chip`/`.chip-active` classes, which are
 // tuned for the light theme used everywhere else (e.g. Discover's facets).
 const DARK_CHIP =
-  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-colors hover:bg-white/10";
+  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
 const DARK_CHIP_ACTIVE = "border-[#9dc6ff]/60 bg-[#9dc6ff]/15 text-white";
 // A pointer that moved less than this while a node was grabbed (or the
 // background was pressed) still counts as a click/tap, not a drag/pan —
@@ -653,7 +653,7 @@ export function ForceMap<RawNode, RawLink>({
             type="button"
             onClick={() => zoomActionsRef.current?.zoomIn()}
             aria-label="Zoom in"
-            className="grid h-8 w-8 place-items-center text-white/80 hover:bg-white/10"
+            className="grid h-10 w-10 place-items-center text-white/80 transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]"
           >
             +
           </button>
@@ -662,7 +662,7 @@ export function ForceMap<RawNode, RawLink>({
             type="button"
             onClick={() => zoomActionsRef.current?.zoomOut()}
             aria-label="Zoom out"
-            className="grid h-8 w-8 place-items-center text-white/80 hover:bg-white/10"
+            className="grid h-10 w-10 place-items-center text-white/80 transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]"
           >
             −
           </button>
@@ -671,7 +671,7 @@ export function ForceMap<RawNode, RawLink>({
             type="button"
             onClick={() => zoomActionsRef.current?.reset()}
             aria-label="Reset zoom and pan"
-            className="grid h-8 w-8 place-items-center text-sm text-white/80 hover:bg-white/10"
+            className="grid h-10 w-10 place-items-center text-sm text-white/80 transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]"
           >
             ⟲
           </button>

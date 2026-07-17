@@ -158,7 +158,7 @@ export function TagStakePanel({
                 </div>
                 {user && myStakes[t.id] && (
                   <button
-                    className="btn-secondary py-1 text-xs"
+                    className="btn-secondary text-xs"
                     disabled={busy}
                     onClick={() => withdraw(t.id, t.slug)}
                   >
@@ -167,7 +167,7 @@ export function TagStakePanel({
                 )}
                 {user && (
                   <button
-                    className="btn-secondary py-1 text-xs"
+                    className="btn-secondary text-xs"
                     onClick={() =>
                       setStakingId(stakingId === t.id ? null : t.id)
                     }
@@ -189,7 +189,7 @@ export function TagStakePanel({
                     aria-label="Stake amount"
                   />
                   <button
-                    className="btn-primary shrink-0 py-1.5 text-sm"
+                    className="btn-primary shrink-0 text-sm"
                     disabled={busy}
                     onClick={() => stake(t.id, t.slug)}
                   >

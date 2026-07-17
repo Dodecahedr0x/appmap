@@ -15,7 +15,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="card p-6">
       <div className="text-caption font-semibold uppercase tracking-wide text-slate">{label}</div>
-      <div className="mt-1 text-heading-xl font-bold text-ink">{value}</div>
+      <div className="mt-1 text-heading-xl font-bold tabular-nums text-ink">{value}</div>
     </div>
   );
 }
@@ -27,7 +27,7 @@ export default async function ExplorePage() {
     <div className="space-y-16">
       <div>
         <h1 className="text-heading-xl font-semibold text-ink">Explore</h1>
-        <p className="mt-2 max-w-2xl text-subheading text-slate">
+        <p className="mt-2 max-w-2xl text-pretty text-subheading text-slate">
           A closer look at what&apos;s happening across nebulous.world: who the community is
           backing, which apps are worth a look, and how it all connects.
         </p>
@@ -45,7 +45,7 @@ export default async function ExplorePage() {
 
       <section>
         <h2 className="text-heading font-semibold text-ink">Maps</h2>
-        <p className="mt-1 max-w-2xl text-sm text-slate">
+        <p className="mt-1 max-w-2xl text-pretty text-sm text-slate">
           Two views of how nebulous.world connects — pick a tab, then click a node to see the
           apps behind it.
         </p>

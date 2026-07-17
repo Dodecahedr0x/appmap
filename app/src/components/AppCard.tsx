@@ -7,7 +7,7 @@ import { TOKEN_SYMBOL } from "@/lib/constants";
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-sm font-semibold text-ink">{value}</span>
+      <span className="text-sm font-semibold tabular-nums text-ink">{value}</span>
       <span className="text-[10px] uppercase tracking-wide text-slate-steel">
         {label}
       </span>
@@ -29,7 +29,7 @@ export function AppCard({ app, rank }: { app: AppDTO; rank?: number }) {
           <img
             src={app.iconUrl}
             alt=""
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-cover ring-1 ring-inset ring-black/10 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-4xl font-bold text-violet">

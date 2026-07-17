@@ -53,7 +53,7 @@ export function RelatedApps({
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate">
             {selection.kind === "app" ? "Connected apps" : "Apps in this tag's neighborhood"}
           </h3>
-          <p className="mt-1 text-xs text-slate-steel">
+          <p className="mt-1 text-pretty text-xs text-slate-steel">
             {selection.kind === "app" ? (
               <>
                 Apps most similar to <span className="font-medium text-ink">{selection.label}</span>.
@@ -66,7 +66,7 @@ export function RelatedApps({
             )}
           </p>
         </div>
-        <button type="button" onClick={onClear} className="btn-ghost shrink-0 py-1.5 text-xs">
+        <button type="button" onClick={onClear} className="btn-ghost shrink-0 text-xs">
           Clear
         </button>
       </div>

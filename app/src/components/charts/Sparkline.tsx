@@ -34,7 +34,7 @@ export function Sparkline({
           >
             <div className="relative w-full">
               <div
-                className="w-full rounded-t bg-cobalt transition-all group-hover:opacity-80"
+                className="w-full rounded-t bg-cobalt transition-opacity group-hover:opacity-80"
                 style={{ height: h }}
                 title={`${d.label}: ${d.value}`}
               />

@@ -6,7 +6,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-hairline p-4">
       <div className="text-caption font-semibold uppercase tracking-wide text-slate">{label}</div>
-      <div className="mt-1 text-heading font-bold text-ink">{value}</div>
+      <div className="mt-1 text-heading font-bold tabular-nums text-ink">{value}</div>
     </div>
   );
 }

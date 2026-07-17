@@ -13,7 +13,7 @@ import type { MapNode } from "./ForceMap";
 // sits on the animated nebula backdrop, not the light cream background the
 // shared `.chip`/`.chip-active` classes are tuned for (e.g. Discover).
 const DARK_CHIP =
-  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-colors hover:bg-white/10";
+  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
 const DARK_CHIP_ACTIVE = "border-[#9dc6ff]/60 bg-[#9dc6ff]/15 text-white";
 
 type TabKey = "apps" | "tags";
@@ -118,7 +118,7 @@ export function ExploreMaps() {
                 aria-selected={tab === t.key}
                 onClick={() => switchTab(t.key)}
                 className={cn(
-                  "rounded-navitem px-4 py-2 text-sm font-medium transition-colors",
+                  "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.96]",
                   tab === t.key ? "bg-white/15 text-white shadow-subtle" : "text-white/50 hover:text-white/80",
                 )}
               >
@@ -127,7 +127,7 @@ export function ExploreMaps() {
             ))}
           </div>
 
-          <p className="max-w-2xl text-sm text-white/60">{active.description}</p>
+          <p className="max-w-2xl text-pretty text-sm text-white/60">{active.description}</p>
 
           {tab === "apps" && availableTags.length > 0 && (
             <div>

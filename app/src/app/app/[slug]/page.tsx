@@ -50,7 +50,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   return (
     <div className="card p-4">
       <div className="text-xs uppercase tracking-wide text-slate-steel">{label}</div>
-      <div className="mt-1 text-xl font-bold text-ink">{value}</div>
+      <div className="mt-1 text-xl font-bold tabular-nums text-ink">{value}</div>
       {hint && <div className="text-xs text-slate-steel">{hint}</div>}
     </div>
   );
@@ -77,14 +77,14 @@ export default async function AppDetailPage({ params }: Props) {
         <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-card bg-ivory text-2xl font-bold text-cobalt">
           {app.iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={app.iconUrl} alt="" className="h-full w-full object-cover" />
+            <img src={app.iconUrl} alt="" className="h-full w-full object-cover ring-1 ring-inset ring-black/10" />
           ) : (
             app.name.charAt(0).toUpperCase()
           )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-ink">{app.name}</h1>
+            <h1 className="text-balance text-2xl font-bold text-ink">{app.name}</h1>
             <span className="chip capitalize">{app.category}</span>
             <span className="chip capitalize">{app.chain}</span>
           </div>
@@ -123,7 +123,7 @@ export default async function AppDetailPage({ params }: Props) {
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate">
               About
             </h2>
-            <p className="whitespace-pre-line text-slate">{app.description}</p>
+            <p className="whitespace-pre-line text-pretty text-slate">{app.description}</p>
           </section>
 
           {/* Traffic */}

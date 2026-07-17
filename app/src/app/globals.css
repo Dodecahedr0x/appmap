@@ -35,7 +35,7 @@ body {
     @apply rounded-card border border-hairline bg-white shadow-subtle;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-button px-6 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-button px-6 py-3 text-sm font-medium transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
   .btn-primary {
     @apply btn bg-cobalt text-white hover:bg-cobalt-deep;
@@ -50,7 +50,7 @@ body {
     @apply w-full rounded-card border border-hairline bg-white px-3 py-2 text-sm text-ink placeholder:text-slate-steel focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate;
+    @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.96];
   }
   .chip-active {
     @apply border-cobalt/60 bg-cobalt/10 text-cobalt;

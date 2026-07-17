@@ -245,12 +245,12 @@ export function ClaimRewards() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-xs text-slate-steel">Pending</div>
-                    <div className="font-mono text-sm font-medium text-ink">
+                    <div className="font-mono text-sm font-medium tabular-nums text-ink">
                       {row.pending == null ? "—" : formatToken(row.pending, TOKEN_SYMBOL)}
                     </div>
                   </div>
                   <button
-                    className="btn-primary py-1.5 text-xs"
+                    className="btn-primary text-xs"
                     disabled={
                       claimingKey === row.key ||
                       isSimulationMode() ||
