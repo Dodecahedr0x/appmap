@@ -1,9 +1,41 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token::Mint;
+
+use crate::constants::CONFIG_SEED;
+use crate::error::ErrorCode;
+use crate::state::Config;
 
 #[derive(Accounts)]
-pub struct Initialize {}
+pub struct Initialize<'info> {
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + Config::SPACE,
+        seeds = [CONFIG_SEED],
+        bump,
+    )]
+    pub config: Account<'info, Config>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub vote_mint: Account<'info, Mint>,
+    /// The appmap program itself, used only to look up its `ProgramData`
+    /// account so we can verify `authority` is the program's upgrade
+    /// authority. This closes the front-running window where anyone could
+    /// otherwise race the legitimate deployer to call `initialize` first and
+    /// permanently seize `Config.authority`.
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()) @ ErrorCode::Unauthorized)]
+    pub program: Program<'info, crate::program::Appmap>,
+    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()) @ ErrorCode::Unauthorized)]
+    pub program_data: Account<'info, ProgramData>,
+    pub system_program: Program<'info, System>,
+}
 
-pub fn handler(ctx: Context<Initialize>) -> Result<()> {
-    msg!("Greetings from: {:?}", ctx.program_id);
+pub fn handler(ctx: Context<Initialize>, protocol_fee_bps: u16) -> Result<()> {
+    require!(protocol_fee_bps <= 10_000, ErrorCode::InvalidFeeBps);
+    let config = &mut ctx.accounts.config;
+    config.authority = ctx.accounts.authority.key();
+    config.vote_mint = ctx.accounts.vote_mint.key();
+    config.protocol_fee_bps = protocol_fee_bps;
+    config.bump = ctx.bumps.config;
     Ok(())
 }

@@ -15,7 +15,7 @@ declare_id!("EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx");
 pub mod appmap {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
+    pub fn initialize(ctx: Context<Initialize>, protocol_fee_bps: u16) -> Result<()> {
+        initialize::handler(ctx, protocol_fee_bps)
     }
 }

@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Custom error message")]
-    CustomError,
+    #[msg("Protocol fee must not exceed 10,000 basis points (100%)")]
+    InvalidFeeBps,
+    #[msg("Signer is not the program's upgrade authority")]
+    Unauthorized,
 }
