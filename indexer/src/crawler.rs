@@ -1,0 +1,248 @@
+use crate::processors::instruction::index_instruction;
+use anyhow::Result;
+use carbon_core::instruction::{InstructionDecoder, InstructionMetadata};
+use carbon_core::transaction::TransactionMetadata;
+use carbon_nebulous_world_decoder::NebulousWorldDecoder;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
+use solana_client::rpc_config::RpcTransactionConfig;
+use solana_client::rpc_response::RpcConfirmedTransactionStatusWithSignature;
+use solana_commitment_config::CommitmentConfig;
+use solana_instruction::{AccountMeta, Instruction};
+use solana_pubkey::Pubkey;
+use solana_signature::Signature;
+use solana_transaction_status::UiTransactionEncoding;
+use sqlx::PgPool;
+use std::sync::Arc;
+use std::time::Duration;
+
+const CURSOR_ID: &str = "program_instructions";
+/// getSignaturesForAddress's hard per-call cap.
+const SIGNATURES_PAGE_LIMIT: usize = 1000;
+
+/// Polls `getSignaturesForAddress` + `getTransaction` for "our program
+/// changes" instead of the Carbon-provided `RpcBlockSubscribe` datasource:
+/// `blockSubscribe` is disabled by default on `solana-test-validator` and,
+/// more importantly, on essentially every hosted RPC provider including the
+/// public devnet endpoint this app deploys against (see render.yaml) — a
+/// live-streaming pipeline built on it would silently index nothing in
+/// production. `getSignaturesForAddress`/`getTransaction` are universally
+/// supported standard RPC methods, at the cost of polling latency instead
+/// of push updates.
+///
+/// Deliberately hand-rolled rather than using
+/// `carbon-rpc-transaction-crawler-datasource` (which solves this exact
+/// problem): that crate is only published against carbon-core 1.0.0, which
+/// has breaking changes the carbon-cli-generated decoder (pinned to 0.12.0
+/// throughout this workspace — see decoder/Cargo.toml) isn't compatible
+/// with, and carbon-cli itself hasn't shipped a 1.0.0-targeting release yet
+/// to regenerate against. Scoped down accordingly: only top-level
+/// instructions are decoded (this program is never invoked via CPI in this
+/// app), and only `VersionedMessage::static_account_keys()` is used to
+/// resolve account metas — an instruction referencing an
+/// address-lookup-table-loaded account (never done by this app's own
+/// transaction-building code) is skipped entirely rather than indexed with
+/// wrong/shifted account roles.
+///
+/// The cursor (`crawler_cursor` table) persists the newest fully-processed
+/// signature so a restart resumes instead of re-scanning; each tick also
+/// paginates via `before` until it has fetched everything newer than the
+/// cursor, so a burst of more than `SIGNATURES_PAGE_LIMIT` (1000)
+/// signatures between polls can't silently drop the older ones the way a
+/// single un-paginated call would.
+pub async fn run(rpc_http_url: String, program_id: Pubkey, pool: PgPool, poll_interval_secs: u64) {
+    let client = RpcClient::new(rpc_http_url);
+    let decoder = NebulousWorldDecoder;
+    let mut ticker = tokio::time::interval(Duration::from_secs(poll_interval_secs));
+
+    loop {
+        ticker.tick().await;
+        if let Err(e) = crawl_once(&client, &decoder, program_id, &pool).await {
+            log::error!("crawler: tick failed: {e}");
+        }
+    }
+}
+
+async fn load_cursor(pool: &PgPool) -> Result<Option<Signature>> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT last_signature FROM crawler_cursor WHERE id = $1")
+            .bind(CURSOR_ID)
+            .fetch_optional(pool)
+            .await?;
+    Ok(match row {
+        Some((sig,)) => Some(sig.parse()?),
+        None => None,
+    })
+}
+
+async fn save_cursor(pool: &PgPool, signature: Signature) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO crawler_cursor (id, last_signature, updated_at)
+        VALUES ($1, $2, now())
+        ON CONFLICT (id) DO UPDATE SET last_signature = EXCLUDED.last_signature, updated_at = now()
+        "#,
+    )
+    .bind(CURSOR_ID)
+    .bind(signature.to_string())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Fetches every signature newer than `until`, paginating via `before` so a
+/// burst larger than one page can't be silently truncated.
+async fn fetch_new_signatures(
+    client: &RpcClient,
+    program_id: Pubkey,
+    until: Option<Signature>,
+) -> Result<Vec<RpcConfirmedTransactionStatusWithSignature>> {
+    let mut all = Vec::new();
+    let mut before: Option<Signature> = None;
+    loop {
+        let batch = client
+            .get_signatures_for_address_with_config(
+                &program_id,
+                GetConfirmedSignaturesForAddress2Config {
+                    before,
+                    until,
+                    limit: Some(SIGNATURES_PAGE_LIMIT),
+                    commitment: Some(CommitmentConfig::confirmed()),
+                },
+            )
+            .await?;
+        let is_full_page = batch.len() == SIGNATURES_PAGE_LIMIT;
+        let Some(oldest) = batch.last() else { break };
+        before = Some(oldest.signature.parse()?);
+        all.extend(batch);
+        if !is_full_page {
+            break;
+        }
+    }
+    Ok(all)
+}
+
+async fn crawl_once(
+    client: &RpcClient,
+    decoder: &NebulousWorldDecoder,
+    program_id: Pubkey,
+    pool: &PgPool,
+) -> Result<()> {
+    let until = load_cursor(pool).await?;
+    let signatures = fetch_new_signatures(client, program_id, until).await?;
+    if signatures.is_empty() {
+        return Ok(());
+    }
+    // getSignaturesForAddress returns newest-first; process oldest-first so
+    // indexed_instruction fills in chronological order.
+    let newest = signatures[0].signature.parse::<Signature>()?;
+
+    for entry in signatures.into_iter().rev() {
+        if entry.err.is_some() {
+            continue; // failed transactions never touched account state
+        }
+        let signature = entry.signature.parse::<Signature>()?;
+        if let Err(e) =
+            crawl_transaction(client, decoder, program_id, pool, signature, entry.slot).await
+        {
+            log::error!("crawler: failed to process {signature}: {e}");
+        }
+    }
+
+    save_cursor(pool, newest).await?;
+    Ok(())
+}
+
+async fn crawl_transaction(
+    client: &RpcClient,
+    decoder: &NebulousWorldDecoder,
+    program_id: Pubkey,
+    pool: &PgPool,
+    signature: Signature,
+    slot: u64,
+) -> Result<()> {
+    let response = client
+        .get_transaction_with_config(
+            &signature,
+            RpcTransactionConfig {
+                encoding: Some(UiTransactionEncoding::Base64),
+                commitment: Some(CommitmentConfig::confirmed()),
+                max_supported_transaction_version: Some(0),
+            },
+        )
+        .await?;
+
+    let Some(versioned_tx) = response.transaction.transaction.decode() else {
+        log::warn!("crawler: could not decode transaction {signature}, skipping");
+        return Ok(());
+    };
+    let account_keys = versioned_tx.message.static_account_keys();
+    let block_time = response.block_time;
+
+    // A minimal `TransactionMetadata` — only the fields `index_instruction`
+    // actually reads (signature, slot, block_time) are populated; the rest
+    // carry harmless defaults since nothing downstream of this hand-rolled
+    // path consults them.
+    let transaction_metadata = Arc::new(TransactionMetadata {
+        slot,
+        signature,
+        fee_payer: account_keys.first().copied().unwrap_or_default(),
+        meta: solana_transaction_status::TransactionStatusMeta::default(),
+        message: versioned_tx.message.clone(),
+        block_time,
+        block_hash: None,
+    });
+
+    for (index, compiled) in versioned_tx.message.instructions().iter().enumerate() {
+        let Some(&ix_program_id) = account_keys.get(compiled.program_id_index as usize) else {
+            continue;
+        };
+        if ix_program_id != program_id {
+            continue;
+        }
+
+        // Every account index must resolve against the STATIC keys list —
+        // an address-lookup-table-loaded account (never used by this app's
+        // own transaction-building code) can't be, and silently dropping
+        // just that account via filter_map would shift every subsequent
+        // account into the wrong role. Skip the whole instruction instead.
+        let Some(accounts) = compiled
+            .accounts
+            .iter()
+            .map(|&i| {
+                account_keys.get(i as usize).map(|&pubkey| AccountMeta {
+                    pubkey,
+                    is_signer: false,
+                    is_writable: false,
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            log::warn!(
+                "crawler: instruction {index} in {signature} references an account outside the static keys list (likely an ALT-loaded account), skipping"
+            );
+            continue;
+        };
+        let instruction = Instruction {
+            program_id: ix_program_id,
+            accounts,
+            data: compiled.data.clone(),
+        };
+
+        let Some(decoded) = decoder.decode_instruction(&instruction) else {
+            continue;
+        };
+        let metadata = InstructionMetadata {
+            transaction_metadata: transaction_metadata.clone(),
+            stack_height: 1,
+            index: index as u32,
+            absolute_path: vec![index as u8],
+        };
+
+        if let Err(e) = index_instruction(pool, &metadata, &decoded).await {
+            log::error!("crawler: failed to index instruction in {signature}: {e}");
+        }
+    }
+
+    Ok(())
+}

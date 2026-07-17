@@ -27,5 +27,10 @@ test-ledger
 test-ledger.pid
 **/*.rs.bk
 
+# indexer (separate Cargo workspace — kept isolated from the Anchor
+# program's on-chain dependency tree; see indexer/README.md)
+/indexer/target
+/indexer/decoder/target
+
 # git worktrees
 /.worktrees
