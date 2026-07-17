@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // /token (buying NEB) was folded into /rewards, alongside pool analytics
+  // and reward claiming — redirect old links/bookmarks rather than 404.
+  async redirects() {
+    return [{ source: "/token", destination: "/rewards", permanent: true }];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },

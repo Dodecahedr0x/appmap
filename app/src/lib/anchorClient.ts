@@ -68,6 +68,31 @@ export function toRawAmount(amount: number): BN {
   return new BN(Math.round(amount * 10 ** config.solana.voteTokenDecimals));
 }
 
+/** Inverse of `toRawAmount` — a raw on-chain u64 token amount to a human NEB number. */
+export function fromRawAmount(raw: BN): number {
+  return raw.toNumber() / 10 ** config.solana.voteTokenDecimals;
+}
+
+/**
+ * A connection-only Program instance for read-only account fetches
+ * (`program.account.x.fetch(...)`), which never sign transactions and so
+ * don't need a connected wallet — unlike `getNebulousWorldProgram`, this
+ * works for anyone viewing the page, wallet connected or not.
+ */
+export function getReadOnlyNebulousWorldProgram(connection: Connection): Program<NebulousWorld> {
+  const readOnlyWallet = {
+    publicKey: PublicKey.default,
+    signTransaction: async () => {
+      throw new Error("Read-only client cannot sign transactions");
+    },
+    signAllTransactions: async () => {
+      throw new Error("Read-only client cannot sign transactions");
+    },
+  };
+  const provider = new AnchorProvider(connection, readOnlyWallet, { commitment: "confirmed" });
+  return new Program(idl as NebulousWorld, provider);
+}
+
 /** Lamports per SOL, for converting UI-facing SOL amounts to buy_neb's raw u64 lamport argument. */
 export const LAMPORTS_PER_SOL = 1_000_000_000;
 
