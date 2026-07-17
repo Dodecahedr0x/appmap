@@ -62,13 +62,16 @@ then set `NEXT_PUBLIC_APPMAP_PROGRAM_ID` and `NEXT_PUBLIC_VOTE_TOKEN_MINT` in
 Or run all of the above (install, `.env`, `anchor build`, a local validator,
 program deploy, and `db:reset`) in one shot with `npm run setup:dev` — see
 `scripts/setup-dev.sh`. It requires the Solana/Anchor toolchain and leaves the
-validator running in the background for `npm run dev` to talk to.
+validator running in the background for `npm run dev` to talk to. Wind
+everything back down with `npm run teardown:dev` (stops the validator and the
+local Postgres instance).
 
 ### Useful scripts
 
 | Script              | Purpose                                     |
 | ------------------- | ------------------------------------------- |
 | `npm run setup:dev` | One-shot full local dev env setup (validator + deploy + db) |
+| `npm run teardown:dev` | Stop the validator and local Postgres started by `setup:dev` |
 | `npm run dev`       | Start the dev server                        |
 | `npm run build`     | Production build (runs `prisma generate`)   |
 | `npm run db:push`   | Sync Prisma schema to the DB                |
