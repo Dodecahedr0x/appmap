@@ -5,8 +5,7 @@ import { searchSchema } from "@/lib/validation";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { AppCard } from "@/components/AppCard";
-import { TagMap } from "@/components/explore/TagMap";
-import { AppMap } from "@/components/explore/AppMap";
+import { ExploreMaps } from "@/components/explore/ExploreMaps";
 
 export const dynamic = "force-dynamic";
 
@@ -51,24 +50,13 @@ export default async function ExplorePage() {
       </section>
 
       <section>
-        <h2 className="text-heading font-semibold text-ink">Similar apps</h2>
+        <h2 className="text-heading font-semibold text-ink">Maps</h2>
         <p className="mt-1 max-w-2xl text-sm text-slate">
-          Apps cluster together when they&apos;re tagged alike — a quick way to find something
-          close to an app you already use. Click any circle to open that app.
+          Two views of how nebulous.world connects — pick a tab, then click a node to see the
+          apps behind it.
         </p>
         <div className="mt-6">
-          <AppMap />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-heading font-semibold text-ink">Tags that travel together</h2>
-        <p className="mt-1 max-w-2xl text-sm text-slate">
-          Bigger circles have more stake behind them. Tags placed close together tend to show up
-          on the same apps — a way to browse by theme instead of by keyword.
-        </p>
-        <div className="mt-6">
-          <TagMap />
+          <ExploreMaps />
         </div>
       </section>
 

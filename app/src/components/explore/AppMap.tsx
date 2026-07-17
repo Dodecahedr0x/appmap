@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import type { AppGraphNode, AppGraphEdge } from "@/lib/appGraph";
@@ -32,12 +31,10 @@ const FALLBACK_LINKS: MapLink[] = [
 
 /**
  * Which apps overlap most in what they're tagged as — a way to find
- * something similar to an app you already like. Click a node to open that
- * app's page.
+ * something similar to an app you already like. Click a node to select it
+ * and see it (and its closest neighbors) listed below the map.
  */
-export function AppMap() {
-  const router = useRouter();
-
+export function AppMap({ onSelect }: { onSelect?: (node: MapNode | null, neighborIds: string[]) => void }) {
   return (
     <ForceMap<AppGraphNode, AppGraphEdge>
       fetchUrl="/api/apps/graph"
@@ -46,8 +43,8 @@ export function AppMap() {
       fallbackNodes={FALLBACK_NODES}
       fallbackLinks={FALLBACK_LINKS}
       sourceLabel="apps"
-      ariaLabel="Map of nebulous.world apps, grouped by how similar their tags are. Circle size depends on the selected option — by default, total stake. Click an app to open it; drag to reposition."
-      onNodeClick={(n) => router.push(`/app/${n.id}`)}
+      ariaLabel="Map of nebulous.world apps, grouped by how similar their tags are. Circle size depends on the selected option — by default, total stake. Click an app to select it and see related apps below; drag a node to reposition, drag the background to pan, scroll to zoom."
+      onSelect={onSelect}
       sizeMetrics={[
         { key: "stake", label: "Stake", format: (v) => `${formatToken(v, TOKEN_SYMBOL)} staked` },
         { key: "views", label: "Page views", format: (v) => `${formatNumber(v)} views` },
