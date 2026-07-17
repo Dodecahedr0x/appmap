@@ -2,9 +2,10 @@
 use crate::NebulousWorldDecoder;
 
 pub mod app_account;
-pub mod app_tag_account;
+pub mod app_tag_stake;
 pub mod config;
 pub mod stake_position;
+pub mod tag;
 pub mod vote_position;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,9 +13,10 @@ pub mod vote_position;
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum NebulousWorldAccount {
     AppAccount(Box<app_account::AppAccount>),
-    AppTagAccount(Box<app_tag_account::AppTagAccount>),
+    AppTagStake(Box<app_tag_stake::AppTagStake>),
     Config(Box<config::Config>),
     StakePosition(Box<stake_position::StakePosition>),
+    Tag(Box<tag::Tag>),
     VotePosition(Box<vote_position::VotePosition>),
 }
 
@@ -54,10 +56,10 @@ impl<'a> carbon_core::account::AccountDecoder<'a> for NebulousWorldDecoder {
             }
         }
         {
-            if let Some(decoded) = app_tag_account::AppTagAccount::decode(data) {
+            if let Some(decoded) = app_tag_stake::AppTagStake::decode(data) {
                 return Some(carbon_core::account::DecodedAccount {
                     lamports: account.lamports,
-                    data: NebulousWorldAccount::AppTagAccount(Box::new(decoded)),
+                    data: NebulousWorldAccount::AppTagStake(Box::new(decoded)),
                     owner: account.owner,
                     executable: account.executable,
                     rent_epoch: account.rent_epoch,
@@ -80,6 +82,17 @@ impl<'a> carbon_core::account::AccountDecoder<'a> for NebulousWorldDecoder {
                 return Some(carbon_core::account::DecodedAccount {
                     lamports: account.lamports,
                     data: NebulousWorldAccount::StakePosition(Box::new(decoded)),
+                    owner: account.owner,
+                    executable: account.executable,
+                    rent_epoch: account.rent_epoch,
+                });
+            }
+        }
+        {
+            if let Some(decoded) = tag::Tag::decode(data) {
+                return Some(carbon_core::account::DecodedAccount {
+                    lamports: account.lamports,
+                    data: NebulousWorldAccount::Tag(Box::new(decoded)),
                     owner: account.owner,
                     executable: account.executable,
                     rent_epoch: account.rent_epoch,

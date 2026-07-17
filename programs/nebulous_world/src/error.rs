@@ -21,6 +21,6 @@ pub enum ErrorCode {
     InsufficientStake,
     #[msg("Cannot fund a reward pool that has no stakers")]
     NoStakers,
-    #[msg("app_tag does not belong to the provided app")]
-    TagAppMismatch,
+    #[msg("app_tag_stake does not belong to the provided app")]
+    AppTagStakeMismatch,
 }

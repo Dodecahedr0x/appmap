@@ -7,6 +7,8 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    anchor_spl::associated_token::{get_associated_token_address, ID as ASSOCIATED_TOKEN_PROGRAM_ID},
+    anchor_spl::token::ID as TOKEN_PROGRAM_ID,
     nebulous_world::constants::CONFIG_SEED,
     litesvm::LiteSVM,
     solana_account::Account,
@@ -86,15 +88,19 @@ fn initialize_ix(
     protocol_fee_bps: u16,
 ) -> Instruction {
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], program_id);
+    let vault = get_associated_token_address(&config, vote_mint);
     Instruction::new_with_bytes(
         *program_id,
         &nebulous_world::instruction::Initialize { protocol_fee_bps }.data(),
         nebulous_world::accounts::Initialize {
             config,
+            vault,
             authority: *authority,
             vote_mint: *vote_mint,
             program: *program_id,
             program_data: *program_data,
+            token_program: TOKEN_PROGRAM_ID,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),

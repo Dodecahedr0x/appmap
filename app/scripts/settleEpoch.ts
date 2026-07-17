@@ -6,7 +6,7 @@
 import { readFileSync } from "fs";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Program, Wallet, BN } from "@anchor-lang/core";
-import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
 import { prisma } from "../src/lib/prisma";
 import { fetchAdsenseEarnings } from "../src/lib/adsense";
 import { allocateByTrafficShare } from "../src/lib/settlement";
@@ -62,6 +62,9 @@ async function main() {
   const program = new Program<NebulousWorld>(idl as NebulousWorld, provider);
   const cfgPda = configPda(program.programId);
   const mint = new PublicKey(config.solana.voteTokenMint);
+  // The single global vault every instruction transfers through (an ATA
+  // owned by the `config` PDA) — see programs/nebulous_world/src/state/config.rs.
+  const vault = getAssociatedTokenAddressSync(mint, cfgPda, true);
   const treasuryAta = await getOrCreateAssociatedTokenAccount(
     connection,
     treasuryKeypair,
@@ -138,8 +141,7 @@ async function main() {
         .accountsPartial({
           app: app_pda,
           config: cfgPda,
-          voteRewardVault: appAccount.voteRewardVault,
-          tagsRewardVault: appAccount.tagsRewardVault,
+          vault,
           funderTokenAccount: treasuryAta.address,
           authority: treasuryKeypair.publicKey,
         })
@@ -151,8 +153,7 @@ async function main() {
         .accountsPartial({
           app: app_pda,
           config: cfgPda,
-          voteRewardVault: appAccount.voteRewardVault,
-          tagsRewardVault: appAccount.tagsRewardVault,
+          vault,
           funderTokenAccount: treasuryAta.address,
           authority: treasuryKeypair.publicKey,
         })

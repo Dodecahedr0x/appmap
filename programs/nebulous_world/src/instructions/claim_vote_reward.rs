@@ -1,20 +1,18 @@
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token::{Token, TokenAccount};
 
-use crate::constants::{APP_SEED, VOTE_POSITION_SEED};
-use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_app_vault};
-use crate::state::{AppAccount, VotePosition};
+use crate::constants::{APP_SEED, CONFIG_SEED, VOTE_POSITION_SEED};
+use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
+use crate::state::{AppAccount, Config, VotePosition};
 
 /// The read/settle half of `withdraw_vote`'s accounts, without the
-/// vault-out-for-principal parts: this instruction only ever moves
-/// `vote_reward_vault` funds out, never `vote_vault`, and never touches
-/// `position.amount`.
+/// principal-out parts: this instruction never touches `position.amount`.
 #[derive(Accounts)]
 pub struct ClaimVoteReward<'info> {
-    // Not `mut`: unlike `Vote`/`WithdrawVote`/`FundAppRewards`, this
-    // instruction only ever READS `app.vote_acc_reward_per_share` (via
-    // `settle_pending`/`reward_debt_for`) — `position.reward_debt` is the
-    // only field that changes. Write-locking the single per-app
+    // Not `mut`: this instruction only ever READS `app.vote_acc_reward_per_share`
+    // (via `settle_pending`/`reward_debt_for`) — `position.reward_debt` is
+    // the only field that changes. Write-locking the single per-app
     // `AppAccount` PDA on every claim would needlessly serialize concurrent
     // claims from different stakers against Solana's parallel-execution
     // scheduler, on what's expected to be the highest-frequency instruction
@@ -22,18 +20,23 @@ pub struct ClaimVoteReward<'info> {
     #[account(seeds = [APP_SEED, app.app_id.as_bytes()], bump = app.bump)]
     pub app: Account<'info, AppAccount>,
     // As in `WithdrawVote`, a claim can only ever target a position that
-    // already exists (you cannot claim rewards on stake you never put in),
-    // so this is a plain `mut` + seeds/bump constraint rather than
-    // `init_if_needed`. The single `user: Signer` re-derivation of this PDA
-    // *is* the ownership check, exactly as documented on `WithdrawVote`.
+    // already exists, so this is a plain `mut` + seeds/bump constraint
+    // rather than `init_if_needed`. The single `user: Signer` re-derivation
+    // of this PDA *is* the ownership check, exactly as documented on
+    // `WithdrawVote`.
     #[account(
         mut,
         seeds = [VOTE_POSITION_SEED, app.key().as_ref(), user.key().as_ref()],
         bump = position.bump,
     )]
     pub position: Account<'info, VotePosition>,
-    #[account(mut, address = app.vote_reward_vault)]
-    pub vote_reward_vault: Account<'info, TokenAccount>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    #[account(
+        mut,
+        address = get_associated_token_address(&config.key(), &config.vote_mint),
+    )]
+    pub vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub user_token_account: Account<'info, TokenAccount>,
     pub user: Signer<'info>,
@@ -47,13 +50,11 @@ pub struct ClaimVoteReward<'info> {
 /// principal).
 ///
 /// A zero-`pending` claim is allowed to go through as a harmless no-op
-/// rather than being rejected with a `require!`: `transfer_from_app_vault`
+/// rather than being rejected with a `require!`: `transfer_from_vault`
 /// already no-ops on `amount == 0` (skipping the CPI entirely), so the only
 /// cost of not guarding here is a slightly wasted transaction — the same
 /// trade-off `vote()`/`withdraw_vote()` already accept for their own
-/// pending-reward legs. Explicitly rejecting would save a signer a few
-/// lamports of wasted fees but adds no correctness value (nothing pays out
-/// that shouldn't), so this favors the simpler, more permissive behavior.
+/// pending-reward legs.
 pub fn handler(ctx: Context<ClaimVoteReward>) -> Result<()> {
     let pending = settle_pending(
         ctx.accounts.position.amount,
@@ -61,16 +62,11 @@ pub fn handler(ctx: Context<ClaimVoteReward>) -> Result<()> {
         ctx.accounts.app.vote_acc_reward_per_share,
     )?;
 
-    let app_ai = ctx.accounts.app.to_account_info();
-    let app_id = ctx.accounts.app.app_id.clone();
-    let app_bump = ctx.accounts.app.bump;
-
-    transfer_from_app_vault(
-        &ctx.accounts.vote_reward_vault,
+    transfer_from_vault(
+        &ctx.accounts.vault,
         &ctx.accounts.user_token_account,
-        &app_ai,
-        &app_id,
-        app_bump,
+        &ctx.accounts.config.to_account_info(),
+        ctx.accounts.config.bump,
         &ctx.accounts.token_program,
         pending,
     )?;

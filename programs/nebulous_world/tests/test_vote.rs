@@ -7,11 +7,9 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    anchor_spl::associated_token::{get_associated_token_address, ID as ASSOCIATED_TOKEN_PROGRAM_ID},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    nebulous_world::constants::{
-        APP_SEED, CONFIG_SEED, REWARD_PRECISION, TAGS_REWARD_VAULT_SEED, VOTE_POSITION_SEED,
-        VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
-    },
+    nebulous_world::constants::{APP_SEED, CONFIG_SEED, REWARD_PRECISION, VOTE_POSITION_SEED},
     litesvm::LiteSVM,
     solana_account::Account,
     solana_keypair::Keypair,
@@ -45,34 +43,21 @@ fn set_upgrade_authority(
     program_data_address
 }
 
-struct AppPdas {
+/// PDAs for the single global `Config`/vault plus one registered app — there
+/// is exactly one vault for the whole program now (see the design note on
+/// `Config`), so unlike the pre-refactor tests there is nothing app-specific
+/// to derive beyond `app` itself.
+struct Pdas {
+    config: Pubkey,
+    vault: Pubkey,
     app: Pubkey,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
-}
-
-fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
-    let (app, _) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id);
-    let (vote_vault, _) =
-        Pubkey::find_program_address(&[VOTE_VAULT_SEED, app.as_ref()], program_id);
-    let (vote_reward_vault, _) =
-        Pubkey::find_program_address(&[VOTE_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    let (tags_reward_vault, _) =
-        Pubkey::find_program_address(&[TAGS_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    AppPdas {
-        app,
-        vote_vault,
-        vote_reward_vault,
-        tags_reward_vault,
-    }
 }
 
 /// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
-/// initialized, and a single `AppAccount` (with its three vaults) already
-/// registered via `init_app`. Returns the SVM, the deployer keypair, the
-/// vote mint, and the registered app's PDAs.
-fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
+/// + the single global vault initialized (authority = `deployer`), and a
+/// single `AppAccount` already registered via `init_app`. Returns the SVM,
+/// the deployer keypair, the vote mint, and the relevant PDAs.
+fn setup() -> (LiteSVM, Keypair, Pubkey, Pdas) {
     let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
@@ -104,6 +89,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
 
     let program_data = set_upgrade_authority(&mut svm, &program_id, deployer.pubkey());
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let vault = get_associated_token_address(&config, &vote_mint);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::Initialize {
@@ -112,10 +98,13 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         .data(),
         nebulous_world::accounts::Initialize {
             config,
+            vault,
             authority: deployer.pubkey(),
             vote_mint,
             program: program_id,
             program_data,
+            token_program: TOKEN_PROGRAM_ID,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -127,7 +116,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         .expect("initialize must succeed in test setup");
 
     let app_id = "cid_vote_test_app_0000001".to_string();
-    let pdas = derive_app_pdas(&program_id, &app_id);
+    let (app, _bump) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], &program_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::InitApp {
@@ -135,14 +124,8 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint,
+            app,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -153,13 +136,15 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
     svm.send_transaction(tx)
         .expect("init_app must succeed in test setup");
 
-    (svm, deployer, vote_mint, pdas)
+    (svm, deployer, vote_mint, Pdas { config, vault, app })
 }
 
 /// Directly writes a funded, initialized SPL token account owned by `owner`
 /// for `mint`, holding `amount` tokens — bypassing the token program's
 /// `InitializeAccount`/`MintTo` instructions since we only need the end
-/// state, mirroring how `setup()` above fabricates the mint account.
+/// state, mirroring how `setup()` above fabricates the mint account. Also
+/// used to top up the single global vault directly (owner = `config`),
+/// standing in for a real `fund_app_rewards` call.
 fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pubkey, amount: u64) {
     let token_account = SplTokenAccount {
         mint,
@@ -188,8 +173,8 @@ fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pu
 
 /// Directly overwrites an already-created `AppAccount`'s
 /// `vote_acc_reward_per_share`, so tests can exercise the reward-payout leg
-/// of `vote()` (normally only nonzero once `fund_app_rewards`, Task 15,
-/// exists) without needing that instruction. Deserializes the account's
+/// of `vote()` (normally only nonzero once `fund_app_rewards` has been
+/// called) without needing that instruction. Deserializes the account's
 /// current data, mutates the one field, and re-serializes it (preserving the
 /// Anchor discriminator via `AccountSerialize`) back over the same account,
 /// keeping its existing lamports/owner.
@@ -207,7 +192,7 @@ fn set_app_vote_accumulator(svm: &mut LiteSVM, app: Pubkey, acc_reward_per_share
 
 fn vote_ix(
     program_id: &Pubkey,
-    pdas: &AppPdas,
+    pdas: &Pdas,
     position: &Pubkey,
     user_token_account: &Pubkey,
     user: &Pubkey,
@@ -219,8 +204,8 @@ fn vote_ix(
         nebulous_world::accounts::Vote {
             app: pdas.app,
             position: *position,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
+            config: pdas.config,
+            vault: pdas.vault,
             user_token_account: *user_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
@@ -228,6 +213,11 @@ fn vote_ix(
         }
         .to_account_metas(None),
     )
+}
+
+fn fetch_token_amount(svm: &LiteSVM, pubkey: Pubkey) -> u64 {
+    let raw = svm.get_account(&pubkey).expect("token account must exist");
+    SplTokenAccount::unpack(&raw.data).unwrap().amount
 }
 
 #[test]
@@ -272,13 +262,14 @@ fn test_vote_locks_principal_and_creates_position() {
     let res = svm.send_transaction(tx);
     assert!(res.is_ok(), "vote transaction failed: {:?}", res);
 
-    // The position was created with the right owner/amount/reward_debt/bump.
+    // The position was created with the right app/owner/amount/reward_debt.
     let position_raw = svm
         .get_account(&position)
         .expect("position account must exist");
     let position_account: nebulous_world::VotePosition =
         anchor_lang::AccountDeserialize::try_deserialize(&mut position_raw.data.as_slice())
             .unwrap();
+    assert_eq!(position_account.app, pdas.app);
     assert_eq!(position_account.owner, user.pubkey());
     assert_eq!(position_account.amount, amount);
     // No rewards were ever funded, so the accumulator is still 0 and the
@@ -291,18 +282,13 @@ fn test_vote_locks_principal_and_creates_position() {
         anchor_lang::AccountDeserialize::try_deserialize(&mut app_raw.data.as_slice()).unwrap();
     assert_eq!(app_account.total_vote_stake, amount);
 
-    // Tokens actually moved: vault gained `amount`, user lost `amount`.
-    let vault_raw = svm
-        .get_account(&pdas.vote_vault)
-        .expect("vote vault must exist");
-    let vault_account = SplTokenAccount::unpack(&vault_raw.data).unwrap();
-    assert_eq!(vault_account.amount, amount);
-
-    let user_raw = svm
-        .get_account(&user_token_account)
-        .expect("user token account must exist");
-    let user_account = SplTokenAccount::unpack(&user_raw.data).unwrap();
-    assert_eq!(user_account.amount, 10_000 - amount);
+    // Tokens actually moved: the single global vault gained `amount`, user
+    // lost `amount`.
+    assert_eq!(fetch_token_amount(&svm, pdas.vault), amount);
+    assert_eq!(
+        fetch_token_amount(&svm, user_token_account),
+        10_000 - amount
+    );
 }
 
 #[test]
@@ -407,16 +393,21 @@ fn test_vote_accumulates_across_two_deposits() {
 }
 
 /// Exercises the reward-payout CPI leg of `vote()` end-to-end — the
-/// highest-risk path (the `app` PDA actually signing a transfer out of
-/// `vote_reward_vault`), which every other test above never touches since
-/// they all run with `vote_acc_reward_per_share == 0` (so `settle_pending`
-/// is always 0 and `transfer_from_app_vault` always hits its no-op early
-/// return). This test votes once to create a nonzero position, manually
-/// bumps the app's accumulator (standing in for `fund_app_rewards`, Task
-/// 15, which doesn't exist yet) and pre-funds `vote_reward_vault`, then
-/// votes again and asserts the pending reward actually lands in the user's
-/// wallet and the position's `reward_debt` checkpoints to the new
-/// accumulator value.
+/// highest-risk path (the `config` PDA actually signing a transfer out of
+/// the single global vault), which every other test above never touches
+/// since they all run with `vote_acc_reward_per_share == 0` (so
+/// `settle_pending` is always 0 and `transfer_from_vault` always hits its
+/// no-op early return). This test votes once to create a nonzero position,
+/// manually bumps the app's accumulator (standing in for `fund_app_rewards`)
+/// and tops up the global vault with extra "reward" balance, then votes
+/// again and asserts the pending reward actually lands in the user's wallet
+/// and the position's `reward_debt` checkpoints to the new accumulator
+/// value.
+///
+/// Unlike the pre-refactor version of this test (which pre-funded a
+/// dedicated `vote_reward_vault` separate from `vote_vault`), there is now
+/// only one vault: the "reward top-up" is added directly on top of the
+/// principal balance already sitting in `vault` from the first vote.
 #[test]
 fn test_vote_pays_out_pending_reward_on_second_vote() {
     let program_id = nebulous_world::id();
@@ -460,17 +451,19 @@ fn test_vote_pays_out_pending_reward_on_second_vote() {
     svm.send_transaction(tx)
         .expect("first vote must succeed in test setup");
 
-    // Stand in for `fund_app_rewards` (Task 15): bump the accumulator to 1
-    // reward token per staked token, and pre-fund the reward vault so the
-    // payout CPI has something to actually transfer.
+    // Stand in for `fund_app_rewards`: bump the accumulator to 1 reward
+    // token per staked token, and top up the vault (which already holds
+    // `first_amount` in principal from the vote above) with extra balance so
+    // the payout CPI has something to actually transfer.
     let acc_reward_per_share = REWARD_PRECISION; // 1.0 reward token per staked token
     set_app_vote_accumulator(&mut svm, pdas.app, acc_reward_per_share);
+    let reward_topup = 50_000u64;
     fund_token_account(
         &mut svm,
-        pdas.vote_reward_vault,
+        pdas.vault,
         vote_mint,
-        pdas.app,
-        50_000,
+        pdas.config,
+        first_amount + reward_topup,
     );
 
     // Expected pending reward: settle_pending(1_000, reward_debt=0, acc=1*PRECISION) = 1_000.
@@ -514,17 +507,11 @@ fn test_vote_pays_out_pending_reward_on_second_vote() {
         10_000 - first_amount - second_amount + expected_pending
     );
 
-    // The reward vault paid out exactly `expected_pending`.
-    let reward_vault_raw = svm
-        .get_account(&pdas.vote_reward_vault)
-        .expect("vote reward vault must exist");
-    let reward_vault_account = SplTokenAccount::unpack(&reward_vault_raw.data).unwrap();
-    assert_eq!(reward_vault_account.amount, 50_000 - expected_pending);
-
-    // The principal vault holds both deposits.
-    let vault_raw = svm
-        .get_account(&pdas.vote_vault)
-        .expect("vote vault must exist");
-    let vault_account = SplTokenAccount::unpack(&vault_raw.data).unwrap();
-    assert_eq!(vault_account.amount, first_amount + second_amount);
+    // The single global vault: held (first_amount + reward_topup) before
+    // this instruction, paid out `expected_pending`, then received
+    // `second_amount` of fresh principal.
+    assert_eq!(
+        fetch_token_amount(&svm, pdas.vault),
+        first_amount + reward_topup - expected_pending + second_amount
+    );
 }

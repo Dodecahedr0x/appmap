@@ -15,10 +15,13 @@ pub struct Initialize {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InitializeInstructionAccounts {
     pub config: solana_pubkey::Pubkey,
+    pub vault: solana_pubkey::Pubkey,
     pub authority: solana_pubkey::Pubkey,
     pub vote_mint: solana_pubkey::Pubkey,
     pub program: solana_pubkey::Pubkey,
     pub program_data: solana_pubkey::Pubkey,
+    pub token_program: solana_pubkey::Pubkey,
+    pub associated_token_program: solana_pubkey::Pubkey,
     pub system_program: solana_pubkey::Pubkey,
     pub remaining: Vec<solana_instruction::AccountMeta>,
 }
@@ -50,20 +53,26 @@ impl ArrangeAccounts for Initialize {
         let mut iter = accounts.iter();
 
         let config = next_account(&mut iter)?;
+        let vault = next_account(&mut iter)?;
         let authority = next_account(&mut iter)?;
         let vote_mint = next_account(&mut iter)?;
         let program = next_account(&mut iter)?;
         let program_data = next_account(&mut iter)?;
+        let token_program = next_account(&mut iter)?;
+        let associated_token_program = next_account(&mut iter)?;
         let system_program = next_account(&mut iter)?;
 
         let remaining = iter.as_slice();
 
         Some(InitializeInstructionAccounts {
             config,
+            vault,
             authority,
             vote_mint,
             program,
             program_data,
+            token_program,
+            associated_token_program,
             system_program,
             remaining: remaining.to_vec(),
         })

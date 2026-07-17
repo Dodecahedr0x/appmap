@@ -6,21 +6,21 @@ use solana_pubkey::Pubkey;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, borsh::BorshSerialize, CarbonDeserialize, PartialEq)]
-pub struct StakePosition {
-    pub app_tag_stake: Pubkey,
-    pub owner: Pubkey,
-    pub amount: u64,
-    pub reward_debt: u128,
+pub struct AppTagStake {
+    pub app: Pubkey,
+    pub tag: Pubkey,
+    pub stake_amount: u64,
+    /// PDA bump for `[APP_TAG_STAKE_SEED, app.as_ref(), tag.as_ref()]`.
     pub bump: u8,
 }
 
-impl StakePosition {
+impl AppTagStake {
     pub fn decode(data: &[u8]) -> Option<Self> {
         if data.len() < 8 {
             return None;
         }
         let discriminator = &data[0..8];
-        if discriminator != &[78, 165, 30, 111, 171, 125, 11, 220] {
+        if discriminator != &[85, 80, 83, 80, 34, 221, 42, 99] {
             return None;
         }
 

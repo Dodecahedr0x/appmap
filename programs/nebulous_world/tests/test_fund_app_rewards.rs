@@ -7,11 +7,11 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
-    anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    nebulous_world::constants::{
-        APP_SEED, CONFIG_SEED, REWARD_PRECISION, TAGS_REWARD_VAULT_SEED, VOTE_POSITION_SEED,
-        VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
+    anchor_spl::associated_token::{
+        get_associated_token_address, ID as ASSOCIATED_TOKEN_PROGRAM_ID,
     },
+    anchor_spl::token::ID as TOKEN_PROGRAM_ID,
+    nebulous_world::constants::{APP_SEED, CONFIG_SEED, REWARD_PRECISION, VOTE_POSITION_SEED},
     nebulous_world::RewardPool,
     litesvm::LiteSVM,
     solana_account::Account,
@@ -46,35 +46,21 @@ fn set_upgrade_authority(
     program_data_address
 }
 
-struct AppPdas {
+/// `app` is the registered `AppAccount` under test; `config`/`vault` are the
+/// program-wide singletons (one `Config` PDA, one global vault ATA owned by
+/// it) that every app shares — there is no per-app vault anymore.
+struct Pdas {
     app: Pubkey,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
-}
-
-fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
-    let (app, _) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id);
-    let (vote_vault, _) =
-        Pubkey::find_program_address(&[VOTE_VAULT_SEED, app.as_ref()], program_id);
-    let (vote_reward_vault, _) =
-        Pubkey::find_program_address(&[VOTE_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    let (tags_reward_vault, _) =
-        Pubkey::find_program_address(&[TAGS_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    AppPdas {
-        app,
-        vote_vault,
-        vote_reward_vault,
-        tags_reward_vault,
-    }
+    config: Pubkey,
+    vault: Pubkey,
 }
 
 /// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
-/// initialized (authority = `deployer`), and a single `AppAccount` (with its
-/// three vaults) already registered via `init_app`. Returns the SVM, the
-/// deployer keypair (who is also `Config.authority`), the vote mint, and the
-/// registered app's PDAs.
-fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
+/// + the single global vault initialized (authority = `deployer`), and a
+/// single `AppAccount` already registered via `init_app`. Returns the SVM,
+/// the deployer keypair (who is also `Config.authority`), the vote mint, and
+/// the relevant PDAs.
+fn setup() -> (LiteSVM, Keypair, Pubkey, Pdas) {
     let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
@@ -106,6 +92,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
 
     let program_data = set_upgrade_authority(&mut svm, &program_id, deployer.pubkey());
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let vault = get_associated_token_address(&config, &vote_mint);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::Initialize {
@@ -114,10 +101,13 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         .data(),
         nebulous_world::accounts::Initialize {
             config,
+            vault,
             authority: deployer.pubkey(),
             vote_mint,
             program: program_id,
             program_data,
+            token_program: TOKEN_PROGRAM_ID,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -129,7 +119,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         .expect("initialize must succeed in test setup");
 
     let app_id = "cid_fund_test_app_0000001".to_string();
-    let pdas = derive_app_pdas(&program_id, &app_id);
+    let (app, _bump) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], &program_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::InitApp {
@@ -137,14 +127,8 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint,
+            app,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -155,7 +139,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas) {
     svm.send_transaction(tx)
         .expect("init_app must succeed in test setup");
 
-    (svm, deployer, vote_mint, pdas)
+    (svm, deployer, vote_mint, Pdas { app, config, vault })
 }
 
 /// Directly writes a funded, initialized SPL token account owned by `owner`
@@ -190,7 +174,7 @@ fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pu
 
 fn vote_ix(
     program_id: &Pubkey,
-    pdas: &AppPdas,
+    pdas: &Pdas,
     position: &Pubkey,
     user_token_account: &Pubkey,
     user: &Pubkey,
@@ -202,8 +186,8 @@ fn vote_ix(
         nebulous_world::accounts::Vote {
             app: pdas.app,
             position: *position,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
+            config: pdas.config,
+            vault: pdas.vault,
             user_token_account: *user_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
@@ -215,8 +199,7 @@ fn vote_ix(
 
 fn fund_app_rewards_ix(
     program_id: &Pubkey,
-    pdas: &AppPdas,
-    config: &Pubkey,
+    pdas: &Pdas,
     funder_token_account: &Pubkey,
     authority: &Pubkey,
     pool: RewardPool,
@@ -227,9 +210,8 @@ fn fund_app_rewards_ix(
         &nebulous_world::instruction::FundAppRewards { pool, amount }.data(),
         nebulous_world::accounts::FundAppRewards {
             app: pdas.app,
-            config: *config,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
+            config: pdas.config,
+            vault: pdas.vault,
             funder_token_account: *funder_token_account,
             authority: *authority,
             token_program: TOKEN_PROGRAM_ID,
@@ -259,7 +241,6 @@ fn send(svm: &mut LiteSVM, ix: Instruction, payer: &Pubkey, signers: &[&Keypair]
 fn test_fund_app_rewards_bumps_accumulator_and_transfers_tokens() {
     let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, pdas) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
     // A voter must exist first: an empty pool (total_vote_stake == 0) cannot
     // be funded (see `test_fund_app_rewards_rejects_zero_total_stake`).
@@ -292,6 +273,13 @@ fn test_fund_app_rewards_bumps_accumulator_and_transfers_tokens() {
     );
     assert!(send(&mut svm, ix, &voter.pubkey(), &[&voter]));
 
+    // The vote's principal already sits in the single global vault, so
+    // capture the vault balance here rather than assuming it starts at 0 —
+    // unlike the old per-app reward vault, this vault is shared with
+    // vote/tag-stake principal.
+    let vault_before_funding = fetch_token_amount(&svm, pdas.vault);
+    assert_eq!(vault_before_funding, total_vote_stake);
+
     // Fund the vote pool with 500 real tokens from the deployer (who is
     // `Config.authority`).
     let funder_token_account = Pubkey::new_unique();
@@ -307,7 +295,6 @@ fn test_fund_app_rewards_bumps_accumulator_and_transfers_tokens() {
     let ix = fund_app_rewards_ix(
         &program_id,
         &pdas,
-        &config,
         &funder_token_account,
         &deployer.pubkey(),
         RewardPool::Vote,
@@ -316,10 +303,11 @@ fn test_fund_app_rewards_bumps_accumulator_and_transfers_tokens() {
     let res_ok = send(&mut svm, ix, &deployer.pubkey(), &[&deployer]);
     assert!(res_ok, "fund_app_rewards transaction failed");
 
-    // Tokens actually moved: vault gained `fund_amount`, funder lost it.
+    // Tokens actually moved: vault gained `fund_amount` on top of the
+    // pre-existing principal, funder lost it.
     assert_eq!(
-        fetch_token_amount(&svm, pdas.vote_reward_vault),
-        fund_amount
+        fetch_token_amount(&svm, pdas.vault),
+        vault_before_funding + fund_amount
     );
     assert_eq!(
         fetch_token_amount(&svm, funder_token_account),
@@ -338,7 +326,6 @@ fn test_fund_app_rewards_bumps_accumulator_and_transfers_tokens() {
 fn test_fund_app_rewards_rejects_non_authority_signer() {
     let program_id = nebulous_world::id();
     let (mut svm, _deployer, vote_mint, pdas) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
     // Stake something so the ONLY possible failure reason is the authority
     // mismatch, not `NoStakers`.
@@ -369,6 +356,7 @@ fn test_fund_app_rewards_rejects_non_authority_signer() {
         1_000,
     );
     assert!(send(&mut svm, ix, &voter.pubkey(), &[&voter]));
+    let vault_before = fetch_token_amount(&svm, pdas.vault);
 
     // A stranger, unrelated to `Config.authority`, tries to fund the pool.
     let stranger = Keypair::new();
@@ -385,7 +373,6 @@ fn test_fund_app_rewards_rejects_non_authority_signer() {
     let ix = fund_app_rewards_ix(
         &program_id,
         &pdas,
-        &config,
         &stranger_token_account,
         &stranger.pubkey(),
         RewardPool::Vote,
@@ -398,7 +385,7 @@ fn test_fund_app_rewards_rejects_non_authority_signer() {
     );
 
     // Nothing moved.
-    assert_eq!(fetch_token_amount(&svm, pdas.vote_reward_vault), 0);
+    assert_eq!(fetch_token_amount(&svm, pdas.vault), vault_before);
     assert_eq!(fetch_token_amount(&svm, stranger_token_account), 20_000);
 }
 
@@ -406,7 +393,6 @@ fn test_fund_app_rewards_rejects_non_authority_signer() {
 fn test_fund_app_rewards_rejects_zero_total_stake() {
     let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, pdas) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
     // Nobody has ever voted: total_vote_stake == 0.
     let funder_token_account = Pubkey::new_unique();
@@ -421,7 +407,6 @@ fn test_fund_app_rewards_rejects_zero_total_stake() {
     let ix = fund_app_rewards_ix(
         &program_id,
         &pdas,
-        &config,
         &funder_token_account,
         &deployer.pubkey(),
         RewardPool::Vote,
@@ -437,12 +422,12 @@ fn test_fund_app_rewards_rejects_zero_total_stake() {
 
 #[test]
 fn test_fund_app_rewards_rejects_zero_total_stake_tags_pool() {
-    // Tag staking (Tasks 16-18) doesn't exist yet, so `total_tag_stake` is
-    // always 0 — this documents/locks in that a Tags-pool funding attempt
-    // correctly hits the same `NoStakers` guard today.
+    // Nobody has staked any tag for this app yet (`stake_tag` was never
+    // called), so `total_tag_stake` is still 0 — this documents/locks in
+    // that a Tags-pool funding attempt correctly hits the same `NoStakers`
+    // guard as the vote pool.
     let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, pdas) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
     let funder_token_account = Pubkey::new_unique();
     fund_token_account(
@@ -456,7 +441,6 @@ fn test_fund_app_rewards_rejects_zero_total_stake_tags_pool() {
     let ix = fund_app_rewards_ix(
         &program_id,
         &pdas,
-        &config,
         &funder_token_account,
         &deployer.pubkey(),
         RewardPool::Tags,
@@ -473,7 +457,6 @@ fn test_fund_app_rewards_rejects_zero_total_stake_tags_pool() {
 fn test_fund_app_rewards_rejects_zero_amount() {
     let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint, pdas) = setup();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
     let voter = Keypair::new();
     svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
@@ -515,7 +498,6 @@ fn test_fund_app_rewards_rejects_zero_amount() {
     let ix = fund_app_rewards_ix(
         &program_id,
         &pdas,
-        &config,
         &funder_token_account,
         &deployer.pubkey(),
         RewardPool::Vote,

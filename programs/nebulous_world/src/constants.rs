@@ -6,26 +6,22 @@ pub const CONFIG_SEED: &[u8] = b"config";
 #[constant]
 pub const APP_SEED: &[u8] = b"app";
 
+/// Seeds a GLOBAL `Tag` account: `[TAG_SEED, tag_id.as_bytes()]`, with no
+/// `app` in the derivation. Tags are shared identities across every app that
+/// suggests them — see the design note on `Tag`.
 #[constant]
-pub const VOTE_VAULT_SEED: &[u8] = b"vote_vault";
+pub const TAG_SEED: &[u8] = b"tag";
 
+/// Seeds the per-(app, tag) stake-accounting link: `[APP_TAG_STAKE_SEED,
+/// app.key(), tag.key()]`. See the design note on `AppTagStake`.
 #[constant]
-pub const VOTE_REWARD_VAULT_SEED: &[u8] = b"vote_reward_vault";
-
-#[constant]
-pub const TAGS_REWARD_VAULT_SEED: &[u8] = b"tags_reward_vault";
+pub const APP_TAG_STAKE_SEED: &[u8] = b"app_tag_stake";
 
 #[constant]
 pub const VOTE_POSITION_SEED: &[u8] = b"vote_pos";
 
 #[constant]
 pub const STAKE_POSITION_SEED: &[u8] = b"stake_pos";
-
-#[constant]
-pub const TAG_SEED: &[u8] = b"tag";
-
-#[constant]
-pub const TAG_VAULT_SEED: &[u8] = b"tag_vault";
 
 /// Solana PDA seeds are capped at 32 bytes each. `app_id` (a Prisma cuid,
 /// ~25 bytes) is used directly as a seed for the `AppAccount` PDA, so it
@@ -35,7 +31,7 @@ pub const MAX_APP_ID_LEN: u8 = 32;
 
 /// Same 32-byte-per-seed constraint as `MAX_APP_ID_LEN`, applied to
 /// `tag_id` (a Prisma tag slug), which is used directly as a seed for the
-/// `AppTagAccount` PDA.
+/// global `Tag` PDA.
 #[constant]
 pub const MAX_TAG_ID_LEN: u8 = 32;
 

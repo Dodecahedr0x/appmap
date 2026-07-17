@@ -18,8 +18,7 @@ pub struct FundAppRewards {
 pub struct FundAppRewardsInstructionAccounts {
     pub app: solana_pubkey::Pubkey,
     pub config: solana_pubkey::Pubkey,
-    pub vote_reward_vault: solana_pubkey::Pubkey,
-    pub tags_reward_vault: solana_pubkey::Pubkey,
+    pub vault: solana_pubkey::Pubkey,
     pub funder_token_account: solana_pubkey::Pubkey,
     pub authority: solana_pubkey::Pubkey,
     pub token_program: solana_pubkey::Pubkey,
@@ -54,8 +53,7 @@ impl ArrangeAccounts for FundAppRewards {
 
         let app = next_account(&mut iter)?;
         let config = next_account(&mut iter)?;
-        let vote_reward_vault = next_account(&mut iter)?;
-        let tags_reward_vault = next_account(&mut iter)?;
+        let vault = next_account(&mut iter)?;
         let funder_token_account = next_account(&mut iter)?;
         let authority = next_account(&mut iter)?;
         let token_program = next_account(&mut iter)?;
@@ -65,8 +63,7 @@ impl ArrangeAccounts for FundAppRewards {
         Some(FundAppRewardsInstructionAccounts {
             app,
             config,
-            vote_reward_vault,
-            tags_reward_vault,
+            vault,
             funder_token_account,
             authority,
             token_program,

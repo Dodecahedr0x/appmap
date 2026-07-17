@@ -7,6 +7,7 @@ use solana_pubkey::Pubkey;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, borsh::BorshSerialize, CarbonDeserialize, PartialEq)]
 pub struct VotePosition {
+    pub app: Pubkey,
     pub owner: Pubkey,
     pub amount: u64,
     pub reward_debt: u128,

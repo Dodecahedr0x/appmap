@@ -7,10 +7,10 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
+    anchor_spl::associated_token::{get_associated_token_address, ID as ASSOCIATED_TOKEN_PROGRAM_ID},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
     nebulous_world::constants::{
-        APP_SEED, CONFIG_SEED, REWARD_PRECISION, STAKE_POSITION_SEED, TAGS_REWARD_VAULT_SEED,
-        TAG_SEED, TAG_VAULT_SEED, VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
+        APP_SEED, APP_TAG_STAKE_SEED, CONFIG_SEED, REWARD_PRECISION, STAKE_POSITION_SEED, TAG_SEED,
     },
     litesvm::LiteSVM,
     solana_account::Account,
@@ -45,50 +45,48 @@ fn set_upgrade_authority(
     program_data_address
 }
 
-struct AppPdas {
-    app: Pubkey,
-    vote_vault: Pubkey,
-    vote_reward_vault: Pubkey,
-    tags_reward_vault: Pubkey,
+/// Bundles the program-wide singletons every instruction in this file needs:
+/// `Config`'s own PDA and the single global vault derived from it (an ATA of
+/// `config` for `vote_mint` — see the design note on `Config`), plus
+/// `vote_mint`/`program_id` for convenience. Set up once by `setup()` via a
+/// real `initialize()` call.
+struct Env {
+    program_id: Pubkey,
+    config: Pubkey,
+    vault: Pubkey,
+    vote_mint: Pubkey,
 }
 
-fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
-    let (app, _) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id);
-    let (vote_vault, _) =
-        Pubkey::find_program_address(&[VOTE_VAULT_SEED, app.as_ref()], program_id);
-    let (vote_reward_vault, _) =
-        Pubkey::find_program_address(&[VOTE_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    let (tags_reward_vault, _) =
-        Pubkey::find_program_address(&[TAGS_REWARD_VAULT_SEED, app.as_ref()], program_id);
-    AppPdas {
-        app,
-        vote_vault,
-        vote_reward_vault,
-        tags_reward_vault,
-    }
-}
-
+/// The two PDAs `suggest_tag` creates for one (app, tag_id) pair: the GLOBAL
+/// `Tag` identity (shared across every app that suggests the same tag_id,
+/// seeded only by `tag_id` — no `app`) and the per-(app, tag) `AppTagStake`
+/// stake-accounting link (seeded by `[app, tag]`). Mirrors the old file's
+/// `TagPdas`, updated for the two-account split.
 struct TagPdas {
-    app_tag: Pubkey,
-    principal_vault: Pubkey,
+    tag: Pubkey,
+    app_tag_stake: Pubkey,
+}
+
+fn derive_app(program_id: &Pubkey, app_id: &str) -> Pubkey {
+    Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], program_id).0
 }
 
 fn derive_tag_pdas(program_id: &Pubkey, app: &Pubkey, tag_id: &str) -> TagPdas {
-    let (app_tag, _) =
-        Pubkey::find_program_address(&[TAG_SEED, app.as_ref(), tag_id.as_bytes()], program_id);
-    let (principal_vault, _) =
-        Pubkey::find_program_address(&[TAG_VAULT_SEED, app_tag.as_ref()], program_id);
-    TagPdas {
-        app_tag,
-        principal_vault,
-    }
+    let (tag, _) = Pubkey::find_program_address(&[TAG_SEED, tag_id.as_bytes()], program_id);
+    let (app_tag_stake, _) = Pubkey::find_program_address(
+        &[APP_TAG_STAKE_SEED, app.as_ref(), tag.as_ref()],
+        program_id,
+    );
+    TagPdas { tag, app_tag_stake }
 }
 
 /// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
-/// initialized, a single `AppAccount` (with its three vaults) registered via
-/// `init_app`, and one tag suggested via `suggest_tag`. Returns the SVM, the
-/// deployer keypair, the vote mint, the app's PDAs, and the tag's PDAs.
-fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
+/// and the single global vault initialized (via a real `initialize()` call),
+/// one `AppAccount` registered via `init_app`, and one tag suggested via
+/// `suggest_tag` (creating both the global `Tag` and its `AppTagStake`).
+/// Returns the SVM, the deployer keypair, the shared `Env`, the app's
+/// pubkey, and the tag's PDAs.
+fn setup() -> (LiteSVM, Keypair, Env, Pubkey, TagPdas) {
     let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
@@ -120,6 +118,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
 
     let program_data = set_upgrade_authority(&mut svm, &program_id, deployer.pubkey());
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
+    let vault = get_associated_token_address(&config, &vote_mint);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::Initialize {
@@ -128,10 +127,13 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
         .data(),
         nebulous_world::accounts::Initialize {
             config,
+            vault,
             authority: deployer.pubkey(),
             vote_mint,
             program: program_id,
             program_data,
+            token_program: TOKEN_PROGRAM_ID,
+            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -143,7 +145,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
         .expect("initialize must succeed in test setup");
 
     let app_id = "cid_wstake_test_app_00001".to_string();
-    let pdas = derive_app_pdas(&program_id, &app_id);
+    let app = derive_app(&program_id, &app_id);
     let init_app_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::InitApp {
@@ -151,14 +153,8 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint,
+            app,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -170,7 +166,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
         .expect("init_app must succeed in test setup");
 
     let tag_id = "defi".to_string();
-    let tag_pdas = derive_tag_pdas(&program_id, &pdas.app, &tag_id);
+    let tag_pdas = derive_tag_pdas(&program_id, &app, &tag_id);
     let suggest_tag_ix = Instruction::new_with_bytes(
         program_id,
         &nebulous_world::instruction::SuggestTag {
@@ -179,13 +175,10 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
         }
         .data(),
         nebulous_world::accounts::SuggestTag {
-            app: pdas.app,
-            app_tag: tag_pdas.app_tag,
-            config,
-            principal_vault: tag_pdas.principal_vault,
-            vote_mint,
+            app,
+            tag: tag_pdas.tag,
+            app_tag_stake: tag_pdas.app_tag_stake,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -196,39 +189,42 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, AppPdas, TagPdas) {
     svm.send_transaction(tx)
         .expect("suggest_tag must succeed in test setup");
 
-    (svm, deployer, vote_mint, pdas, tag_pdas)
+    (
+        svm,
+        deployer,
+        Env {
+            program_id,
+            config,
+            vault,
+            vote_mint,
+        },
+        app,
+        tag_pdas,
+    )
 }
 
 /// Registers an ADDITIONAL app + tag pair (distinct from `setup()`'s), using
-/// the same already-initialized `Config`/`vote_mint`/`deployer`. Used by the
-/// cross-app mismatch regression test below, which needs two independent
-/// (app, app_tag) pairs to construct a mismatched instruction call.
+/// the same already-initialized `Config`/global vault/`vote_mint`/`deployer`.
+/// Used by the cross-app mismatch regression test below, which needs two
+/// independent (app, app_tag_stake) pairs to construct a mismatched
+/// instruction call.
 fn register_second_app_and_tag(
     svm: &mut LiteSVM,
     deployer: &Keypair,
-    vote_mint: Pubkey,
+    env: &Env,
     app_id: &str,
     tag_id: &str,
-) -> (AppPdas, TagPdas) {
-    let program_id = nebulous_world::id();
-    let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
-
-    let pdas = derive_app_pdas(&program_id, app_id);
+) -> (Pubkey, TagPdas) {
+    let app = derive_app(&env.program_id, app_id);
     let init_app_ix = Instruction::new_with_bytes(
-        program_id,
+        env.program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {
-            app: pdas.app,
-            config,
-            vote_vault: pdas.vote_vault,
-            vote_reward_vault: pdas.vote_reward_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
-            vote_mint,
+            app,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -239,22 +235,19 @@ fn register_second_app_and_tag(
     svm.send_transaction(tx)
         .expect("init_app (second app) must succeed in test setup");
 
-    let tag_pdas = derive_tag_pdas(&program_id, &pdas.app, tag_id);
+    let tag_pdas = derive_tag_pdas(&env.program_id, &app, tag_id);
     let suggest_tag_ix = Instruction::new_with_bytes(
-        program_id,
+        env.program_id,
         &nebulous_world::instruction::SuggestTag {
             app_id: app_id.to_string(),
             tag_id: tag_id.to_string(),
         }
         .data(),
         nebulous_world::accounts::SuggestTag {
-            app: pdas.app,
-            app_tag: tag_pdas.app_tag,
-            config,
-            principal_vault: tag_pdas.principal_vault,
-            vote_mint,
+            app,
+            tag: tag_pdas.tag,
+            app_tag_stake: tag_pdas.app_tag_stake,
             payer: deployer.pubkey(),
-            token_program: TOKEN_PROGRAM_ID,
             system_program: system_program::ID,
         }
         .to_account_metas(None),
@@ -265,7 +258,7 @@ fn register_second_app_and_tag(
     svm.send_transaction(tx)
         .expect("suggest_tag (second app) must succeed in test setup");
 
-    (pdas, tag_pdas)
+    (app, tag_pdas)
 }
 
 /// Directly writes a funded, initialized SPL token account owned by `owner`
@@ -298,6 +291,24 @@ fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pu
     .unwrap();
 }
 
+/// Adds `additional` tokens on top of the vault's CURRENT balance, rather
+/// than overwriting it outright the way `fund_token_account` does for a
+/// freshly-untouched account. Necessary now that there is only one global
+/// vault (see the design note on `Config`): by the time a test wants to
+/// stand in for a `fund_app_rewards` payout round, the same vault may
+/// already be holding real staked principal from an earlier step in the
+/// same test, and clobbering that balance outright would silently corrupt
+/// it.
+fn fund_vault_additional(svm: &mut LiteSVM, vault: Pubkey, mint: Pubkey, owner: Pubkey, additional: u64) {
+    let current = fetch_token_amount(svm, vault);
+    fund_token_account(svm, vault, mint, owner, current + additional);
+}
+
+/// Directly overwrites an already-created `AppAccount`'s
+/// `tags_acc_reward_per_share`, so tests can exercise the reward-payout leg
+/// of `withdraw_tag_stake()` without needing a real `fund_app_rewards` call
+/// here. See `test_stake_tag.rs`'s copy of this helper for the full
+/// rationale.
 fn set_app_tags_accumulator(svm: &mut LiteSVM, app: Pubkey, acc_reward_per_share: u128) {
     let mut raw = svm.get_account(&app).expect("app account must exist");
     let mut app_account: nebulous_world::AppAccount =
@@ -311,8 +322,8 @@ fn set_app_tags_accumulator(svm: &mut LiteSVM, app: Pubkey, acc_reward_per_share
 }
 
 fn stake_tag_ix(
-    program_id: &Pubkey,
-    pdas: &AppPdas,
+    env: &Env,
+    app: &Pubkey,
     tag_pdas: &TagPdas,
     position: &Pubkey,
     user_token_account: &Pubkey,
@@ -320,14 +331,14 @@ fn stake_tag_ix(
     amount: u64,
 ) -> Instruction {
     Instruction::new_with_bytes(
-        *program_id,
+        env.program_id,
         &nebulous_world::instruction::StakeTag { amount }.data(),
         nebulous_world::accounts::StakeTag {
-            app: pdas.app,
-            app_tag: tag_pdas.app_tag,
+            app: *app,
+            app_tag_stake: tag_pdas.app_tag_stake,
             position: *position,
-            principal_vault: tag_pdas.principal_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
+            config: env.config,
+            vault: env.vault,
             user_token_account: *user_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
@@ -338,8 +349,8 @@ fn stake_tag_ix(
 }
 
 fn withdraw_tag_stake_ix(
-    program_id: &Pubkey,
-    pdas: &AppPdas,
+    env: &Env,
+    app: &Pubkey,
     tag_pdas: &TagPdas,
     position: &Pubkey,
     user_token_account: &Pubkey,
@@ -347,14 +358,14 @@ fn withdraw_tag_stake_ix(
     amount: u64,
 ) -> Instruction {
     Instruction::new_with_bytes(
-        *program_id,
+        env.program_id,
         &nebulous_world::instruction::WithdrawTagStake { amount }.data(),
         nebulous_world::accounts::WithdrawTagStake {
-            app: pdas.app,
-            app_tag: tag_pdas.app_tag,
+            app: *app,
+            app_tag_stake: tag_pdas.app_tag_stake,
             position: *position,
-            principal_vault: tag_pdas.principal_vault,
-            tags_reward_vault: pdas.tags_reward_vault,
+            config: env.config,
+            vault: env.vault,
             user_token_account: *user_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
@@ -382,10 +393,10 @@ fn fetch_app(svm: &LiteSVM, app: Pubkey) -> nebulous_world::AppAccount {
     anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
 }
 
-fn fetch_app_tag(svm: &LiteSVM, app_tag: Pubkey) -> nebulous_world::AppTagAccount {
+fn fetch_app_tag_stake(svm: &LiteSVM, app_tag_stake: Pubkey) -> nebulous_world::AppTagStake {
     let raw = svm
-        .get_account(&app_tag)
-        .expect("app_tag account must exist");
+        .get_account(&app_tag_stake)
+        .expect("app_tag_stake account must exist");
     anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
 }
 
@@ -400,18 +411,8 @@ fn fetch_token_amount(svm: &LiteSVM, pubkey: Pubkey) -> u64 {
 fn setup_with_position(
     initial_stake: u64,
     wallet_amount: u64,
-) -> (
-    LiteSVM,
-    Pubkey,
-    AppPdas,
-    TagPdas,
-    Keypair,
-    Pubkey,
-    Pubkey,
-    Pubkey,
-) {
-    let program_id = nebulous_world::id();
-    let (mut svm, _deployer, vote_mint, pdas, tag_pdas) = setup();
+) -> (LiteSVM, Env, Pubkey, TagPdas, Keypair, Pubkey, Pubkey) {
+    let (mut svm, _deployer, env, app, tag_pdas) = setup();
 
     let user = Keypair::new();
     svm.airdrop(&user.pubkey(), 1_000_000_000).unwrap();
@@ -419,7 +420,7 @@ fn setup_with_position(
     fund_token_account(
         &mut svm,
         user_token_account,
-        vote_mint,
+        env.vote_mint,
         user.pubkey(),
         wallet_amount,
     );
@@ -427,15 +428,15 @@ fn setup_with_position(
     let (position, _bump) = Pubkey::find_program_address(
         &[
             STAKE_POSITION_SEED,
-            tag_pdas.app_tag.as_ref(),
+            tag_pdas.app_tag_stake.as_ref(),
             user.pubkey().as_ref(),
         ],
-        &program_id,
+        &env.program_id,
     );
 
     let ix = stake_tag_ix(
-        &program_id,
-        &pdas,
+        &env,
+        &app,
         &tag_pdas,
         &position,
         &user_token_account,
@@ -447,28 +448,19 @@ fn setup_with_position(
         "initial stake_tag must succeed in test setup"
     );
 
-    (
-        svm,
-        program_id,
-        pdas,
-        tag_pdas,
-        user,
-        user_token_account,
-        position,
-        vote_mint,
-    )
+    (svm, env, app, tag_pdas, user, user_token_account, position)
 }
 
 #[test]
 fn test_withdraw_tag_stake_full_withdrawal_returns_principal_and_zeroes_position() {
     let initial_stake = 4_000u64;
     let wallet_amount = 10_000u64;
-    let (mut svm, program_id, pdas, tag_pdas, user, user_token_account, position, _vote_mint) =
+    let (mut svm, env, app, tag_pdas, user, user_token_account, position) =
         setup_with_position(initial_stake, wallet_amount);
 
     let ix = withdraw_tag_stake_ix(
-        &program_id,
-        &pdas,
+        &env,
+        &app,
         &tag_pdas,
         &position,
         &user_token_account,
@@ -484,12 +476,12 @@ fn test_withdraw_tag_stake_full_withdrawal_returns_principal_and_zeroes_position
     assert_eq!(position_account.amount, 0);
     assert_eq!(position_account.reward_debt, 0);
 
-    let app_tag_account = fetch_app_tag(&svm, tag_pdas.app_tag);
-    assert_eq!(app_tag_account.stake_amount, 0);
-    let app_account = fetch_app(&svm, pdas.app);
+    let app_tag_stake_account = fetch_app_tag_stake(&svm, tag_pdas.app_tag_stake);
+    assert_eq!(app_tag_stake_account.stake_amount, 0);
+    let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, 0);
 
-    assert_eq!(fetch_token_amount(&svm, tag_pdas.principal_vault), 0);
+    assert_eq!(fetch_token_amount(&svm, env.vault), 0);
     assert_eq!(fetch_token_amount(&svm, user_token_account), wallet_amount);
 }
 
@@ -497,13 +489,13 @@ fn test_withdraw_tag_stake_full_withdrawal_returns_principal_and_zeroes_position
 fn test_withdraw_tag_stake_partial_withdrawal_leaves_remaining_stake() {
     let initial_stake = 4_000u64;
     let wallet_amount = 10_000u64;
-    let (mut svm, program_id, pdas, tag_pdas, user, user_token_account, position, _vote_mint) =
+    let (mut svm, env, app, tag_pdas, user, user_token_account, position) =
         setup_with_position(initial_stake, wallet_amount);
 
     let withdraw_amount = 1_500u64;
     let ix = withdraw_tag_stake_ix(
-        &program_id,
-        &pdas,
+        &env,
+        &app,
         &tag_pdas,
         &position,
         &user_token_account,
@@ -520,15 +512,12 @@ fn test_withdraw_tag_stake_partial_withdrawal_leaves_remaining_stake() {
     assert_eq!(position_account.amount, remaining);
 
     // Both counters stayed in lockstep.
-    let app_tag_account = fetch_app_tag(&svm, tag_pdas.app_tag);
-    assert_eq!(app_tag_account.stake_amount, remaining);
-    let app_account = fetch_app(&svm, pdas.app);
+    let app_tag_stake_account = fetch_app_tag_stake(&svm, tag_pdas.app_tag_stake);
+    assert_eq!(app_tag_stake_account.stake_amount, remaining);
+    let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, remaining);
 
-    assert_eq!(
-        fetch_token_amount(&svm, tag_pdas.principal_vault),
-        remaining
-    );
+    assert_eq!(fetch_token_amount(&svm, env.vault), remaining);
     assert_eq!(
         fetch_token_amount(&svm, user_token_account),
         wallet_amount - initial_stake + withdraw_amount
@@ -537,12 +526,12 @@ fn test_withdraw_tag_stake_partial_withdrawal_leaves_remaining_stake() {
 
 #[test]
 fn test_withdraw_tag_stake_rejects_zero_amount() {
-    let (mut svm, program_id, pdas, tag_pdas, user, user_token_account, position, _vote_mint) =
+    let (mut svm, env, app, tag_pdas, user, user_token_account, position) =
         setup_with_position(4_000, 10_000);
 
     let ix = withdraw_tag_stake_ix(
-        &program_id,
-        &pdas,
+        &env,
+        &app,
         &tag_pdas,
         &position,
         &user_token_account,
@@ -558,12 +547,12 @@ fn test_withdraw_tag_stake_rejects_zero_amount() {
 #[test]
 fn test_withdraw_tag_stake_rejects_amount_exceeding_stake() {
     let initial_stake = 4_000u64;
-    let (mut svm, program_id, pdas, tag_pdas, user, user_token_account, position, _vote_mint) =
+    let (mut svm, env, app, tag_pdas, user, user_token_account, position) =
         setup_with_position(initial_stake, 10_000);
 
     let ix = withdraw_tag_stake_ix(
-        &program_id,
-        &pdas,
+        &env,
+        &app,
         &tag_pdas,
         &position,
         &user_token_account,
@@ -575,46 +564,36 @@ fn test_withdraw_tag_stake_rejects_amount_exceeding_stake() {
         "expected withdraw_tag_stake to reject an over-withdrawal, but it succeeded"
     );
 
-    // Nothing moved: the position, app_tag, and vault are untouched.
+    // Nothing moved: the position, app_tag_stake, and vault are untouched.
     let position_account = fetch_position(&svm, position);
     assert_eq!(position_account.amount, initial_stake);
-    let app_tag_account = fetch_app_tag(&svm, tag_pdas.app_tag);
-    assert_eq!(app_tag_account.stake_amount, initial_stake);
-    assert_eq!(
-        fetch_token_amount(&svm, tag_pdas.principal_vault),
-        initial_stake
-    );
+    let app_tag_stake_account = fetch_app_tag_stake(&svm, tag_pdas.app_tag_stake);
+    assert_eq!(app_tag_stake_account.stake_amount, initial_stake);
+    assert_eq!(fetch_token_amount(&svm, env.vault), initial_stake);
 }
 
 /// Exercises the reward-payout CPI leg of `withdraw_tag_stake()` end-to-end
-/// on a PARTIAL withdrawal — the highest-risk path in this whole task: TWO
-/// DIFFERENT PDAs sign two separate transfers out of two separate vaults in
-/// the SAME instruction. `app` signs for the pending-reward payout out of
-/// the SHARED `tags_reward_vault`; `app_tag` signs for the returned
-/// principal out of ITS OWN `principal_vault`. If either signer's seeds were
-/// swapped or wrong, this transaction would fail signature verification
-/// entirely (not just produce a wrong number) — so a passing test here is
-/// strong evidence both authorities are wired correctly.
+/// on a PARTIAL withdrawal. Unlike the old per-(app, tag) vault design (where
+/// TWO DIFFERENT PDAs signed two separate transfers out of two separate
+/// vaults in the same instruction), `config` now signs BOTH the
+/// pending-reward payout and the returned principal out of the SAME single
+/// global vault — so a single before/after vault-balance delta covers both
+/// legs at once.
 #[test]
 fn test_withdraw_tag_stake_pays_out_pending_reward_on_partial_withdrawal() {
     let initial_stake = 1_000u64;
     let wallet_amount = 10_000u64;
-    let (mut svm, program_id, pdas, tag_pdas, user, user_token_account, position, vote_mint) =
+    let (mut svm, env, app, tag_pdas, user, user_token_account, position) =
         setup_with_position(initial_stake, wallet_amount);
 
     // Stand in for `fund_app_rewards` (Tags pool): bump the shared
-    // accumulator to 1 reward token per staked token, and pre-fund the
-    // SHARED reward vault so the payout CPI (signed by `app`) has something
-    // to actually transfer.
+    // accumulator to 1 reward token per staked token, and add reward funds
+    // on top of the vault's existing principal balance so the payout CPI
+    // (signed by `config`) has something to actually transfer.
     let acc_reward_per_share = REWARD_PRECISION; // 1.0 reward token per staked token
-    set_app_tags_accumulator(&mut svm, pdas.app, acc_reward_per_share);
-    fund_token_account(
-        &mut svm,
-        pdas.tags_reward_vault,
-        vote_mint,
-        pdas.app,
-        50_000,
-    );
+    set_app_tags_accumulator(&mut svm, app, acc_reward_per_share);
+    fund_vault_additional(&mut svm, env.vault, env.vote_mint, env.config, 50_000);
+    let vault_before_withdraw = fetch_token_amount(&svm, env.vault);
 
     let withdraw_amount = 400u64;
 
@@ -622,8 +601,8 @@ fn test_withdraw_tag_stake_pays_out_pending_reward_on_partial_withdrawal() {
     let expected_pending = 1_000u64;
 
     let ix = withdraw_tag_stake_ix(
-        &program_id,
-        &pdas,
+        &env,
+        &app,
         &tag_pdas,
         &position,
         &user_token_account,
@@ -641,54 +620,48 @@ fn test_withdraw_tag_stake_pays_out_pending_reward_on_partial_withdrawal() {
     // reward_debt_for(remaining, 1*PRECISION) = remaining
     assert_eq!(position_account.reward_debt, remaining as u128);
 
-    let app_tag_account = fetch_app_tag(&svm, tag_pdas.app_tag);
-    assert_eq!(app_tag_account.stake_amount, remaining);
-    let app_account = fetch_app(&svm, pdas.app);
+    let app_tag_stake_account = fetch_app_tag_stake(&svm, tag_pdas.app_tag_stake);
+    assert_eq!(app_tag_stake_account.stake_amount, remaining);
+    let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, remaining);
 
-    // User received both the withdrawn principal (returned by `app_tag`) and
-    // the pending reward (paid by `app`).
+    // User received both the withdrawn principal and the pending reward,
+    // both paid by `config` in the same instruction.
     assert_eq!(
         fetch_token_amount(&svm, user_token_account),
         wallet_amount - initial_stake + withdraw_amount + expected_pending
     );
 
-    // The shared reward vault paid out exactly `expected_pending`, signed by
-    // `app`.
+    // The single shared vault paid out exactly (reward + returned
+    // principal), on top of whatever it held going into this transaction.
     assert_eq!(
-        fetch_token_amount(&svm, pdas.tags_reward_vault),
-        50_000 - expected_pending
-    );
-
-    // The tag's own principal vault only lost `withdraw_amount`, signed by
-    // `app_tag`.
-    assert_eq!(
-        fetch_token_amount(&svm, tag_pdas.principal_vault),
-        remaining
+        fetch_token_amount(&svm, env.vault),
+        vault_before_withdraw - expected_pending - withdraw_amount
     );
 }
 
 /// Regression test for a critical fund-drain vulnerability (see the matching
 /// test in `test_stake_tag.rs` for the full exploit writeup): without the
-/// `constraint = app_tag.app == app.key()` check on
-/// `WithdrawTagStake::app_tag`, an attacker with their OWN legitimate
-/// (app, app_tag, position) could call `withdraw_tag_stake` passing their
-/// own `app_tag`/`position` alongside a victim's well-funded `app`. The
-/// pending-reward leg would then settle against the VICTIM's real
-/// `tags_acc_reward_per_share` and pay out of the VICTIM's real
-/// `tags_reward_vault` — while `principal_vault` still address-checks
-/// against the attacker's own vault, so the attacker's principal is never at
-/// risk. Asserts the call is rejected with `TagAppMismatch` specifically.
+/// `constraint = app_tag_stake.app == app.key()` check on
+/// `WithdrawTagStake::app_tag_stake`, an attacker with their OWN legitimate
+/// (app, app_tag_stake, position) could call `withdraw_tag_stake` passing
+/// their own `app_tag_stake`/`position` alongside a victim's well-funded
+/// `app`. The pending-reward leg would then settle against the VICTIM's real
+/// `tags_acc_reward_per_share`, and BOTH the reward payout and the returned
+/// "principal" would be signed by `config` out of the single global vault —
+/// so with the constraint removed, a successful attack would pay the
+/// attacker their own already-legitimate principal back a second time PLUS
+/// the victim's reward, out of funds that were never theirs to draw against.
+/// Asserts the call is rejected with `AppTagStakeMismatch` specifically.
 #[test]
-fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag() {
-    let program_id = nebulous_world::id();
-    let (mut svm, deployer, vote_mint, victim_pdas, _victim_tag_pdas) = setup();
+fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag_stake() {
+    let (mut svm, deployer, env, victim_app, _victim_tag_pdas) = setup();
 
     // The attacker's own, entirely independent app + tag.
-    let (attacker_pdas, attacker_tag_pdas) = register_second_app_and_tag(
+    let (attacker_app, attacker_tag_pdas) = register_second_app_and_tag(
         &mut svm,
         &deployer,
-        vote_mint,
+        &env,
         "cid_attacker_app_0000002",
         "attacker_tag",
     );
@@ -699,7 +672,7 @@ fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag() {
     fund_token_account(
         &mut svm,
         user_token_account,
-        vote_mint,
+        env.vote_mint,
         user.pubkey(),
         10_000,
     );
@@ -707,19 +680,19 @@ fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag() {
     let (position, _bump) = Pubkey::find_program_address(
         &[
             STAKE_POSITION_SEED,
-            attacker_tag_pdas.app_tag.as_ref(),
+            attacker_tag_pdas.app_tag_stake.as_ref(),
             user.pubkey().as_ref(),
         ],
-        &program_id,
+        &env.program_id,
     );
 
     // A legitimate stake under the attacker's OWN, correctly-matched
-    // (app, app_tag) pair — establishes a real position to attempt
+    // (app, app_tag_stake) pair — establishes a real position to attempt
     // withdrawing against.
     let stake_amount = 1_000u64;
     let legit_stake_ix = stake_tag_ix(
-        &program_id,
-        &attacker_pdas,
+        &env,
+        &attacker_app,
         &attacker_tag_pdas,
         &position,
         &user_token_account,
@@ -732,10 +705,10 @@ fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag() {
     );
 
     // Now attempt to withdraw, but pass the VICTIM's `app` alongside the
-    // attacker's own `app_tag`/`position`.
+    // attacker's own `app_tag_stake`/`position`.
     let ix = withdraw_tag_stake_ix(
-        &program_id,
-        &victim_pdas,
+        &env,
+        &victim_app,
         &attacker_tag_pdas,
         &position,
         &user_token_account,
@@ -748,17 +721,17 @@ fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag() {
     let res = svm.send_transaction(tx);
 
     let err = res.expect_err(
-        "expected withdraw_tag_stake to reject a mismatched (app, app_tag) pair, but it succeeded",
+        "expected withdraw_tag_stake to reject a mismatched (app, app_tag_stake) pair, but it succeeded",
     );
     let logs = err.meta.pretty_logs();
     assert!(
-        logs.contains("TagAppMismatch"),
-        "expected the rejection to be TagAppMismatch specifically, got logs: {logs}"
+        logs.contains("AppTagStakeMismatch"),
+        "expected the rejection to be AppTagStakeMismatch specifically, got logs: {logs}"
     );
 
     // Nothing moved: the victim's pool and the attacker's own position are
     // both untouched.
-    let victim_app_account = fetch_app(&svm, victim_pdas.app);
+    let victim_app_account = fetch_app(&svm, victim_app);
     assert_eq!(victim_app_account.total_tag_stake, 0);
     let position_account = fetch_position(&svm, position);
     assert_eq!(position_account.amount, stake_amount);

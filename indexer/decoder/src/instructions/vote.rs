@@ -16,8 +16,8 @@ pub struct Vote {
 pub struct VoteInstructionAccounts {
     pub app: solana_pubkey::Pubkey,
     pub position: solana_pubkey::Pubkey,
-    pub vote_vault: solana_pubkey::Pubkey,
-    pub vote_reward_vault: solana_pubkey::Pubkey,
+    pub config: solana_pubkey::Pubkey,
+    pub vault: solana_pubkey::Pubkey,
     pub user_token_account: solana_pubkey::Pubkey,
     pub user: solana_pubkey::Pubkey,
     pub token_program: solana_pubkey::Pubkey,
@@ -53,8 +53,8 @@ impl ArrangeAccounts for Vote {
 
         let app = next_account(&mut iter)?;
         let position = next_account(&mut iter)?;
-        let vote_vault = next_account(&mut iter)?;
-        let vote_reward_vault = next_account(&mut iter)?;
+        let config = next_account(&mut iter)?;
+        let vault = next_account(&mut iter)?;
         let user_token_account = next_account(&mut iter)?;
         let user = next_account(&mut iter)?;
         let token_program = next_account(&mut iter)?;
@@ -65,8 +65,8 @@ impl ArrangeAccounts for Vote {
         Some(VoteInstructionAccounts {
             app,
             position,
-            vote_vault,
-            vote_reward_vault,
+            config,
+            vault,
             user_token_account,
             user,
             token_program,

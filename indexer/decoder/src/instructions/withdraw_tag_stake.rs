@@ -15,10 +15,10 @@ pub struct WithdrawTagStake {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct WithdrawTagStakeInstructionAccounts {
     pub app: solana_pubkey::Pubkey,
-    pub app_tag: solana_pubkey::Pubkey,
+    pub app_tag_stake: solana_pubkey::Pubkey,
     pub position: solana_pubkey::Pubkey,
-    pub principal_vault: solana_pubkey::Pubkey,
-    pub tags_reward_vault: solana_pubkey::Pubkey,
+    pub config: solana_pubkey::Pubkey,
+    pub vault: solana_pubkey::Pubkey,
     pub user_token_account: solana_pubkey::Pubkey,
     pub user: solana_pubkey::Pubkey,
     pub token_program: solana_pubkey::Pubkey,
@@ -52,10 +52,10 @@ impl ArrangeAccounts for WithdrawTagStake {
         let mut iter = accounts.iter();
 
         let app = next_account(&mut iter)?;
-        let app_tag = next_account(&mut iter)?;
+        let app_tag_stake = next_account(&mut iter)?;
         let position = next_account(&mut iter)?;
-        let principal_vault = next_account(&mut iter)?;
-        let tags_reward_vault = next_account(&mut iter)?;
+        let config = next_account(&mut iter)?;
+        let vault = next_account(&mut iter)?;
         let user_token_account = next_account(&mut iter)?;
         let user = next_account(&mut iter)?;
         let token_program = next_account(&mut iter)?;
@@ -64,10 +64,10 @@ impl ArrangeAccounts for WithdrawTagStake {
 
         Some(WithdrawTagStakeInstructionAccounts {
             app,
-            app_tag,
+            app_tag_stake,
             position,
-            principal_vault,
-            tags_reward_vault,
+            config,
+            vault,
             user_token_account,
             user,
             token_program,

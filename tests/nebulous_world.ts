@@ -4,6 +4,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   createMint,
   getAccount,
+  getAssociatedTokenAddressSync,
   getOrCreateAssociatedTokenAccount,
   mintTo,
 } from "@solana/spl-token";
@@ -22,7 +23,7 @@ describe("nebulous_world: config", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const program = anchor.workspace.NebulousWorld as Program<NebulousWorld>;
 
-  it("initializes the global config", async () => {
+  it("initializes the global config and its single global vault", async () => {
     const mint = await createMint(
       provider.connection,
       (provider.wallet as any).payer,
@@ -38,6 +39,12 @@ describe("nebulous_world: config", () => {
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
     );
+    // The single global vault: an Associated Token Account owned by the
+    // `config` PDA (allowOwnerOffCurve = true, since `config` is a PDA, not
+    // a normal wallet). Every instruction that ever moves tokens — vote
+    // stake, tag stake, vote rewards, tags rewards — transfers through this
+    // one account. See the design note on `Config`.
+    const vault = getAssociatedTokenAddressSync(mint, configPda, true);
 
     // Only the program's upgrade authority (the wallet that deployed it) may
     // call `initialize` — this is what closes the front-running window.
@@ -45,6 +52,7 @@ describe("nebulous_world: config", () => {
       .initialize(1000) // 10% protocol fee, in bps
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint: mint,
         programData: programDataPda,
@@ -55,6 +63,11 @@ describe("nebulous_world: config", () => {
     assert.equal(config.protocolFeeBps, 1000);
     assert.isTrue(config.voteMint.equals(mint));
     assert.isTrue(config.authority.equals(provider.wallet.publicKey));
+
+    const vaultAccount = await getAccount(provider.connection, vault);
+    assert.isTrue(vaultAccount.mint.equals(mint));
+    assert.isTrue(vaultAccount.owner.equals(configPda));
+    assert.equal(vaultAccount.amount.toString(), "0");
   });
 });
 
@@ -76,7 +89,10 @@ describe("nebulous_world: init_app", () => {
   // sequentially in file order) already initializes it — reuse its
   // `voteMint` here instead of trying (and failing) to `initialize` again.
   // Fall back to initializing it ourselves so this block is also runnable in
-  // isolation (e.g. `mocha --grep`).
+  // isolation (e.g. `mocha --grep`). Note that `init_app` itself never
+  // references `Config`/a vote mint at all (see `init_app.rs`) — this is
+  // purely to guarantee `Config` exists for later describe blocks in this
+  // file that do need it.
   before(async () => {
     try {
       const config = await program.account.config.fetch(configPda);
@@ -93,6 +109,7 @@ describe("nebulous_world: init_app", () => {
       null,
       6,
     );
+    const vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -101,6 +118,7 @@ describe("nebulous_world: init_app", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -108,64 +126,40 @@ describe("nebulous_world: init_app", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function derivePda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
-  it("registers a new app and its three vaults, permissionlessly", async () => {
+  it("registers a new app, permissionlessly", async () => {
     // A Prisma cuid-shaped id (~25 chars), randomized to avoid colliding
     // with a previous run against a persisted local validator ledger.
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = derivePda(appId);
 
     // No authority/signer-identity accounts are passed beyond the payer —
     // `init_app` is permissionless by design (anyone can register any app).
+    // Note there's no vault/mint/config account either: `AppAccount` no
+    // longer owns any vaults of its own — every app shares the single
+    // global vault documented on `Config` — so registering a new app costs
+    // no token-account rent at all.
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.appId, appId);
-    assert.isTrue(appAccount.voteVault.equals(voteVault));
-    assert.isTrue(appAccount.voteRewardVault.equals(voteRewardVault));
-    assert.isTrue(appAccount.tagsRewardVault.equals(tagsRewardVault));
     assert.equal(appAccount.totalVoteStake.toString(), "0");
     assert.equal(appAccount.voteAccRewardPerShare.toString(), "0");
     assert.equal(appAccount.totalTagStake.toString(), "0");
     assert.equal(appAccount.tagsAccRewardPerShare.toString(), "0");
-
-    for (const vault of [voteVault, voteRewardVault, tagsRewardVault]) {
-      const account = await getAccount(provider.connection, vault);
-      assert.isTrue(account.mint.equals(voteMint));
-      assert.isTrue(account.owner.equals(app));
-      assert.equal(account.amount.toString(), "0");
-    }
   });
 
   it("lets a different, unrelated payer register an app (no authority gating)", async () => {
@@ -178,18 +172,12 @@ describe("nebulous_world: init_app", () => {
     );
 
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = derivePda(appId);
 
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: strangerPayer.publicKey,
       })
       .signers([strangerPayer])
@@ -210,17 +198,11 @@ describe("nebulous_world: init_app", () => {
 
     let threw = false;
     try {
-      const { app, voteVault, voteRewardVault, tagsRewardVault } =
-        derivePdas(appId);
+      const app = derivePda(appId);
       await program.methods
         .initApp(appId)
         .accounts({
           app,
-          config: configPda,
-          voteVault,
-          voteRewardVault,
-          tagsRewardVault,
-          voteMint,
           payer: provider.wallet.publicKey,
         })
         .rpc();
@@ -248,7 +230,8 @@ describe("nebulous_world: suggest_tag", () => {
 
   // Same reuse-or-initialize pattern as the "nebulous_world: init_app" describe
   // block above: `Config` is a singleton, so reuse it if a prior describe
-  // block in this file already created it.
+  // block in this file already created it. Like `init_app`, `suggest_tag`
+  // never references `Config`/a vote mint either (see `suggest_tag.rs`).
   before(async () => {
     try {
       const config = await program.account.config.fetch(configPda);
@@ -265,6 +248,7 @@ describe("nebulous_world: suggest_tag", () => {
       null,
       6,
     );
+    const vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -273,6 +257,7 @@ describe("nebulous_world: suggest_tag", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -280,90 +265,80 @@ describe("nebulous_world: suggest_tag", () => {
       .rpc();
   });
 
-  function deriveAppPdas(appId: string) {
+  function deriveAppPda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
-  function deriveTagPdas(app: PublicKey, tagId: string) {
-    const [appTag] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+  // The GLOBAL `Tag` PDA: seeded ONLY by `tagId`, with no `app` in the
+  // derivation — every app that suggests the same `tagId` string resolves
+  // to this exact same address. See the design note on `Tag`.
+  function deriveTagPda(tagId: string) {
+    const [tag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), Buffer.from(tagId)],
       program.programId,
     );
-    const [principalVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag_vault"), appTag.toBuffer()],
+    return tag;
+  }
+
+  // The per-(app, tag) stake-accounting PDA: seeded by `app.key()` and
+  // `tag.key()` (the `Tag` account's own pubkey, not the raw tag_id string).
+  function deriveAppTagStakePda(app: PublicKey, tag: PublicKey) {
+    const [appTagStake] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app_tag_stake"), app.toBuffer(), tag.toBuffer()],
       program.programId,
     );
-    return { appTag, principalVault };
+    return appTagStake;
   }
 
   async function registerApp() {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      deriveAppPdas(appId);
+    const app = deriveAppPda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
     return { appId, app };
   }
 
-  it("registers a new tag and its principal vault, permissionlessly", async () => {
+  it("registers a new tag and its stake-accounting record, permissionlessly", async () => {
     const { appId, app } = await registerApp();
     const tagId = "defi";
-    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    const tag = deriveTagPda(tagId);
+    const appTagStake = deriveAppTagStakePda(app, tag);
 
     await program.methods
       .suggestTag(appId, tagId)
       .accounts({
         app,
-        appTag,
-        config: configPda,
-        principalVault,
-        voteMint,
+        tag,
+        appTagStake,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.isTrue(appTagAccount.app.equals(app));
-    assert.equal(appTagAccount.tagId, tagId);
-    assert.isTrue(appTagAccount.principalVault.equals(principalVault));
-    assert.equal(appTagAccount.stakeAmount.toString(), "0");
+    const tagAccount = await program.account.tag.fetch(tag);
+    assert.equal(tagAccount.tagId, tagId);
 
-    const vaultAccount = await getAccount(provider.connection, principalVault);
-    assert.isTrue(vaultAccount.mint.equals(voteMint));
-    assert.isTrue(vaultAccount.owner.equals(appTag));
-    assert.equal(vaultAccount.amount.toString(), "0");
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
+    assert.isTrue(appTagStakeAccount.app.equals(app));
+    assert.isTrue(appTagStakeAccount.tag.equals(tag));
+    assert.equal(appTagStakeAccount.stakeAmount.toString(), "0");
   });
 
   it("lets a different, unrelated payer suggest a tag (no authority gating)", async () => {
     const { appId, app } = await registerApp();
     const tagId = "gaming";
-    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    const tag = deriveTagPda(tagId);
+    const appTagStake = deriveAppTagStakePda(app, tag);
 
     const strangerPayer = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -377,46 +352,44 @@ describe("nebulous_world: suggest_tag", () => {
       .suggestTag(appId, tagId)
       .accounts({
         app,
-        appTag,
-        config: configPda,
-        principalVault,
-        voteMint,
+        tag,
+        appTagStake,
         payer: strangerPayer.publicKey,
       })
       .signers([strangerPayer])
       .rpc();
 
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.equal(appTagAccount.tagId, tagId);
+    const tagAccount = await program.account.tag.fetch(tag);
+    assert.equal(tagAccount.tagId, tagId);
   });
 
   it("rejects suggesting the same tag_id twice for the same app", async () => {
     const { appId, app } = await registerApp();
     const tagId = "defi";
-    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    const tag = deriveTagPda(tagId);
+    const appTagStake = deriveAppTagStakePda(app, tag);
 
     await program.methods
       .suggestTag(appId, tagId)
       .accounts({
         app,
-        appTag,
-        config: configPda,
-        principalVault,
-        voteMint,
+        tag,
+        appTagStake,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
+    // `tag` is `init_if_needed` and would happily be reused, but
+    // `app_tag_stake` is a plain `init` — the same app suggesting the same
+    // tag twice must fail on that account already existing.
     let threw = false;
     try {
       await program.methods
         .suggestTag(appId, tagId)
         .accounts({
           app,
-          appTag,
-          config: configPda,
-          principalVault,
-          voteMint,
+          tag,
+          appTagStake,
           payer: provider.wallet.publicKey,
         })
         .rpc();
@@ -435,15 +408,14 @@ describe("nebulous_world: suggest_tag", () => {
 
     let threw = false;
     try {
-      const { appTag, principalVault } = deriveTagPdas(app, tagId);
+      const tag = deriveTagPda(tagId);
+      const appTagStake = deriveAppTagStakePda(app, tag);
       await program.methods
         .suggestTag(appId, tagId)
         .accounts({
           app,
-          appTag,
-          config: configPda,
-          principalVault,
-          voteMint,
+          tag,
+          appTagStake,
           payer: provider.wallet.publicKey,
         })
         .rpc();
@@ -456,26 +428,37 @@ describe("nebulous_world: suggest_tag", () => {
     );
   });
 
-  it("allows the same tag_id to be suggested for two different apps without collision", async () => {
+  // The core new behavior of the two-account split (see the design note on
+  // `Tag`/`AppTagStake`): the SAME tag_id string suggested by two DIFFERENT
+  // apps now resolves to the exact SAME global `Tag` account, while each app
+  // still gets its OWN `AppTagStake` record. This replaces the old
+  // (pre-refactor) "no collision" test, which asserted the opposite — that
+  // the two apps' tag accounts were different — back when a single
+  // `AppTagAccount` was seeded by both `app` and `tag_id` together.
+  it("shares one global Tag across two different apps' suggestions, with separate AppTagStake records", async () => {
     const { appId: appIdA, app: appA } = await registerApp();
     const { appId: appIdB, app: appB } = await registerApp();
     assert.isFalse(appA.equals(appB));
 
     const tagId = "defi";
-    const { appTag: appTagA, principalVault: principalVaultA } =
-      deriveTagPdas(appA, tagId);
-    const { appTag: appTagB, principalVault: principalVaultB } =
-      deriveTagPdas(appB, tagId);
-    assert.isFalse(appTagA.equals(appTagB));
+    const tagA = deriveTagPda(tagId);
+    const tagB = deriveTagPda(tagId);
+    // Same tag_id -> same global Tag PDA, regardless of which app suggests it.
+    assert.isTrue(tagA.equals(tagB));
+    const tag = tagA;
+
+    const appTagStakeA = deriveAppTagStakePda(appA, tag);
+    const appTagStakeB = deriveAppTagStakePda(appB, tag);
+    // But the per-(app, tag) stake-accounting PDAs differ, since their seeds
+    // include `app.key()`.
+    assert.isFalse(appTagStakeA.equals(appTagStakeB));
 
     await program.methods
       .suggestTag(appIdA, tagId)
       .accounts({
         app: appA,
-        appTag: appTagA,
-        config: configPda,
-        principalVault: principalVaultA,
-        voteMint,
+        tag,
+        appTagStake: appTagStakeA,
         payer: provider.wallet.publicKey,
       })
       .rpc();
@@ -484,23 +467,28 @@ describe("nebulous_world: suggest_tag", () => {
       .suggestTag(appIdB, tagId)
       .accounts({
         app: appB,
-        appTag: appTagB,
-        config: configPda,
-        principalVault: principalVaultB,
-        voteMint,
+        tag,
+        appTagStake: appTagStakeB,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    const appTagAccountA = await program.account.appTagAccount.fetch(appTagA);
-    const appTagAccountB = await program.account.appTagAccount.fetch(appTagB);
-    assert.isTrue(appTagAccountA.app.equals(appA));
-    assert.isTrue(appTagAccountB.app.equals(appB));
-    assert.equal(appTagAccountA.tagId, tagId);
-    assert.equal(appTagAccountB.tagId, tagId);
-    assert.isFalse(
-      appTagAccountA.principalVault.equals(appTagAccountB.principalVault),
+    // Exactly one `Tag` account was ever created (app B's suggestion reused
+    // it via `init_if_needed`), and both apps' `AppTagStake` accounts point
+    // at that identical `Tag` pubkey.
+    const tagAccount = await program.account.tag.fetch(tag);
+    assert.equal(tagAccount.tagId, tagId);
+
+    const appTagStakeAccountA = await program.account.appTagStake.fetch(
+      appTagStakeA,
     );
+    const appTagStakeAccountB = await program.account.appTagStake.fetch(
+      appTagStakeB,
+    );
+    assert.isTrue(appTagStakeAccountA.app.equals(appA));
+    assert.isTrue(appTagStakeAccountB.app.equals(appB));
+    assert.isTrue(appTagStakeAccountA.tag.equals(tag));
+    assert.isTrue(appTagStakeAccountB.tag.equals(tag));
   });
 });
 
@@ -515,6 +503,7 @@ describe("nebulous_world: vote", () => {
   );
 
   let voteMint: PublicKey;
+  let vault: PublicKey;
 
   // Same reuse-or-initialize pattern as the "nebulous_world: init_app" block above:
   // `Config` is a singleton, so reuse it if a prior describe block in this
@@ -523,6 +512,7 @@ describe("nebulous_world: vote", () => {
     try {
       const config = await program.account.config.fetch(configPda);
       voteMint = config.voteMint;
+      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
       return;
     } catch {
       // Config not initialized yet — fall through and initialize it.
@@ -535,6 +525,7 @@ describe("nebulous_world: vote", () => {
       null,
       6,
     );
+    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -543,6 +534,7 @@ describe("nebulous_world: vote", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -550,24 +542,12 @@ describe("nebulous_world: vote", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function derivePda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
   function derivePositionPda(app: PublicKey, user: PublicKey) {
@@ -580,25 +560,19 @@ describe("nebulous_world: vote", () => {
 
   async function registerApp() {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = derivePda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
-    return { appId, app, voteVault, voteRewardVault, tagsRewardVault };
+    return { appId, app };
   }
 
   it("locks principal, creates a VotePosition, and updates the app's total stake", async () => {
-    const { app, voteVault, voteRewardVault } = await registerApp();
+    const { app } = await registerApp();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -622,16 +596,19 @@ describe("nebulous_world: vote", () => {
     const position = derivePositionPda(app, user.publicKey);
     const amount = 4_000;
 
-    const voteVaultBefore = await getAccount(provider.connection, voteVault);
-    assert.equal(voteVaultBefore.amount.toString(), "0");
+    // `vault` is now a single GLOBAL account shared by every app/tag/test in
+    // this whole file's run against one local validator, so its balance can
+    // never be asserted in absolute terms — only as a delta around this
+    // specific operation.
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     await program.methods
       .vote(new BN(amount))
       .accounts({
         app,
         position,
-        voteVault,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -643,13 +620,17 @@ describe("nebulous_world: vote", () => {
     );
     assert.equal(positionAccount.amount.toString(), amount.toString());
     assert.isTrue(positionAccount.owner.equals(user.publicKey));
+    assert.isTrue(positionAccount.app.equals(app));
     assert.equal(positionAccount.rewardDebt.toString(), "0");
 
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalVoteStake.toString(), amount.toString());
 
-    const voteVaultAfter = await getAccount(provider.connection, voteVault);
-    assert.equal(voteVaultAfter.amount.toString(), amount.toString());
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultAfter.amount - vaultBefore.amount).toString(),
+      amount.toString(),
+    );
 
     const userTokenAfter = await getAccount(
       provider.connection,
@@ -659,7 +640,7 @@ describe("nebulous_world: vote", () => {
   });
 
   it("rejects a zero-amount vote", async () => {
-    const { app, voteVault, voteRewardVault } = await registerApp();
+    const { app } = await registerApp();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -681,8 +662,8 @@ describe("nebulous_world: vote", () => {
         .accounts({
           app,
           position,
-          voteVault,
-          voteRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount: userTokenAccount.address,
           user: user.publicKey,
         })
@@ -706,6 +687,7 @@ describe("nebulous_world: withdraw_vote", () => {
   );
 
   let voteMint: PublicKey;
+  let vault: PublicKey;
 
   // Same reuse-or-initialize pattern as the "nebulous_world: vote" describe block
   // above: `Config` is a singleton, so reuse it if a prior describe block in
@@ -714,6 +696,7 @@ describe("nebulous_world: withdraw_vote", () => {
     try {
       const config = await program.account.config.fetch(configPda);
       voteMint = config.voteMint;
+      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
       return;
     } catch {
       // Config not initialized yet — fall through and initialize it.
@@ -726,6 +709,7 @@ describe("nebulous_world: withdraw_vote", () => {
       null,
       6,
     );
+    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -734,6 +718,7 @@ describe("nebulous_world: withdraw_vote", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -741,24 +726,12 @@ describe("nebulous_world: withdraw_vote", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function derivePda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
   function derivePositionPda(app: PublicKey, user: PublicKey) {
@@ -771,28 +744,22 @@ describe("nebulous_world: withdraw_vote", () => {
 
   async function registerApp() {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = derivePda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
-    return { appId, app, voteVault, voteRewardVault, tagsRewardVault };
+    return { appId, app };
   }
 
   // Registers a fresh app, funds a fresh user's wallet, and votes
   // `initialStake` in to create a `VotePosition` — the common fixture every
   // `withdraw_vote` test below builds on.
   async function setupWithPosition(initialStake: number, walletAmount: number) {
-    const { app, voteVault, voteRewardVault } = await registerApp();
+    const { app } = await registerApp();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -820,8 +787,8 @@ describe("nebulous_world: withdraw_vote", () => {
       .accounts({
         app,
         position,
-        voteVault,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -830,8 +797,6 @@ describe("nebulous_world: withdraw_vote", () => {
 
     return {
       app,
-      voteVault,
-      voteRewardVault,
       user,
       userTokenAccount: userTokenAccount.address,
       position,
@@ -841,16 +806,18 @@ describe("nebulous_world: withdraw_vote", () => {
   it("returns principal and zeroes the position on a full withdrawal", async () => {
     const initialStake = 4_000;
     const walletAmount = 10_000;
-    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+    const { app, user, userTokenAccount, position } =
       await setupWithPosition(initialStake, walletAmount);
+
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     await program.methods
       .withdrawVote(new BN(initialStake))
       .accounts({
         app,
         position,
-        voteVault,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -864,8 +831,11 @@ describe("nebulous_world: withdraw_vote", () => {
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalVoteStake.toString(), "0");
 
-    const voteVaultAfter = await getAccount(provider.connection, voteVault);
-    assert.equal(voteVaultAfter.amount.toString(), "0");
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultBefore.amount - vaultAfter.amount).toString(),
+      initialStake.toString(),
+    );
 
     const userTokenAfter = await getAccount(provider.connection, userTokenAccount);
     assert.equal(userTokenAfter.amount.toString(), walletAmount.toString());
@@ -874,8 +844,10 @@ describe("nebulous_world: withdraw_vote", () => {
   it("leaves remaining stake on a partial withdrawal", async () => {
     const initialStake = 4_000;
     const walletAmount = 10_000;
-    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+    const { app, user, userTokenAccount, position } =
       await setupWithPosition(initialStake, walletAmount);
+
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     const withdrawAmount = 1_500;
     await program.methods
@@ -883,8 +855,8 @@ describe("nebulous_world: withdraw_vote", () => {
       .accounts({
         app,
         position,
-        voteVault,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -903,10 +875,10 @@ describe("nebulous_world: withdraw_vote", () => {
       (initialStake - withdrawAmount).toString(),
     );
 
-    const voteVaultAfter = await getAccount(provider.connection, voteVault);
+    const vaultAfter = await getAccount(provider.connection, vault);
     assert.equal(
-      voteVaultAfter.amount.toString(),
-      (initialStake - withdrawAmount).toString(),
+      (vaultBefore.amount - vaultAfter.amount).toString(),
+      withdrawAmount.toString(),
     );
 
     const userTokenAfter = await getAccount(provider.connection, userTokenAccount);
@@ -917,7 +889,7 @@ describe("nebulous_world: withdraw_vote", () => {
   });
 
   it("rejects a zero-amount withdrawal", async () => {
-    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+    const { app, user, userTokenAccount, position } =
       await setupWithPosition(4_000, 10_000);
 
     let threw = false;
@@ -927,8 +899,8 @@ describe("nebulous_world: withdraw_vote", () => {
         .accounts({
           app,
           position,
-          voteVault,
-          voteRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount,
           user: user.publicKey,
         })
@@ -942,7 +914,7 @@ describe("nebulous_world: withdraw_vote", () => {
 
   it("rejects a withdrawal exceeding the position's staked amount", async () => {
     const initialStake = 4_000;
-    const { app, voteVault, voteRewardVault, user, userTokenAccount, position } =
+    const { app, user, userTokenAccount, position } =
       await setupWithPosition(initialStake, 10_000);
 
     let threw = false;
@@ -952,8 +924,8 @@ describe("nebulous_world: withdraw_vote", () => {
         .accounts({
           app,
           position,
-          voteVault,
-          voteRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount,
           user: user.publicKey,
         })
@@ -984,6 +956,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
   );
 
   let voteMint: PublicKey;
+  let vault: PublicKey;
 
   // Same reuse-or-initialize pattern as the other describe blocks above:
   // `Config` is a singleton, so reuse it (and its `authority`, the
@@ -993,6 +966,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
     try {
       const config = await program.account.config.fetch(configPda);
       voteMint = config.voteMint;
+      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
       return;
     } catch {
       // Config not initialized yet — fall through and initialize it.
@@ -1005,6 +979,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       null,
       6,
     );
+    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -1013,6 +988,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -1020,24 +996,12 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function derivePda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
   function derivePositionPda(app: PublicKey, user: PublicKey) {
@@ -1050,29 +1014,22 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
 
   async function registerApp() {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = derivePda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
-    return { appId, app, voteVault, voteRewardVault, tagsRewardVault };
+    return { appId, app };
   }
 
   // Registers a fresh app, funds a fresh user's wallet, and votes `stake`
   // in to create a `VotePosition` — the common fixture every test below
   // builds on.
   async function setupWithPosition(stake: number, walletAmount: number) {
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      await registerApp();
+    const { app } = await registerApp();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -1100,8 +1057,8 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .accounts({
         app,
         position,
-        voteVault,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -1110,21 +1067,15 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
 
     return {
       app,
-      voteVault,
-      voteRewardVault,
-      tagsRewardVault,
       user,
       userTokenAccount: userTokenAccount.address,
       position,
     };
   }
 
-  it("bumps the vote-pool accumulator and transfers real tokens into the reward vault", async () => {
+  it("bumps the vote-pool accumulator and transfers real tokens into the vault", async () => {
     const stake = 1_000;
-    const { app, voteRewardVault, tagsRewardVault } = await setupWithPosition(
-      stake,
-      10_000,
-    );
+    const { app } = await setupWithPosition(stake, 10_000);
 
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
@@ -1144,6 +1095,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       provider.connection,
       funderTokenAccount.address,
     );
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     const fundAmount = 500;
     await program.methods
@@ -1151,18 +1103,17 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .accounts({
         app,
         config: configPda,
-        voteRewardVault,
-        tagsRewardVault,
+        vault,
         funderTokenAccount: funderTokenAccount.address,
         authority: provider.wallet.publicKey,
       })
       .rpc();
 
-    const rewardVaultAfter = await getAccount(
-      provider.connection,
-      voteRewardVault,
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultAfter.amount - vaultBefore.amount).toString(),
+      fundAmount.toString(),
     );
-    assert.equal(rewardVaultAfter.amount.toString(), fundAmount.toString());
 
     const funderAfter = await getAccount(
       provider.connection,
@@ -1182,10 +1133,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
   });
 
   it("rejects a non-authority signer", async () => {
-    const { app, voteRewardVault, tagsRewardVault } = await setupWithPosition(
-      1_000,
-      10_000,
-    );
+    const { app } = await setupWithPosition(1_000, 10_000);
 
     const stranger = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -1216,8 +1164,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
         .accounts({
           app,
           config: configPda,
-          voteRewardVault,
-          tagsRewardVault,
+          vault,
           funderTokenAccount: strangerTokenAccount.address,
           authority: stranger.publicKey,
         })
@@ -1233,7 +1180,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
   });
 
   it("rejects funding a pool with zero total stake", async () => {
-    const { app, voteRewardVault, tagsRewardVault } = await registerApp();
+    const { app } = await registerApp();
 
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
@@ -1257,8 +1204,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
         .accounts({
           app,
           config: configPda,
-          voteRewardVault,
-          tagsRewardVault,
+          vault,
           funderTokenAccount: funderTokenAccount.address,
           authority: provider.wallet.publicKey,
         })
@@ -1275,7 +1221,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
   it("pays out the pending reward on claim and leaves principal untouched", async () => {
     const stake = 1_000;
     const walletAmount = 10_000;
-    const { app, voteVault, voteRewardVault, tagsRewardVault, user, userTokenAccount, position } =
+    const { app, user, userTokenAccount, position } =
       await setupWithPosition(stake, walletAmount);
 
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -1298,8 +1244,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .accounts({
         app,
         config: configPda,
-        voteRewardVault,
-        tagsRewardVault,
+        vault,
         funderTokenAccount: funderTokenAccount.address,
         authority: provider.wallet.publicKey,
       })
@@ -1310,12 +1255,15 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
     // funded amount, since this user holds 100% of the stake).
     const expectedPending = fundAmount;
 
+    const vaultBeforeClaim = await getAccount(provider.connection, vault);
+
     await program.methods
       .claimVoteReward()
       .accounts({
         app,
         position,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -1331,18 +1279,21 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       (walletAmount - stake + expectedPending).toString(),
     );
 
-    const rewardVaultAfter = await getAccount(provider.connection, voteRewardVault);
-    assert.equal(rewardVaultAfter.amount.toString(), "0");
-
-    // Principal vault untouched by a claim.
-    const voteVaultAfter = await getAccount(provider.connection, voteVault);
-    assert.equal(voteVaultAfter.amount.toString(), stake.toString());
+    // The vault paid out exactly the pending reward. Principal is untouched
+    // — proven by `positionAccount.amount` above, since the vault is now a
+    // single shared pool and its balance alone can no longer separate
+    // principal from rewards the way two dedicated vaults once could.
+    const vaultAfterClaim = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultBeforeClaim.amount - vaultAfterClaim.amount).toString(),
+      expectedPending.toString(),
+    );
   });
 
   it("pays nothing extra on a second claim with no intervening vote/fund", async () => {
     const stake = 1_000;
     const walletAmount = 10_000;
-    const { app, voteRewardVault, tagsRewardVault, user, userTokenAccount, position } =
+    const { app, user, userTokenAccount, position } =
       await setupWithPosition(stake, walletAmount);
 
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -1365,8 +1316,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .accounts({
         app,
         config: configPda,
-        voteRewardVault,
-        tagsRewardVault,
+        vault,
         funderTokenAccount: funderTokenAccount.address,
         authority: provider.wallet.publicKey,
       })
@@ -1377,7 +1327,8 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .accounts({
         app,
         position,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -1397,7 +1348,8 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
       .accounts({
         app,
         position,
-        voteRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -1437,6 +1389,7 @@ describe("nebulous_world: stake_tag", () => {
   );
 
   let voteMint: PublicKey;
+  let vault: PublicKey;
 
   // Same reuse-or-initialize pattern as the other describe blocks above:
   // `Config` is a singleton, so reuse it if a prior describe block in this
@@ -1445,6 +1398,7 @@ describe("nebulous_world: stake_tag", () => {
     try {
       const config = await program.account.config.fetch(configPda);
       voteMint = config.voteMint;
+      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
       return;
     } catch {
       // Config not initialized yet — fall through and initialize it.
@@ -1457,6 +1411,7 @@ describe("nebulous_world: stake_tag", () => {
       null,
       6,
     );
+    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -1465,6 +1420,7 @@ describe("nebulous_world: stake_tag", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -1472,41 +1428,33 @@ describe("nebulous_world: stake_tag", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function deriveAppPda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
-  function deriveTagPdas(app: PublicKey, tagId: string) {
-    const [appTag] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+  function deriveTagPda(tagId: string) {
+    const [tag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), Buffer.from(tagId)],
       program.programId,
     );
-    const [principalVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag_vault"), appTag.toBuffer()],
-      program.programId,
-    );
-    return { appTag, principalVault };
+    return tag;
   }
 
-  function derivePositionPda(appTag: PublicKey, user: PublicKey) {
+  function deriveAppTagStakePda(app: PublicKey, tag: PublicKey) {
+    const [appTagStake] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app_tag_stake"), app.toBuffer(), tag.toBuffer()],
+      program.programId,
+    );
+    return appTagStake;
+  }
+
+  function derivePositionPda(appTagStake: PublicKey, user: PublicKey) {
     const [position] = PublicKey.findProgramAddressSync(
-      [Buffer.from("stake_pos"), appTag.toBuffer(), user.toBuffer()],
+      [Buffer.from("stake_pos"), appTagStake.toBuffer(), user.toBuffer()],
       program.programId,
     );
     return position;
@@ -1514,51 +1462,34 @@ describe("nebulous_world: stake_tag", () => {
 
   // Registers a fresh app and suggests a fresh tag on it — the common
   // fixture every `stake_tag` test below builds on.
-  async function registerAppAndTag() {
+  async function registerAppAndTag(tagId: string = "defi") {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = deriveAppPda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    const tagId = "defi";
-    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    const tag = deriveTagPda(tagId);
+    const appTagStake = deriveAppTagStakePda(app, tag);
     await program.methods
       .suggestTag(appId, tagId)
       .accounts({
         app,
-        appTag,
-        config: configPda,
-        principalVault,
-        voteMint,
+        tag,
+        appTagStake,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    return {
-      appId,
-      app,
-      voteVault,
-      voteRewardVault,
-      tagsRewardVault,
-      appTag,
-      principalVault,
-    };
+    return { appId, app, tag, appTagStake };
   }
 
   it("locks principal, creates a StakePosition, and updates both stake_amount and total_tag_stake", async () => {
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag();
+    const { app, appTagStake } = await registerAppAndTag();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -1579,17 +1510,19 @@ describe("nebulous_world: stake_tag", () => {
       10_000,
     );
 
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
     const amount = 4_000;
+
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     await program.methods
       .stakeTag(new BN(amount))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -1600,17 +1533,23 @@ describe("nebulous_world: stake_tag", () => {
       position,
     );
     assert.equal(positionAccount.owner.toBase58(), user.publicKey.toBase58());
+    assert.isTrue(positionAccount.appTagStake.equals(appTagStake));
     assert.equal(positionAccount.amount.toString(), amount.toString());
     assert.equal(positionAccount.rewardDebt.toString(), "0");
 
     // Both counters moved in lockstep.
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.equal(appTagAccount.stakeAmount.toString(), amount.toString());
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
+    assert.equal(appTagStakeAccount.stakeAmount.toString(), amount.toString());
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), amount.toString());
 
-    const vaultAfter = await getAccount(provider.connection, principalVault);
-    assert.equal(vaultAfter.amount.toString(), amount.toString());
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultAfter.amount - vaultBefore.amount).toString(),
+      amount.toString(),
+    );
 
     const userTokenAfter = await getAccount(
       provider.connection,
@@ -1620,8 +1559,7 @@ describe("nebulous_world: stake_tag", () => {
   });
 
   it("rejects a zero-amount stake", async () => {
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag();
+    const { app, appTagStake } = await registerAppAndTag();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -1634,7 +1572,7 @@ describe("nebulous_world: stake_tag", () => {
       user.publicKey,
     );
 
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
 
     let threw = false;
     try {
@@ -1642,10 +1580,10 @@ describe("nebulous_world: stake_tag", () => {
         .stakeTag(new BN(0))
         .accounts({
           app,
-          appTag,
+          appTagStake,
           position,
-          principalVault,
-          tagsRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount: userTokenAccount.address,
           user: user.publicKey,
         })
@@ -1658,20 +1596,19 @@ describe("nebulous_world: stake_tag", () => {
   });
 
   // Regression test for a critical fund-drain vulnerability: without the
-  // `constraint = app_tag.app == app.key()` check on `StakeTag::app_tag`,
-  // each of `app`/`app_tag`'s seeds/bump constraints only proves internal
-  // self-consistency — neither proves the two accounts belong together. An
-  // attacker could permissionlessly create their OWN (app, app_tag) pair,
-  // then call `stake_tag` passing THEIR `app_tag` alongside a victim's
-  // well-funded `app`: `principalVault` still address-checks against the
-  // attacker's own vault (their principal stays safe), but
-  // `tagsRewardVault` address-checks against the VICTIM's real vault,
-  // silently crediting the attacker's position against the victim's
+  // `constraint = app_tag_stake.app == app.key()` check on
+  // `StakeTag::app_tag_stake`, each of `app`/`app_tag_stake`'s seeds/bump
+  // constraints only proves internal self-consistency — neither proves the
+  // two accounts belong together. An attacker could permissionlessly create
+  // their OWN (app, app_tag_stake) pair, then call `stake_tag` passing
+  // THEIR `app_tag_stake` alongside a victim's well-funded `app`, silently
+  // crediting the attacker's position against the victim's
   // `totalTagStake`/`tagsAccRewardPerShare` — a permissionless path to
-  // draining every app's real reward vault. This test builds exactly that
-  // mismatched pair and asserts the call is rejected with
-  // `TagAppMismatch` specifically, not merely "some error".
-  it("rejects a mismatched (app, appTag) pair", async () => {
+  // draining the single shared vault via the corrupted stake denominator.
+  // This test builds exactly that mismatched pair and asserts the call is
+  // rejected with `AppTagStakeMismatch` specifically, not merely "some
+  // error".
+  it("rejects a mismatched (app, appTagStake) pair", async () => {
     const victim = await registerAppAndTag();
     const attacker = await registerAppAndTag();
 
@@ -1694,10 +1631,12 @@ describe("nebulous_world: stake_tag", () => {
       10_000,
     );
 
-    // Position PDA derived off the attacker's own appTag (matching what
-    // `stake_tag`'s `position` seeds constraint expects), but the
+    // Position PDA derived off the attacker's own appTagStake (matching
+    // what `stake_tag`'s `position` seeds constraint expects), but the
     // instruction passes the VICTIM's `app`.
-    const position = derivePositionPda(attacker.appTag, user.publicKey);
+    const position = derivePositionPda(attacker.appTagStake, user.publicKey);
+
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     let errorMessage = "";
     try {
@@ -1705,10 +1644,10 @@ describe("nebulous_world: stake_tag", () => {
         .stakeTag(new BN(1_000))
         .accounts({
           app: victim.app,
-          appTag: attacker.appTag,
+          appTagStake: attacker.appTagStake,
           position,
-          principalVault: attacker.principalVault,
-          tagsRewardVault: victim.tagsRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount: userTokenAccount.address,
           user: user.publicKey,
         })
@@ -1719,24 +1658,26 @@ describe("nebulous_world: stake_tag", () => {
     }
     assert.include(
       errorMessage,
-      "TagAppMismatch",
-      "expected stake_tag to reject a mismatched (app, appTag) pair with TagAppMismatch",
+      "AppTagStakeMismatch",
+      "expected stake_tag to reject a mismatched (app, appTagStake) pair with AppTagStakeMismatch",
     );
 
-    // Nothing moved on the victim's side.
+    // Nothing moved on the victim's side, and no tokens moved at all.
     const victimAppAccount = await program.account.appAccount.fetch(
       victim.app,
     );
     assert.equal(victimAppAccount.totalTagStake.toString(), "0");
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal((vaultAfter.amount - vaultBefore.amount).toString(), "0");
   });
 
   // Exercises the reward-payout CPI leg of `stake_tag()` end-to-end via the
   // REAL `fund_app_rewards` instruction (Tags pool) rather than manually
-  // poking account state — the highest-risk path (the `app` PDA, not
-  // `app_tag`, signing a transfer out of the SHARED `tags_reward_vault`).
+  // poking account state — the highest-risk path (`config`, the single
+  // global vault's only authority, signing a transfer out of the shared
+  // vault).
   it("pays out the pending reward from a real fund_app_rewards(Tags) call on a second stake", async () => {
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag();
+    const { app, appTagStake } = await registerAppAndTag();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -1758,16 +1699,19 @@ describe("nebulous_world: stake_tag", () => {
       walletAmount,
     );
 
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
     const firstAmount = 1_000;
+
+    const vaultBeforeFirstStake = await getAccount(provider.connection, vault);
+
     await program.methods
       .stakeTag(new BN(firstAmount))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -1775,9 +1719,6 @@ describe("nebulous_world: stake_tag", () => {
       .rpc();
 
     // Fund the SHARED Tags pool with real tokens via `fund_app_rewards`.
-    const { voteVault, voteRewardVault } = derivePdas(
-      (await program.account.appAccount.fetch(app)).appId,
-    );
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       (provider.wallet as any).payer,
@@ -1798,8 +1739,7 @@ describe("nebulous_world: stake_tag", () => {
       .accounts({
         app,
         config: configPda,
-        voteRewardVault,
-        tagsRewardVault,
+        vault,
         funderTokenAccount: funderTokenAccount.address,
         authority: provider.wallet.publicKey,
       })
@@ -1815,10 +1755,10 @@ describe("nebulous_world: stake_tag", () => {
       .stakeTag(new BN(secondAmount))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -1833,9 +1773,11 @@ describe("nebulous_world: stake_tag", () => {
       (firstAmount + secondAmount).toString(),
     );
 
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
     assert.equal(
-      appTagAccount.stakeAmount.toString(),
+      appTagStakeAccount.stakeAmount.toString(),
       (firstAmount + secondAmount).toString(),
     );
     const appAccount = await program.account.appAccount.fetch(app);
@@ -1858,13 +1800,15 @@ describe("nebulous_world: stake_tag", () => {
       ).toString(),
     );
 
-    const rewardVaultAfter = await getAccount(
-      provider.connection,
-      tagsRewardVault,
-    );
+    // Net effect on the single global vault: both stakes' principal went
+    // IN, and the funded reward pool was paid straight back OUT again in
+    // full (this user holds 100% of the tag's stake) — so the vault's net
+    // change since before the first stake is exactly the two principal
+    // deposits, with the funding and payout legs canceling out.
+    const vaultAfterSecondStake = await getAccount(provider.connection, vault);
     assert.equal(
-      rewardVaultAfter.amount.toString(),
-      (fundAmount - expectedPending).toString(),
+      (vaultAfterSecondStake.amount - vaultBeforeFirstStake.amount).toString(),
+      (firstAmount + secondAmount).toString(),
     );
   });
 });
@@ -1880,11 +1824,13 @@ describe("nebulous_world: withdraw_tag_stake", () => {
   );
 
   let voteMint: PublicKey;
+  let vault: PublicKey;
 
   before(async () => {
     try {
       const config = await program.account.config.fetch(configPda);
       voteMint = config.voteMint;
+      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
       return;
     } catch {
       // Config not initialized yet — fall through and initialize it.
@@ -1897,6 +1843,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       null,
       6,
     );
+    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -1905,6 +1852,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -1912,94 +1860,69 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function deriveAppPda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
-  function deriveTagPdas(app: PublicKey, tagId: string) {
-    const [appTag] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+  function deriveTagPda(tagId: string) {
+    const [tag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), Buffer.from(tagId)],
       program.programId,
     );
-    const [principalVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag_vault"), appTag.toBuffer()],
-      program.programId,
-    );
-    return { appTag, principalVault };
+    return tag;
   }
 
-  function derivePositionPda(appTag: PublicKey, user: PublicKey) {
+  function deriveAppTagStakePda(app: PublicKey, tag: PublicKey) {
+    const [appTagStake] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app_tag_stake"), app.toBuffer(), tag.toBuffer()],
+      program.programId,
+    );
+    return appTagStake;
+  }
+
+  function derivePositionPda(appTagStake: PublicKey, user: PublicKey) {
     const [position] = PublicKey.findProgramAddressSync(
-      [Buffer.from("stake_pos"), appTag.toBuffer(), user.toBuffer()],
+      [Buffer.from("stake_pos"), appTagStake.toBuffer(), user.toBuffer()],
       program.programId,
     );
     return position;
   }
 
-  async function registerAppAndTag() {
+  async function registerAppAndTag(tagId: string = "gaming") {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = deriveAppPda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    const tagId = "gaming";
-    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    const tag = deriveTagPda(tagId);
+    const appTagStake = deriveAppTagStakePda(app, tag);
     await program.methods
       .suggestTag(appId, tagId)
       .accounts({
         app,
-        appTag,
-        config: configPda,
-        principalVault,
-        voteMint,
+        tag,
+        appTagStake,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    return {
-      appId,
-      app,
-      voteVault,
-      voteRewardVault,
-      tagsRewardVault,
-      appTag,
-      principalVault,
-    };
+    return { appId, app, tag, appTagStake };
   }
 
   // Registers an app + tag, funds a fresh user's wallet, and stakes
   // `initialStake` in to create a `StakePosition` — the common fixture every
   // `withdraw_tag_stake` test below builds on.
   async function setupWithPosition(initialStake: number, walletAmount: number) {
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag();
+    const { app, appTagStake } = await registerAppAndTag();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -2020,16 +1943,16 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       walletAmount,
     );
 
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
 
     await program.methods
       .stakeTag(new BN(initialStake))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -2038,9 +1961,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
 
     return {
       app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
+      appTagStake,
       user,
       userTokenAccount: userTokenAccount.address,
       position,
@@ -2050,24 +1971,19 @@ describe("nebulous_world: withdraw_tag_stake", () => {
   it("returns principal and zeroes the position on a full withdrawal", async () => {
     const initialStake = 4_000;
     const walletAmount = 10_000;
-    const {
-      app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
-      user,
-      userTokenAccount,
-      position,
-    } = await setupWithPosition(initialStake, walletAmount);
+    const { app, appTagStake, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, walletAmount);
+
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     await program.methods
       .withdrawTagStake(new BN(initialStake))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -2080,13 +1996,18 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     assert.equal(positionAccount.amount.toString(), "0");
     assert.equal(positionAccount.rewardDebt.toString(), "0");
 
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.equal(appTagAccount.stakeAmount.toString(), "0");
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
+    assert.equal(appTagStakeAccount.stakeAmount.toString(), "0");
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), "0");
 
-    const vaultAfter = await getAccount(provider.connection, principalVault);
-    assert.equal(vaultAfter.amount.toString(), "0");
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultBefore.amount - vaultAfter.amount).toString(),
+      initialStake.toString(),
+    );
 
     const userTokenAfter = await getAccount(
       provider.connection,
@@ -2098,25 +2019,20 @@ describe("nebulous_world: withdraw_tag_stake", () => {
   it("leaves remaining stake on a partial withdrawal, keeping stake_amount and total_tag_stake in sync", async () => {
     const initialStake = 4_000;
     const walletAmount = 10_000;
-    const {
-      app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
-      user,
-      userTokenAccount,
-      position,
-    } = await setupWithPosition(initialStake, walletAmount);
+    const { app, appTagStake, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, walletAmount);
+
+    const vaultBefore = await getAccount(provider.connection, vault);
 
     const withdrawAmount = 1_500;
     await program.methods
       .withdrawTagStake(new BN(withdrawAmount))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -2129,13 +2045,18 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     );
     assert.equal(positionAccount.amount.toString(), remaining.toString());
 
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.equal(appTagAccount.stakeAmount.toString(), remaining.toString());
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
+    assert.equal(appTagStakeAccount.stakeAmount.toString(), remaining.toString());
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), remaining.toString());
 
-    const vaultAfter = await getAccount(provider.connection, principalVault);
-    assert.equal(vaultAfter.amount.toString(), remaining.toString());
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultBefore.amount - vaultAfter.amount).toString(),
+      withdrawAmount.toString(),
+    );
 
     const userTokenAfter = await getAccount(
       provider.connection,
@@ -2148,7 +2069,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
   });
 
   it("rejects a zero-amount withdrawal", async () => {
-    const { app, appTag, principalVault, tagsRewardVault, user, userTokenAccount, position } =
+    const { app, appTagStake, user, userTokenAccount, position } =
       await setupWithPosition(4_000, 10_000);
 
     let threw = false;
@@ -2157,10 +2078,10 @@ describe("nebulous_world: withdraw_tag_stake", () => {
         .withdrawTagStake(new BN(0))
         .accounts({
           app,
-          appTag,
+          appTagStake,
           position,
-          principalVault,
-          tagsRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount,
           user: user.publicKey,
         })
@@ -2174,7 +2095,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
 
   it("rejects a withdrawal exceeding the position's staked amount", async () => {
     const initialStake = 4_000;
-    const { app, appTag, principalVault, tagsRewardVault, user, userTokenAccount, position } =
+    const { app, appTagStake, user, userTokenAccount, position } =
       await setupWithPosition(initialStake, 10_000);
 
     let threw = false;
@@ -2183,10 +2104,10 @@ describe("nebulous_world: withdraw_tag_stake", () => {
         .withdrawTagStake(new BN(initialStake + 1))
         .accounts({
           app,
-          appTag,
+          appTagStake,
           position,
-          principalVault,
-          tagsRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount,
           user: user.publicKey,
         })
@@ -2205,25 +2126,26 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       position,
     );
     assert.equal(positionAccount.amount.toString(), initialStake.toString());
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
     assert.equal(
-      appTagAccount.stakeAmount.toString(),
+      appTagStakeAccount.stakeAmount.toString(),
       initialStake.toString(),
     );
   });
 
   // Regression test for a critical fund-drain vulnerability (see the
   // matching test in the "nebulous_world: stake_tag" block for the full exploit
-  // writeup): without the `constraint = app_tag.app == app.key()` check on
-  // `WithdrawTagStake::app_tag`, an attacker with their OWN legitimate
-  // (app, appTag, position) could call `withdraw_tag_stake` passing their
-  // own `appTag`/`position` alongside a victim's well-funded `app`. The
-  // pending-reward leg would then settle against the VICTIM's real
-  // `tagsAccRewardPerShare` and pay out of the VICTIM's real
-  // `tagsRewardVault` — while `principalVault` still address-checks against
-  // the attacker's own vault, so the attacker's principal is never at risk.
-  // Asserts the call is rejected with `TagAppMismatch` specifically.
-  it("rejects a mismatched (app, appTag) pair", async () => {
+  // writeup): without the `constraint = app_tag_stake.app == app.key()`
+  // check on `WithdrawTagStake::app_tag_stake`, an attacker with their OWN
+  // legitimate (app, appTagStake, position) could call `withdraw_tag_stake`
+  // passing their own `appTagStake`/`position` alongside a victim's
+  // well-funded `app`. The pending-reward leg would then settle against the
+  // VICTIM's real `tagsAccRewardPerShare` and pay out of the single shared
+  // vault against that corrupted accounting. Asserts the call is rejected
+  // with `AppTagStakeMismatch` specifically.
+  it("rejects a mismatched (app, appTagStake) pair", async () => {
     const victim = await registerAppAndTag();
 
     // The attacker's own, entirely independent app + tag, with a
@@ -2231,16 +2153,18 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     const stakeAmount = 1_000;
     const attacker = await setupWithPosition(stakeAmount, 10_000);
 
+    const vaultBefore = await getAccount(provider.connection, vault);
+
     let errorMessage = "";
     try {
       await program.methods
         .withdrawTagStake(new BN(stakeAmount))
         .accounts({
           app: victim.app,
-          appTag: attacker.appTag,
+          appTagStake: attacker.appTagStake,
           position: attacker.position,
-          principalVault: attacker.principalVault,
-          tagsRewardVault: victim.tagsRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount: attacker.userTokenAccount,
           user: attacker.user.publicKey,
         })
@@ -2251,12 +2175,12 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     }
     assert.include(
       errorMessage,
-      "TagAppMismatch",
-      "expected withdraw_tag_stake to reject a mismatched (app, appTag) pair with TagAppMismatch",
+      "AppTagStakeMismatch",
+      "expected withdraw_tag_stake to reject a mismatched (app, appTagStake) pair with AppTagStakeMismatch",
     );
 
-    // Nothing moved: the victim's pool and the attacker's own position are
-    // both untouched.
+    // Nothing moved: the victim's pool, the attacker's own position, and
+    // the shared vault are all untouched.
     const victimAppAccount = await program.account.appAccount.fetch(
       victim.app,
     );
@@ -2265,30 +2189,22 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       attacker.position,
     );
     assert.equal(positionAccount.amount.toString(), stakeAmount.toString());
+    const vaultAfter = await getAccount(provider.connection, vault);
+    assert.equal((vaultAfter.amount - vaultBefore.amount).toString(), "0");
   });
 
   // Exercises the reward-payout CPI leg of `withdraw_tag_stake()` end-to-end
-  // via a REAL `fund_app_rewards` (Tags pool) call — the highest-risk path
-  // in this whole task: two different PDAs (`app` and `app_tag`) each
-  // signing a transfer out of a different vault in the SAME instruction. If
-  // either signer's seeds were wrong, this transaction would fail signature
-  // verification outright rather than merely producing a wrong balance.
+  // via a REAL `fund_app_rewards` (Tags pool) call — both the pending-reward
+  // payout and the principal return now move through the SAME single global
+  // vault, signed by the SAME authority (`config`), unlike the
+  // pre-global-vault design where two different PDAs each signed for a
+  // different vault.
   it("pays out the pending reward from a real fund_app_rewards(Tags) call on a partial withdrawal", async () => {
     const initialStake = 1_000;
     const walletAmount = 10_000;
-    const {
-      app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
-      user,
-      userTokenAccount,
-      position,
-    } = await setupWithPosition(initialStake, walletAmount);
+    const { app, appTagStake, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, walletAmount);
 
-    const { voteVault, voteRewardVault } = derivePdas(
-      (await program.account.appAccount.fetch(app)).appId,
-    );
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       (provider.wallet as any).payer,
@@ -2304,13 +2220,15 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       provider.wallet.publicKey,
       fundAmount,
     );
+
+    const vaultBeforeFund = await getAccount(provider.connection, vault);
+
     await program.methods
       .fundAppRewards({ tags: {} }, new BN(fundAmount))
       .accounts({
         app,
         config: configPda,
-        voteRewardVault,
-        tagsRewardVault,
+        vault,
         funderTokenAccount: funderTokenAccount.address,
         authority: provider.wallet.publicKey,
       })
@@ -2327,10 +2245,10 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       .withdrawTagStake(new BN(withdrawAmount))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -2348,13 +2266,14 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       (remaining * 2).toString(),
     );
 
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.equal(appTagAccount.stakeAmount.toString(), remaining.toString());
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
+    );
+    assert.equal(appTagStakeAccount.stakeAmount.toString(), remaining.toString());
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), remaining.toString());
 
-    // User received both the withdrawn principal (returned by `app_tag`)
-    // and the pending reward (paid by `app`).
+    // User received both the withdrawn principal and the pending reward.
     const userTokenAfter = await getAccount(
       provider.connection,
       userTokenAccount,
@@ -2369,21 +2288,16 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       ).toString(),
     );
 
-    // The shared reward vault paid out exactly `expectedPending`, signed by
-    // `app`.
-    const rewardVaultAfter = await getAccount(
-      provider.connection,
-      tagsRewardVault,
-    );
+    // Net effect on the single global vault since before funding:
+    // +fundAmount in, -expectedPending back out (the reward leg),
+    // -withdrawAmount back out (the principal leg) — since expectedPending
+    // == fundAmount here (100% pool ownership), the fund/reward legs cancel
+    // and only the withdrawn principal is left as a net outflow.
+    const vaultAfterWithdraw = await getAccount(provider.connection, vault);
     assert.equal(
-      rewardVaultAfter.amount.toString(),
-      (fundAmount - expectedPending).toString(),
+      (vaultBeforeFund.amount - vaultAfterWithdraw.amount).toString(),
+      withdrawAmount.toString(),
     );
-
-    // The tag's own principal vault only lost `withdrawAmount`, signed by
-    // `app_tag`.
-    const vaultAfter = await getAccount(provider.connection, principalVault);
-    assert.equal(vaultAfter.amount.toString(), remaining.toString());
   });
 });
 
@@ -2398,11 +2312,13 @@ describe("nebulous_world: claim_tag_reward", () => {
   );
 
   let voteMint: PublicKey;
+  let vault: PublicKey;
 
   before(async () => {
     try {
       const config = await program.account.config.fetch(configPda);
       voteMint = config.voteMint;
+      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
       return;
     } catch {
       // Config not initialized yet — fall through and initialize it.
@@ -2415,6 +2331,7 @@ describe("nebulous_world: claim_tag_reward", () => {
       null,
       6,
     );
+    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
     const [programDataPda] = PublicKey.findProgramAddressSync(
       [program.programId.toBuffer()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
@@ -2423,6 +2340,7 @@ describe("nebulous_world: claim_tag_reward", () => {
       .initialize(1000)
       .accounts({
         config: configPda,
+        vault,
         authority: provider.wallet.publicKey,
         voteMint,
         programData: programDataPda,
@@ -2430,41 +2348,33 @@ describe("nebulous_world: claim_tag_reward", () => {
       .rpc();
   });
 
-  function derivePdas(appId: string) {
+  function deriveAppPda(appId: string) {
     const [app] = PublicKey.findProgramAddressSync(
       [Buffer.from("app"), Buffer.from(appId)],
       program.programId,
     );
-    const [voteVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [voteRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vote_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tags_reward_vault"), app.toBuffer()],
-      program.programId,
-    );
-    return { app, voteVault, voteRewardVault, tagsRewardVault };
+    return app;
   }
 
-  function deriveTagPdas(app: PublicKey, tagId: string) {
-    const [appTag] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+  function deriveTagPda(tagId: string) {
+    const [tag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), Buffer.from(tagId)],
       program.programId,
     );
-    const [principalVault] = PublicKey.findProgramAddressSync(
-      [Buffer.from("tag_vault"), appTag.toBuffer()],
-      program.programId,
-    );
-    return { appTag, principalVault };
+    return tag;
   }
 
-  function derivePositionPda(appTag: PublicKey, user: PublicKey) {
+  function deriveAppTagStakePda(app: PublicKey, tag: PublicKey) {
+    const [appTagStake] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app_tag_stake"), app.toBuffer(), tag.toBuffer()],
+      program.programId,
+    );
+    return appTagStake;
+  }
+
+  function derivePositionPda(appTagStake: PublicKey, user: PublicKey) {
     const [position] = PublicKey.findProgramAddressSync(
-      [Buffer.from("stake_pos"), appTag.toBuffer(), user.toBuffer()],
+      [Buffer.from("stake_pos"), appTagStake.toBuffer(), user.toBuffer()],
       program.programId,
     );
     return position;
@@ -2472,43 +2382,28 @@ describe("nebulous_world: claim_tag_reward", () => {
 
   async function registerAppAndTag(tagId: string = "gaming") {
     const appId = `cid${randomBytes(11).toString("hex")}`;
-    const { app, voteVault, voteRewardVault, tagsRewardVault } =
-      derivePdas(appId);
+    const app = deriveAppPda(appId);
     await program.methods
       .initApp(appId)
       .accounts({
         app,
-        config: configPda,
-        voteVault,
-        voteRewardVault,
-        tagsRewardVault,
-        voteMint,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    const tag = deriveTagPda(tagId);
+    const appTagStake = deriveAppTagStakePda(app, tag);
     await program.methods
       .suggestTag(appId, tagId)
       .accounts({
         app,
-        appTag,
-        config: configPda,
-        principalVault,
-        voteMint,
+        tag,
+        appTagStake,
         payer: provider.wallet.publicKey,
       })
       .rpc();
 
-    return {
-      appId,
-      app,
-      voteVault,
-      voteRewardVault,
-      tagsRewardVault,
-      appTag,
-      principalVault,
-    };
+    return { appId, app, tag, appTagStake };
   }
 
   // Registers an app + tag, funds a fresh user's wallet, stakes `stake` in
@@ -2519,8 +2414,7 @@ describe("nebulous_world: claim_tag_reward", () => {
     walletAmount: number,
     fundAmount: number,
   ) {
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag();
+    const { app, appTagStake } = await registerAppAndTag();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -2541,25 +2435,22 @@ describe("nebulous_world: claim_tag_reward", () => {
       walletAmount,
     );
 
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
 
     await program.methods
       .stakeTag(new BN(stake))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
       .signers([user])
       .rpc();
 
-    const { voteRewardVault } = derivePdas(
-      (await program.account.appAccount.fetch(app)).appId,
-    );
     const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       (provider.wallet as any).payer,
@@ -2579,8 +2470,7 @@ describe("nebulous_world: claim_tag_reward", () => {
       .accounts({
         app,
         config: configPda,
-        voteRewardVault,
-        tagsRewardVault,
+        vault,
         funderTokenAccount: funderTokenAccount.address,
         authority: provider.wallet.publicKey,
       })
@@ -2588,9 +2478,7 @@ describe("nebulous_world: claim_tag_reward", () => {
 
     return {
       app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
+      appTagStake,
       user,
       userTokenAccount: userTokenAccount.address,
       position,
@@ -2601,28 +2489,24 @@ describe("nebulous_world: claim_tag_reward", () => {
     const stake = 1_000;
     const walletAmount = 10_000;
     const fundAmount = 2_000;
-    const {
-      app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
-      user,
-      userTokenAccount,
-      position,
-    } = await setupStakedAndFunded(stake, walletAmount, fundAmount);
+    const { app, appTagStake, user, userTokenAccount, position } =
+      await setupStakedAndFunded(stake, walletAmount, fundAmount);
 
     // acc = 2_000 * PRECISION / 1_000 = 2 * PRECISION.
     // pending = settle_pending(1_000, 0, 2*PRECISION) = 2_000 (the entire
     // funded amount, since this user holds 100% of the tag's stake).
     const expectedPending = fundAmount;
 
+    const vaultBeforeClaim = await getAccount(provider.connection, vault);
+
     await program.methods
       .claimTagReward()
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -2643,36 +2527,34 @@ describe("nebulous_world: claim_tag_reward", () => {
       (walletAmount - stake + expectedPending).toString(),
     );
 
-    const rewardVaultAfter = await getAccount(
-      provider.connection,
-      tagsRewardVault,
+    const vaultAfterClaim = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultBeforeClaim.amount - vaultAfterClaim.amount).toString(),
+      expectedPending.toString(),
     );
-    assert.equal(rewardVaultAfter.amount.toString(), "0");
 
-    // Principal vault (and app_tag.stake_amount) untouched by a claim.
-    const principalVaultAfter = await getAccount(
-      provider.connection,
-      principalVault,
+    // Principal (and app_tag_stake.stake_amount) untouched by a claim.
+    const appTagStakeAccount = await program.account.appTagStake.fetch(
+      appTagStake,
     );
-    assert.equal(principalVaultAfter.amount.toString(), stake.toString());
-    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-    assert.equal(appTagAccount.stakeAmount.toString(), stake.toString());
+    assert.equal(appTagStakeAccount.stakeAmount.toString(), stake.toString());
   });
 
   it("pays nothing extra on a second claim with no intervening stake/fund", async () => {
     const stake = 1_000;
     const walletAmount = 10_000;
     const fundAmount = 2_000;
-    const { app, appTag, tagsRewardVault, user, userTokenAccount, position } =
+    const { app, appTagStake, user, userTokenAccount, position } =
       await setupStakedAndFunded(stake, walletAmount, fundAmount);
 
     await program.methods
       .claimTagReward()
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -2691,9 +2573,10 @@ describe("nebulous_world: claim_tag_reward", () => {
       .claimTagReward()
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount,
         user: user.publicKey,
       })
@@ -2723,8 +2606,7 @@ describe("nebulous_world: claim_tag_reward", () => {
   it("is a harmless no-op when pending reward is zero", async () => {
     // Stake in via `registerAppAndTag` + `stakeTag`, but never fund the
     // tags pool: pending is genuinely 0.
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag();
+    const { app, appTagStake } = await registerAppAndTag();
 
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
@@ -2747,28 +2629,31 @@ describe("nebulous_world: claim_tag_reward", () => {
     );
 
     const stake = 1_000;
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
     await program.methods
       .stakeTag(new BN(stake))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
       .signers([user])
       .rpc();
 
+    const vaultBeforeClaim = await getAccount(provider.connection, vault);
+
     await program.methods
       .claimTagReward()
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -2789,19 +2674,27 @@ describe("nebulous_world: claim_tag_reward", () => {
       userTokenAfter.amount.toString(),
       (walletAmount - stake).toString(),
     );
+
+    // A zero-pending claim moves no tokens at all.
+    const vaultAfterClaim = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultAfterClaim.amount - vaultBeforeClaim.amount).toString(),
+      "0",
+    );
   });
 
   // Regression test for a critical fund-drain vulnerability (see the
   // matching tests in the "nebulous_world: stake_tag" and "nebulous_world: withdraw_tag_stake"
   // blocks for the full exploit writeup): without the
-  // `constraint = app_tag.app == app.key()` check on
-  // `ClaimTagReward::app_tag`, an attacker with their OWN legitimate
-  // (app, appTag, position) could call `claim_tag_reward` passing their own
-  // `appTag`/`position` alongside a victim's well-funded `app`. The claim
-  // would then settle against the VICTIM's real `tagsAccRewardPerShare` and
-  // pay out of the VICTIM's real `tagsRewardVault`. Asserts the call is
-  // rejected with `TagAppMismatch` specifically.
-  it("rejects a mismatched (app, appTag) pair", async () => {
+  // `constraint = app_tag_stake.app == app.key()` check on
+  // `ClaimTagReward::app_tag_stake`, an attacker with their OWN legitimate
+  // (app, appTagStake, position) could call `claim_tag_reward` passing
+  // their own `appTagStake`/`position` alongside a victim's well-funded
+  // `app`. The claim would then settle against the VICTIM's real
+  // `tagsAccRewardPerShare` and pay out of the single shared vault against
+  // that corrupted accounting. Asserts the call is rejected with
+  // `AppTagStakeMismatch` specifically.
+  it("rejects a mismatched (app, appTagStake) pair", async () => {
     const stakeAmount = 1_000;
     const fundAmount = 50_000;
     const victim = await setupStakedAndFunded(stakeAmount, 10_000, fundAmount);
@@ -2810,8 +2703,7 @@ describe("nebulous_world: claim_tag_reward", () => {
     // legitimate stake already in place under the correctly-matched pair —
     // no funding needed on the attacker's own pool, since the attacker only
     // cares about draining the VICTIM's vault.
-    const { app, appTag, principalVault, tagsRewardVault } =
-      await registerAppAndTag("attacker-tag");
+    const { app, appTagStake } = await registerAppAndTag("attacker-tag");
     const user = Keypair.generate();
     await provider.connection.confirmTransaction(
       await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
@@ -2830,15 +2722,15 @@ describe("nebulous_world: claim_tag_reward", () => {
       provider.wallet.publicKey,
       10_000,
     );
-    const position = derivePositionPda(appTag, user.publicKey);
+    const position = derivePositionPda(appTagStake, user.publicKey);
     await program.methods
       .stakeTag(new BN(stakeAmount))
       .accounts({
         app,
-        appTag,
+        appTagStake,
         position,
-        principalVault,
-        tagsRewardVault,
+        config: configPda,
+        vault,
         userTokenAccount: userTokenAccount.address,
         user: user.publicKey,
       })
@@ -2846,13 +2738,16 @@ describe("nebulous_world: claim_tag_reward", () => {
       .rpc();
     const attacker = {
       app,
-      appTag,
-      principalVault,
-      tagsRewardVault,
+      appTagStake,
       user,
       userTokenAccount: userTokenAccount.address,
       position,
     };
+
+    // Snapshot the vault only AFTER the attacker's own legitimate stake has
+    // landed, so the delta below isolates exactly what the
+    // (expected-to-fail) malicious claim attempt itself would have moved.
+    const vaultBeforeAttack = await getAccount(provider.connection, vault);
 
     let errorMessage = "";
     try {
@@ -2860,9 +2755,10 @@ describe("nebulous_world: claim_tag_reward", () => {
         .claimTagReward()
         .accounts({
           app: victim.app,
-          appTag: attacker.appTag,
+          appTagStake: attacker.appTagStake,
           position: attacker.position,
-          tagsRewardVault: victim.tagsRewardVault,
+          config: configPda,
+          vault,
           userTokenAccount: attacker.userTokenAccount,
           user: attacker.user.publicKey,
         })
@@ -2873,17 +2769,17 @@ describe("nebulous_world: claim_tag_reward", () => {
     }
     assert.include(
       errorMessage,
-      "TagAppMismatch",
-      "expected claim_tag_reward to reject a mismatched (app, appTag) pair with TagAppMismatch",
+      "AppTagStakeMismatch",
+      "expected claim_tag_reward to reject a mismatched (app, appTagStake) pair with AppTagStakeMismatch",
     );
 
-    // Nothing moved: the victim's reward vault and the attacker's own
-    // position are both untouched.
-    const victimRewardVaultAfter = await getAccount(
-      provider.connection,
-      victim.tagsRewardVault,
+    // Nothing moved: the failed attempt transferred exactly zero tokens,
+    // and the attacker's own position is untouched.
+    const vaultAfterAttack = await getAccount(provider.connection, vault);
+    assert.equal(
+      (vaultAfterAttack.amount - vaultBeforeAttack.amount).toString(),
+      "0",
     );
-    assert.equal(victimRewardVaultAfter.amount.toString(), fundAmount.toString());
     const positionAccount = await program.account.stakePosition.fetch(
       attacker.position,
     );
