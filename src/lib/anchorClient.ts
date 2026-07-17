@@ -58,3 +58,9 @@ export function stakePositionPda(
 export function toRawAmount(amount: number): BN {
   return new BN(Math.round(amount * 10 ** config.solana.voteTokenDecimals));
 }
+
+export interface ProgramTxResult {
+  /** Confirmed transaction signature, or null when running in simulation mode. */
+  txSig: string | null;
+  simulated: boolean;
+}

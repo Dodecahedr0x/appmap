@@ -4,6 +4,24 @@ import { voteSchema } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
 import { refreshApp } from "@/lib/engine";
 import { isSimulationMode } from "@/lib/config";
+import { getSession } from "@/lib/session";
+
+// GET /api/vote?appId= — the current user's active vote for an app, if any.
+// Powers the "Withdraw" button in VotePanel. Returns `{ vote: null }` for a
+// signed-out visitor rather than 401ing, since this is read-only lookup.
+export const GET = handler(async (req: NextRequest) => {
+  const appId = req.nextUrl.searchParams.get("appId");
+  if (!appId) throw new ApiError("appId is required", 400);
+
+  const session = await getSession();
+  if (!session) return ok({ vote: null });
+
+  const vote = await prisma.vote.findFirst({
+    where: { appId, userId: session.userId, active: true },
+    select: { id: true, amount: true },
+  });
+  return ok({ vote });
+});
 
 // POST /api/vote — record a token-weighted vote for an app.
 //

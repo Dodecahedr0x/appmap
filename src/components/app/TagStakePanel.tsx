@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
-import { useTokenTransfer } from "@/hooks/useTokenTransfer";
+import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
 import { formatToken } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import type { TagDTO } from "@/lib/types";
@@ -26,18 +26,38 @@ export function TagStakePanel({
   const { user } = useAuth();
   const router = useRouter();
   const toast = useToast();
-  const transfer = useTokenTransfer();
+  const { stakeTag, withdrawTagStake } = useTagStakeProgram();
 
   const [stakingId, setStakingId] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState(100);
   const [busy, setBusy] = useState(false);
   const [newTag, setNewTag] = useState("");
+  // appTagId -> the current user's active stake on that tag.
+  const [myStakes, setMyStakes] = useState<Record<string, { id: string; amount: number }>>({});
 
-  async function stake(appTagId: string) {
+  useEffect(() => {
+    if (!user) {
+      setMyStakes({});
+      return;
+    }
+    fetch(`/api/stake?appId=${appId}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!json.ok) return;
+        const byTag: Record<string, { id: string; amount: number }> = {};
+        for (const s of json.data.stakes as { id: string; amount: number; appTagId: string }[]) {
+          byTag[s.appTagId] = { id: s.id, amount: s.amount };
+        }
+        setMyStakes(byTag);
+      })
+      .catch(() => {});
+  }, [appId, user]);
+
+  async function stake(appTagId: string, tagSlug: string) {
     if (stakeAmount <= 0) return;
     setBusy(true);
     try {
-      const { txSig, simulated } = await transfer(stakeAmount);
+      const { txSig, simulated } = await stakeTag(appId, tagSlug, stakeAmount);
       const res = await fetch("/api/stake", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -54,6 +74,37 @@ export function TagStakePanel({
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Stake failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function withdraw(appTagId: string, tagSlug: string) {
+    const mine = myStakes[appTagId];
+    if (!mine) return;
+    setBusy(true);
+    try {
+      const { simulated } = await withdrawTagStake(appId, tagSlug, mine.amount);
+
+      const res = await fetch("/api/stake/withdraw", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stakeId: mine.id }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Withdraw failed");
+
+      toast.success(
+        simulated ? "Stake withdrawn (simulated)" : "Stake withdrawn — tokens returned",
+      );
+      setMyStakes((prev) => {
+        const next = { ...prev };
+        delete next[appTagId];
+        return next;
+      });
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Withdraw failed");
     } finally {
       setBusy(false);
     }
@@ -107,6 +158,15 @@ export function TagStakePanel({
                     {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
                   </span>
                 </div>
+                {user && myStakes[t.id] && (
+                  <button
+                    className="btn-secondary py-1 text-xs"
+                    disabled={busy}
+                    onClick={() => withdraw(t.id, t.slug)}
+                  >
+                    {busy ? "…" : `Withdraw ${myStakes[t.id]!.amount}`}
+                  </button>
+                )}
                 {user && (
                   <button
                     className="btn-secondary py-1 text-xs"
@@ -133,7 +193,7 @@ export function TagStakePanel({
                   <button
                     className="btn-primary shrink-0 py-1.5 text-sm"
                     disabled={busy}
-                    onClick={() => stake(t.id)}
+                    onClick={() => stake(t.id, t.slug)}
                   >
                     {busy ? "…" : "Confirm"}
                   </button>

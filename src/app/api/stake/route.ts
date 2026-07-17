@@ -4,6 +4,24 @@ import { stakeSchema } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
 import { refreshAppTag, refreshApp } from "@/lib/engine";
 import { isSimulationMode } from "@/lib/config";
+import { getSession } from "@/lib/session";
+
+// GET /api/stake?appId= — the current user's active stakes across all of an
+// app's tags, if any. Powers the per-tag "Withdraw" button in TagStakePanel.
+// Returns `{ stakes: [] }` for a signed-out visitor rather than 401ing.
+export const GET = handler(async (req: NextRequest) => {
+  const appId = req.nextUrl.searchParams.get("appId");
+  if (!appId) throw new ApiError("appId is required", 400);
+
+  const session = await getSession();
+  if (!session) return ok({ stakes: [] });
+
+  const stakes = await prisma.stake.findMany({
+    where: { userId: session.userId, active: true, appTag: { appId } },
+    select: { id: true, amount: true, appTagId: true },
+  });
+  return ok({ stakes });
+});
 
 // POST /api/stake — stake tokens behind an app's tag.
 //

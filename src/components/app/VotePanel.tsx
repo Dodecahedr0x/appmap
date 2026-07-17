@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
-import { useTokenTransfer } from "@/hooks/useTokenTransfer";
+import { useVoteProgram } from "@/hooks/useVoteProgram";
 import { isSimulationMode } from "@/lib/config";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { ConnectButton } from "@/components/ConnectButton";
@@ -19,16 +19,28 @@ export function VotePanel({ appId, slug }: { appId: string; slug: string }) {
   const { user } = useAuth();
   const router = useRouter();
   const toast = useToast();
-  const transfer = useTokenTransfer();
+  const { vote: castVote, withdrawVote } = useVoteProgram();
   const [amount, setAmount] = useState(50);
   const [busy, setBusy] = useState(false);
+  const [myVote, setMyVote] = useState<{ id: string; amount: number } | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setMyVote(null);
+      return;
+    }
+    fetch(`/api/vote?appId=${appId}`)
+      .then((res) => res.json())
+      .then((json) => setMyVote(json.ok ? json.data.vote : null))
+      .catch(() => {});
+  }, [appId, user]);
 
   async function vote() {
     if (amount <= 0) return;
     setBusy(true);
     try {
       // 1. Settle the token transfer (real tx in on-chain mode; no-op otherwise).
-      const { txSig, simulated } = await transfer(amount);
+      const { txSig, simulated } = await castVote(appId, amount);
 
       // 2. Record the vote.
       const res = await fetch("/api/vote", {
@@ -47,6 +59,34 @@ export function VotePanel({ appId, slug }: { appId: string; slug: string }) {
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Vote failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function withdraw() {
+    if (!myVote) return;
+    setBusy(true);
+    try {
+      const { simulated } = await withdrawVote(appId, myVote.amount);
+
+      const res = await fetch("/api/vote/withdraw", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ voteId: myVote.id }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Withdraw failed");
+
+      toast.success(
+        simulated
+          ? "Vote withdrawn (simulated)"
+          : "Vote withdrawn — tokens returned",
+      );
+      setMyVote(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Withdraw failed");
     } finally {
       setBusy(false);
     }
@@ -100,6 +140,15 @@ export function VotePanel({ appId, slug }: { appId: string; slug: string }) {
           >
             {busy ? "Voting…" : `Vote ${amount} ${TOKEN_SYMBOL}`}
           </button>
+          {myVote && (
+            <button
+              className="btn-secondary w-full"
+              disabled={busy}
+              onClick={withdraw}
+            >
+              {busy ? "Withdrawing…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
+            </button>
+          )}
         </>
       )}
     </section>
