@@ -83,6 +83,11 @@ and leaves the Surfnet running in the background for `npm run dev` to talk
 to. Wind everything back down with `npm run teardown:dev` (stops the
 Surfnet and the local Postgres instance).
 
+Or, for a single command that does the whole thing end to end, run
+`npm run dev:all` — it runs `setup:dev`, then starts `npm run dev`, and on
+Ctrl-C (or any exit) automatically runs `teardown:dev` for you, so surfpool
+and local Postgres never linger after you're done. See `app/scripts/dev-all.sh`.
+
 ### Useful scripts
 
 Runnable from the repo root or from `app/` — identical either way.
@@ -91,6 +96,7 @@ Runnable from the repo root or from `app/` — identical either way.
 | ------------------- | ------------------------------------------- |
 | `npm run setup:dev` | One-shot full local dev env setup (surfpool + airdrops + deploy + NEB launch + db) |
 | `npm run teardown:dev` | Stop surfpool and local Postgres started by `setup:dev` |
+| `npm run dev:all`   | `setup:dev` + `dev` in one command; Ctrl-C runs `teardown:dev` automatically |
 | `npm run dev`       | Start the dev server                        |
 | `npm run build`     | Production build (runs `prisma generate`)   |
 | `npm run db:push`   | Sync Prisma schema to the DB                |
