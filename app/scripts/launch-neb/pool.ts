@@ -1,10 +1,20 @@
 // Creates the NEB/USDC Meteora DLMM launch pool and seeds it with the full
-// NEB supply as single-sided liquidity (no USDC deposited) — the DLMM
-// equivalent of the single-sided bonding curve this replaces: the pool
-// starts at one price and sells down through NEB as buyers swap USDC in.
+// NEB supply as single-sided liquidity (no USDC deposited), spread across
+// every bin from the starting price up to initialPrice * maxPriceMultiplier
+// — the pool acts as a liquidity provider across that whole range: it starts
+// at one price and sells down through NEB as buyers swap USDC in, with the
+// price climbing through progressively higher bins as each empties, rather
+// than a single fixed-price cliff.
 
 import BN from "bn.js";
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+  sendAndConfirmTransaction,
+} from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import DLMM, {
   ActivationType,
@@ -19,12 +29,26 @@ export interface LaunchedPool {
   poolAddress: PublicKey;
 }
 
+/** Build, sign and send a transaction from raw instructions with a fresh blockhash. */
+async function sendIxs(
+  connection: Connection,
+  payer: Keypair,
+  ixs: TransactionInstruction[],
+  extraSigners: Keypair[] = [],
+): Promise<string> {
+  const tx = new Transaction().add(...ixs);
+  tx.feePayer = payer.publicKey;
+  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+  return sendAndConfirmTransaction(connection, tx, [payer, ...extraSigners]);
+}
+
 /**
  * Creates the customizable permissionless DLMM pair for NEB/quoteMint, then
- * deposits `totalSupplyRaw` NEB into a single bin at the configured starting
- * price as a standard single-sided LP position (owned by `payer`, same as
- * any other DLMM liquidity provider — no special "operator"/"seed" role).
- * When `dryRun` is set, logs the plan without sending any transactions.
+ * deposits `totalSupplyRaw` NEB single-sided across the bin range from the
+ * configured starting price up to `initialPrice * maxPriceMultiplier`, using
+ * a uniform (Spot) distribution — a standard LP position (owned by `payer`,
+ * same as any other DLMM liquidity provider — no special "operator"/"seed"
+ * role). When `dryRun` is set, logs the plan without sending any transactions.
  */
 export async function createLaunchPool(
   connection: Connection,
@@ -40,20 +64,29 @@ export async function createLaunchPool(
   // land on when the exact price falls between two bins — at typical bin
   // steps (tens of bps) this is a sub-basis-point difference from the
   // configured initialPrice either way, so "up"/"down" only needs to be
-  // internally consistent (same bin gets both the pool's active bin and the
-  // seeded liquidity), not independently correct.
+  // internally consistent (same rounding used for both ends of the range),
+  // not independently correct.
   const roundDown = pool.priceRounding === "down";
   const activeId = new BN(DLMM.getBinIdFromPrice(pool.initialPrice, pool.binStep, roundDown));
+  const maxPrice = pool.initialPrice * pool.maxPriceMultiplier;
+  const maxBinId = new BN(DLMM.getBinIdFromPrice(maxPrice, pool.binStep, roundDown));
+  if (maxBinId.lte(activeId)) {
+    throw new Error(
+      `pool.maxPriceMultiplier (${pool.maxPriceMultiplier}) must be greater than 1 — the seeded range ` +
+        `collapses to a single bin otherwise`,
+    );
+  }
+  const binCount = maxBinId.sub(activeId).toNumber() + 1;
   const activationType = pool.activationType === "slot" ? ActivationType.Slot : ActivationType.Timestamp;
 
   console.log(`\n== DLMM pool ==`);
   console.log(`  base (NEB): ${mint.toBase58()}`);
   console.log(`  quote: ${quoteMintKey.toBase58()}`);
   console.log(`  binStep: ${pool.binStep} bps, feeBps: ${pool.feeBps}`);
-  console.log(`  initialPrice: ${pool.initialPrice} (activeId ${activeId.toString()})`);
+  console.log(`  price range: ${pool.initialPrice} → ${maxPrice} (activeId ${activeId.toString()} → maxBinId ${maxBinId.toString()}, ${binCount} bins)`);
   console.log(`  activationType: ${pool.activationType}, activationPoint: ${pool.activationPoint ?? "immediate"}`);
   console.log(`  creatorPoolOnOffControl: ${pool.creatorPoolOnOffControl}`);
-  console.log(`  seeding: full supply (${totalSupplyRaw} raw units) single-sided into one bin`);
+  console.log(`  seeding: full supply (${totalSupplyRaw} raw units) single-sided, Spot distribution across ${binCount} bins`);
 
   if (dryRun) {
     console.log(`  [dry run] would create the pool and seed it with the full NEB supply — no transaction sent.`);
@@ -101,31 +134,51 @@ export async function createLaunchPool(
   const dlmmPool = await DLMM.create(connection, poolAddress, { cluster: config.cluster });
 
   // Seed the full supply single-sided via the standard (permissionless, no
-  // "operator" role) position API — a single-bin Spot position at the
-  // active bin with singleSidedX so only NEB (tokenX) is deposited, none of
-  // the quote token. This is the same call any regular DLMM LP makes; it
-  // doesn't need the specialized seedLiquidity/seedLiquiditySingleBin
-  // "launch tooling" methods, which (as tested against a real cloned devnet
-  // DLMM program) reject with AnchorError 6031 "UnauthorizedAccess" in
+  // "operator" role) position API — a Spot (uniform) distribution across
+  // every bin from activeId to maxBinId, with singleSidedX so only NEB
+  // (tokenX) is deposited, none of the quote token. This is the multi-
+  // position variant of the same call any regular DLMM LP makes (positions
+  // can hold up to 1400 bins each, chunked into several deposit
+  // transactions for size/compute reasons — a 100x range at a 100bps bin
+  // step is ~460 bins, comfortably one position). It doesn't need the
+  // specialized seedLiquidity/seedLiquiditySingleBin "launch tooling"
+  // methods, which (as tested against a real cloned devnet DLMM program)
+  // reject with AnchorError 6031 "UnauthorizedAccess" in
   // initialize_position_by_operator.rs for a permissionlessly-created pool
   // regardless of which pubkey is passed as `operator` — that whole code
   // path appears reserved for Meteora-coordinated launches, not general
   // permissionless use.
-  const position = Keypair.generate();
-  const addLiquidityTx = await dlmmPool.initializePositionAndAddLiquidityByStrategy({
-    positionPubKey: position.publicKey,
-    totalXAmount: new BN(totalSupplyRaw.toString()),
-    totalYAmount: new BN(0),
-    strategy: {
+  const { instructionsByPositions } = await dlmmPool.initializeMultiplePositionAndAddLiquidityByStrategy(
+    (count) => Promise.all(Array.from({ length: count }, () => Keypair.generate())),
+    new BN(totalSupplyRaw.toString()),
+    new BN(0),
+    {
       minBinId: activeId.toNumber(),
-      maxBinId: activeId.toNumber(),
+      maxBinId: maxBinId.toNumber(),
       strategyType: StrategyType.Spot,
       singleSidedX: true,
     },
-    user: payer.publicKey,
-  });
-  const addLiquiditySig = await sendAndConfirmTransaction(connection, addLiquidityTx, [payer, position]);
-  console.log(`  liquidity seeded. tx: ${addLiquiditySig}`);
+    payer.publicKey,
+    payer.publicKey,
+    0, // slippage — brand-new pool/position, nothing to slip against
+  );
+
+  for (const [i, entry] of instructionsByPositions.entries()) {
+    // initializeAtaIxs is idempotent-create, so it only needs to ride along
+    // on the first position's transaction.
+    const initIxs = i === 0 ? [...entry.initializeAtaIxs, entry.initializePositionIx] : [entry.initializePositionIx];
+    const initSig = await sendIxs(connection, payer, initIxs, [entry.positionKeypair]);
+    console.log(
+      `  position ${i + 1}/${instructionsByPositions.length} created (${entry.positionKeypair.publicKey.toBase58()}). tx: ${initSig}`,
+    );
+
+    for (const [chunkIndex, chunkIxs] of entry.addLiquidityIxs.entries()) {
+      const chunkSig = await sendIxs(connection, payer, chunkIxs);
+      console.log(
+        `  liquidity chunk ${chunkIndex + 1}/${entry.addLiquidityIxs.length} seeded for position ${i + 1}. tx: ${chunkSig}`,
+      );
+    }
+  }
 
   return { poolAddress };
 }

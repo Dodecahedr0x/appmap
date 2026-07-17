@@ -51,6 +51,10 @@
     "feeBps": 100,
     // Starting price, USDC per NEB.
     "initialPrice": 0.0005,
+    // Liquidity is seeded single-sided from initialPrice up to
+    // initialPrice * maxPriceMultiplier, so the pool acts as a liquidity
+    // provider across a price range instead of a single fixed price.
+    "maxPriceMultiplier": 100,
     "priceRounding": "up",
     // "timestamp" activates at a wall-clock time (activationPoint = unix
     // seconds); "slot" activates at a specific slot number.
