@@ -24,8 +24,7 @@ yarn-error.log*
 /target
 /programs/**/target
 .anchor
-test-ledger
-test-ledger.pid
+.surfpool
 **/*.rs.bk
 
 # indexer (separate Cargo workspace — kept isolated from the Anchor

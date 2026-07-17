@@ -63,20 +63,25 @@ generated IDL/types), you first need, from the repo root:
 
 ```bash
 anchor build                  # generates target/idl/nebulous_world.json + target/types/nebulous_world.ts
-solana-test-validator          # in a separate terminal — devnet's public RPC is currently
-                                # unreliable for program deploys, see Anchor.toml
+surfpool start --network mainnet --airdrop-keypair-path ~/.config/solana/id.json
+                                # in a separate terminal — forks mainnet, so real
+                                # programs (DLMM, Metaplex) and mints (USDC) are
+                                # fetched on demand, no manual account cloning
 anchor deploy --provider.cluster localnet
 ```
 
-then set `NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID` and `NEXT_PUBLIC_VOTE_TOKEN_MINT` in
-`app/.env` to the deployed program id and a real SPL mint.
+then set `NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID` in `app/.env` to the deployed
+program id, and run `npm run launch:neb` (see below) to mint NEB and set
+`NEXT_PUBLIC_VOTE_TOKEN_MINT`/`NEXT_PUBLIC_NEB_DLMM_POOL`.
 
-Or run all of the above (install, `.env`, `anchor build`, a local validator,
-program deploy, and `db:reset`) in one shot with `npm run setup:dev` — see
+Or run all of the above (install, `.env`, `anchor build`, a local surfpool
+Surfnet with SOL + USDC airdropped to your dev keypair, program deploy, the
+NEB launch, and `db:reset`) in one shot with `npm run setup:dev` — see
 `app/scripts/setup-dev.sh`. It requires the Solana/Anchor toolchain and
-leaves the validator running in the background for `npm run dev` to talk to.
-Wind everything back down with `npm run teardown:dev` (stops the validator
-and the local Postgres instance).
+[surfpool](https://surfpool.run) (`curl -sL https://run.surfpool.run/ | bash`),
+and leaves the Surfnet running in the background for `npm run dev` to talk
+to. Wind everything back down with `npm run teardown:dev` (stops the
+Surfnet and the local Postgres instance).
 
 ### Useful scripts
 
@@ -84,8 +89,8 @@ Runnable from the repo root or from `app/` — identical either way.
 
 | Script              | Purpose                                     |
 | ------------------- | ------------------------------------------- |
-| `npm run setup:dev` | One-shot full local dev env setup (validator + deploy + db) |
-| `npm run teardown:dev` | Stop the validator and local Postgres started by `setup:dev` |
+| `npm run setup:dev` | One-shot full local dev env setup (surfpool + airdrops + deploy + NEB launch + db) |
+| `npm run teardown:dev` | Stop surfpool and local Postgres started by `setup:dev` |
 | `npm run dev`       | Start the dev server                        |
 | `npm run build`     | Production build (runs `prisma generate`)   |
 | `npm run db:push`   | Sync Prisma schema to the DB                |
@@ -106,7 +111,14 @@ NEB isn't minted or sold by the Anchor program — `app/scripts/launch-neb/`
 mints the full configured supply with on-chain Metaplex metadata, then
 creates a NEB/USDC Meteora DLMM pool and seeds it single-sided with that
 entire supply, so buying NEB is a direct swap against a public pool rather
-than an instruction on our own program. Copy
+than an instruction on our own program.
+
+`npm run setup:dev` runs this automatically against your local surfpool
+Surfnet (real mainnet USDC, real DLMM/Metaplex programs, no manual account
+cloning) the first time it's run, and writes the resulting mint/pool
+addresses into `app/.env` — skipped on later runs if they're already set.
+
+For a one-off or production launch, run it directly: copy
 `app/scripts/launch-neb/launch-neb.config.example.jsonc` to
 `launch-neb.config.json` in that same directory, fill in the token/pool
 parameters, and run `npm run launch:neb` (defaults to a dry run — set
