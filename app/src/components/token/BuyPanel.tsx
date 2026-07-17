@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useNebDlmmSwap } from "@/hooks/useNebDlmmSwap";
+import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
 import type { NebPoolStatus } from "@/lib/dlmm";
@@ -18,6 +19,7 @@ export function BuyPanel() {
   const [pool, setPool] = useState<NebPoolStatus | null | undefined>(undefined);
   const [usdcAmount, setUsdcAmount] = useState(50);
   const [busy, setBusy] = useState(false);
+  const balances = useWalletBalances(pool?.nebMint ?? null, pool?.usdcMint ?? null);
 
   async function refresh() {
     const res = await fetch("/api/pool");
@@ -41,6 +43,7 @@ export function BuyPanel() {
       const { nebOut } = await buy(usdcAmount);
       toast.success(`Bought ${formatToken(nebOut, TOKEN_SYMBOL)} — tx confirmed`);
       await refresh();
+      balances.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Purchase failed");
     } finally {
@@ -83,6 +86,12 @@ export function BuyPanel() {
         </div>
       ) : (
         <>
+          {balances.neb != null && balances.usdc != null && (
+            <div className="flex justify-between text-xs text-slate-steel">
+              <span>Your balance: {formatToken(balances.neb, TOKEN_SYMBOL)}</span>
+              <span>{balances.usdc.toFixed(2)} USDC</span>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((p) => (
               <button

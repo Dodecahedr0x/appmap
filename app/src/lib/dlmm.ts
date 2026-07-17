@@ -16,6 +16,10 @@ export interface NebPoolStatus {
   nebReserve: number;
   /** USDC currently held by the pool, UI units. */
   usdcReserve: number;
+  /** NEB mint address (the pool's token X). */
+  nebMint: string;
+  /** USDC mint address (the pool's token Y). */
+  usdcMint: string;
 }
 
 export function getNebDlmmPoolAddress(): PublicKey | null {
@@ -43,5 +47,7 @@ export async function fetchNebPoolStatus(connection: Connection): Promise<NebPoo
     price: Number(activeBin.pricePerToken),
     nebReserve: Number(pool.tokenX.amount) / 10 ** pool.tokenX.mint.decimals,
     usdcReserve: Number(pool.tokenY.amount) / 10 ** pool.tokenY.mint.decimals,
+    nebMint: pool.tokenX.publicKey.toBase58(),
+    usdcMint: pool.tokenY.publicKey.toBase58(),
   };
 }

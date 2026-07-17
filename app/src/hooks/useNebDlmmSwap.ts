@@ -24,7 +24,8 @@ export function useNebDlmmSwap() {
 
   const buy = useCallback(
     async (usdcAmount: number): Promise<SwapResult> => {
-      if (!wallet.publicKey || !wallet.signTransaction) {
+      const signTransaction = wallet.signTransaction;
+      if (!wallet.publicKey || !signTransaction) {
         throw new Error("Connect your wallet first");
       }
 
@@ -49,7 +50,16 @@ export function useNebDlmmSwap() {
         binArraysPubkey: quote.binArraysPubkey,
       });
 
-      const sig = await wallet.sendTransaction(tx, connection);
+      // Sign locally and submit through our own `connection` rather than
+      // wallet.sendTransaction() — for wallets exposing the
+      // SolanaSignAndSendTransaction feature, that call hands the tx off to
+      // the wallet's *own* RPC for the resolved chain (see
+      // @solana/wallet-standard-wallet-adapter-base), which can be a
+      // different node than the one that just fetched `tx`'s blockhash and
+      // fails with "blockhash not found". Every other on-chain call in this
+      // app (via AnchorProvider/.rpc()) already signs-then-submits this way.
+      const signed = await signTransaction(tx);
+      const sig = await connection.sendRawTransaction(signed.serialize());
       await connection.confirmTransaction(sig, "confirmed");
 
       return {
