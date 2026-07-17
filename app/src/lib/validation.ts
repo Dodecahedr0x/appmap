@@ -53,11 +53,23 @@ export const authVerifySchema = z.object({
   message: z.string().min(8).max(1000),
 });
 
+// Filters are either onchain (tags, and the token stake behind them) or
+// offchain (OpenGraph-derived text: name/tagline/description) — there is no
+// separate "category" taxonomy on the search API.
+const intFilter = () => z.coerce.number().int().min(0).optional();
+
 export const searchSchema = z.object({
   q: z.string().max(120).optional().default(""),
   tags: z.array(z.string()).optional().default([]),
-  category: z.string().optional(),
-  chain: z.string().optional(),
+  fuzzy: z.string().max(120).optional().default(""),
+  appStakeMin: intFilter(),
+  appStakeMax: intFilter(),
+  tagsStakeMin: intFilter(),
+  tagsStakeMax: intFilter(),
+  tagsCountMin: intFilter(),
+  tagsCountMax: intFilter(),
+  pageviewsMin: intFilter(),
+  pageviewsMax: intFilter(),
   sort: z.enum(["rank", "votes", "stake", "traffic", "new"]).optional().default("rank"),
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(50).optional().default(20),

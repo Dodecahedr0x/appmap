@@ -14,13 +14,23 @@ export default async function HomePage({ searchParams }: PageProps) {
   const toArray = (v: string | string[] | undefined) =>
     Array.isArray(v) ? v : v ? [v] : [];
 
+  const str = (v: string | string[] | undefined) =>
+    typeof v === "string" ? v : undefined;
+
   const input = searchSchema.parse({
-    q: typeof sp.q === "string" ? sp.q : "",
+    q: str(sp.q) ?? "",
     tags: toArray(sp.tags),
-    category: typeof sp.category === "string" ? sp.category : undefined,
-    chain: typeof sp.chain === "string" ? sp.chain : undefined,
-    sort: typeof sp.sort === "string" ? sp.sort : undefined,
-    page: typeof sp.page === "string" ? sp.page : undefined,
+    fuzzy: str(sp.fuzzy),
+    appStakeMin: str(sp.appStakeMin),
+    appStakeMax: str(sp.appStakeMax),
+    tagsStakeMin: str(sp.tagsStakeMin),
+    tagsStakeMax: str(sp.tagsStakeMax),
+    tagsCountMin: str(sp.tagsCountMin),
+    tagsCountMax: str(sp.tagsCountMax),
+    pageviewsMin: str(sp.pageviewsMin),
+    pageviewsMax: str(sp.pageviewsMax),
+    sort: str(sp.sort),
+    page: str(sp.page),
   });
 
   const initial = await searchApps(input);
