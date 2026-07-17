@@ -24,12 +24,17 @@ function metaContent(html: string, patterns: RegExp[]): string | undefined {
 }
 
 // Matches both attribute orders: <meta property="og:x" content="..."> and
-// <meta content="..." property="og:x">.
+// <meta content="..." property="og:x">. The content-value group uses [^>]
+// rather than `.` — `.` matches `>`, which let non-greedy backtracking skip
+// past this tag's boundary and capture into a *later* meta tag whenever an
+// earlier candidate closing-quote didn't satisfy the rest of the pattern
+// (e.g. a preceding <meta name="description"> sitting right before the
+// og:image tag, as real pages commonly emit with no whitespace between tags).
 function metaPatterns(key: string): RegExp[] {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [
-    new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]*content=(["'])(.*?)\\1`, "i"),
-    new RegExp(`<meta[^>]+content=(["'])(.*?)\\1[^>]*(?:property|name)=["']${escaped}["']`, "i"),
+    new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]*content=(["'])([^>]*?)\\1`, "i"),
+    new RegExp(`<meta[^>]+content=(["'])([^>]*?)\\1[^>]*(?:property|name)=["']${escaped}["']`, "i"),
   ];
 }
 

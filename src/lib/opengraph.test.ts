@@ -52,6 +52,22 @@ describe("fetchOpenGraph", () => {
     });
   });
 
+  it("doesn't let a preceding meta tag's content bleed into a later og:image capture (real-world minified markup, no whitespace between tags)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        htmlResponse(
+          `<meta content="A generic description." name="description"/>` +
+            `<meta content="Some Title" property="og:title"/>` +
+            `<meta content="A generic description." property="og:description"/>` +
+            `<meta content="https://cdn.example.com/real-og-image.png" property="og:image"/>`,
+        ),
+      ),
+    );
+    const data = await fetchOpenGraph("https://example.com");
+    expect(data?.imageUrl).toBe("https://cdn.example.com/real-og-image.png");
+  });
+
   it("resolves a relative og:image against the response URL", async () => {
     vi.stubGlobal(
       "fetch",

@@ -1,9 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import { computeRankScore, ageInDays } from "../src/lib/ranking";
 import { slugify } from "../src/lib/utils";
+import { fetchOpenGraph } from "../src/lib/opengraph";
 
 // Seeds a realistic dataset so search, ranking, staking, and analytics all have
 // something to show on first run. Idempotent-ish: it clears core tables first.
+//
+// Apps point at their real, live URLs (not placeholders) so the OpenGraph
+// icon fetch below has something genuine to resolve against.
 
 const prisma = new PrismaClient();
 
@@ -31,24 +35,34 @@ const WALLETS = [
   "8kJ2hG4fD6sA8zX0cV2bN4mQ6wE8rT0yU2iO4pL6kJ8",
 ];
 
-const CATEGORIES = ["defi", "nft", "gaming", "dao", "infrastructure", "wallet", "social", "analytics"];
-
 const APPS = [
-  { name: "Jupiter", tagline: "The key liquidity aggregator for Solana", category: "defi", tags: ["swap", "aggregator", "trading", "dex"] },
-  { name: "Tensor", tagline: "The fastest NFT marketplace on Solana", category: "nft", tags: ["marketplace", "nft", "trading"] },
-  { name: "Marinade", tagline: "Liquid staking protocol", category: "defi", tags: ["staking", "liquid-staking", "yield"] },
-  { name: "Phantom", tagline: "A friendly crypto wallet built for DeFi & NFTs", category: "wallet", tags: ["wallet", "self-custody", "mobile"] },
-  { name: "Drift", tagline: "Decentralized perpetuals exchange", category: "defi", tags: ["perps", "trading", "derivatives", "dex"] },
-  { name: "Magic Eden", tagline: "The community-centric NFT marketplace", category: "nft", tags: ["marketplace", "nft", "launchpad"] },
-  { name: "Star Atlas", tagline: "Grand strategy game of interstellar conquest", category: "gaming", tags: ["game", "metaverse", "strategy"] },
-  { name: "Realms", tagline: "DAO tooling and governance for Solana", category: "dao", tags: ["dao", "governance", "voting"] },
-  { name: "Helius", tagline: "The best Solana RPC & developer platform", category: "infrastructure", tags: ["rpc", "developer-tools", "infrastructure", "api"] },
-  { name: "Kamino", tagline: "Automated liquidity & lending", category: "defi", tags: ["lending", "yield", "automation"] },
-  { name: "Dialect", tagline: "Smart messaging & notifications", category: "social", tags: ["messaging", "notifications", "social"] },
-  { name: "Step Finance", tagline: "Portfolio dashboard for Solana", category: "analytics", tags: ["portfolio", "analytics", "dashboard"] },
-  { name: "Orca", tagline: "The friendliest DEX on Solana", category: "defi", tags: ["dex", "swap", "amm", "trading"] },
-  { name: "Backpack", tagline: "A home for your xNFTs", category: "wallet", tags: ["wallet", "xnft", "exchange"] },
-  { name: "Zeta Markets", tagline: "Under-collateralized DeFi derivatives", category: "defi", tags: ["derivatives", "options", "perps"] },
+  { name: "Jupiter", url: "https://jup.ag", tagline: "The key liquidity aggregator for Solana", category: "defi", tags: ["swap", "aggregator", "trading", "dex"] },
+  { name: "Tensor", url: "https://www.tensor.trade", tagline: "The fastest NFT marketplace on Solana", category: "nft", tags: ["marketplace", "nft", "trading"] },
+  { name: "Marinade", url: "https://marinade.finance", tagline: "Liquid staking protocol", category: "defi", tags: ["staking", "liquid-staking", "yield"] },
+  { name: "Phantom", url: "https://phantom.app", tagline: "A friendly crypto wallet built for DeFi & NFTs", category: "wallet", tags: ["wallet", "self-custody", "mobile"] },
+  { name: "Drift", url: "https://www.drift.trade", tagline: "Decentralized perpetuals exchange", category: "defi", tags: ["perps", "trading", "derivatives", "dex"] },
+  { name: "Magic Eden", url: "https://magiceden.io", tagline: "The community-centric NFT marketplace", category: "nft", tags: ["marketplace", "nft", "launchpad"] },
+  { name: "Star Atlas", url: "https://staratlas.com", tagline: "Grand strategy game of interstellar conquest", category: "gaming", tags: ["game", "metaverse", "strategy"] },
+  { name: "Realms", url: "https://app.realms.today", tagline: "DAO tooling and governance for Solana", category: "dao", tags: ["dao", "governance", "voting"] },
+  { name: "Helius", url: "https://www.helius.dev", tagline: "The best Solana RPC & developer platform", category: "infrastructure", tags: ["rpc", "developer-tools", "infrastructure", "api"] },
+  { name: "Kamino", url: "https://kamino.finance", tagline: "Automated liquidity & lending", category: "defi", tags: ["lending", "yield", "automation"] },
+  { name: "Dialect", url: "https://www.dialect.to", tagline: "Smart messaging & notifications", category: "social", tags: ["messaging", "notifications", "social"] },
+  { name: "Vybe Network", url: "https://vybenetwork.com", tagline: "Wallet tracking and portfolio analytics for Solana", category: "analytics", tags: ["portfolio", "analytics", "dashboard"] },
+  { name: "Orca", url: "https://www.orca.so", tagline: "The friendliest DEX on Solana", category: "defi", tags: ["dex", "swap", "amm", "trading"] },
+  { name: "Backpack", url: "https://backpack.app", tagline: "A home for your xNFTs", category: "wallet", tags: ["wallet", "xnft", "exchange"] },
+  { name: "Zeta Markets", url: "https://zeta.markets", tagline: "Under-collateralized DeFi derivatives", category: "defi", tags: ["derivatives", "options", "perps"] },
+  { name: "Raydium", url: "https://raydium.io", tagline: "On-chain order book AMM powering Solana DeFi", category: "defi", tags: ["dex", "amm", "swap", "trading"] },
+  { name: "Meteora", url: "https://www.meteora.ag", tagline: "Dynamic liquidity market maker for Solana", category: "defi", tags: ["dlmm", "liquidity", "amm"] },
+  { name: "Jito", url: "https://www.jito.wtf", tagline: "MEV infrastructure and liquid staking for Solana", category: "infrastructure", tags: ["mev", "liquid-staking", "validators"] },
+  { name: "Squads", url: "https://squads.so", tagline: "Multisig and smart account infrastructure for Solana", category: "infrastructure", tags: ["multisig", "security", "tooling"] },
+  { name: "Solflare", url: "https://solflare.com", tagline: "A non-custodial wallet for Solana", category: "wallet", tags: ["wallet", "self-custody", "staking"] },
+  { name: "Save", url: "https://save.finance", tagline: "Algorithmic lending and borrowing protocol", category: "defi", tags: ["lending", "borrowing", "yield"] },
+  { name: "Pyth Network", url: "https://www.pyth.network", tagline: "Real-time market data oracle for DeFi", category: "infrastructure", tags: ["oracle", "market-data", "infrastructure"] },
+  { name: "Metaplex", url: "https://www.metaplex.com", tagline: "The NFT and digital asset standard for Solana", category: "developer-tools", tags: ["nft", "protocol", "developer-tools"] },
+  { name: "Solana Mobile", url: "https://solanamobile.com", tagline: "Mobile hardware and stack built for crypto", category: "other", tags: ["mobile", "hardware", "wallet"] },
+  { name: "Sanctum", url: "https://www.sanctum.so", tagline: "Liquidity infrastructure for every LST on Solana", category: "defi", tags: ["liquid-staking", "liquidity", "yield"] },
+  { name: "Parcl", url: "https://www.parcl.co", tagline: "Trade real estate markets on-chain", category: "defi", tags: ["perps", "real-estate", "trading"] },
+  { name: "Grass", url: "https://www.getgrass.io", tagline: "DePIN network turning spare bandwidth into rewards", category: "infrastructure", tags: ["depin", "bandwidth", "network"] },
 ];
 
 const ADS = [
@@ -87,6 +101,26 @@ async function main() {
   // Ads.
   const ads = await Promise.all(ADS.map((a) => prisma.ad.create({ data: a })));
 
+  // Real OpenGraph icons for every app, fetched concurrently up front (rather
+  // than per-app in the loop below) so a handful of slow/unreachable sites
+  // don't serialize the whole seed run. Best-effort — fetchOpenGraph never
+  // throws, so a blocked or missing icon just leaves that app iconless.
+  console.log(`🖼️  Fetching OpenGraph icons for ${APPS.length} apps…`);
+  const CONCURRENCY = 6;
+  const iconUrls = new Map<string, string | null>();
+  {
+    let next = 0;
+    async function worker() {
+      while (next < APPS.length) {
+        const appDef = APPS[next++]!;
+        const og = await fetchOpenGraph(appDef.url);
+        iconUrls.set(appDef.name, og?.imageUrl ?? null);
+        console.log(`  ${og?.imageUrl ? "✓" : "–"} ${appDef.name}`);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, APPS.length) }, worker));
+  }
+
   // Tag cache.
   const tagCache = new Map<string, string>();
   async function tagId(name: string): Promise<string> {
@@ -111,7 +145,8 @@ async function main() {
         name: appDef.name,
         tagline: appDef.tagline,
         description: `${appDef.name} — ${appDef.tagline}. A leading ${appDef.category} application in the Solana ecosystem, curated and ranked by the nebulous.world community.`,
-        url: `https://${slug}.example.com`,
+        url: appDef.url,
+        iconUrl: iconUrls.get(appDef.name) ?? null,
         category: appDef.category,
         chain: "solana",
         status: "approved",
