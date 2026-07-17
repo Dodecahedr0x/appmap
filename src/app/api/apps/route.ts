@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { serializeApp, appInclude } from "@/lib/serialize";
 import { slugify } from "@/lib/utils";
 import { refreshApp } from "@/lib/engine";
+import { enrichWithOpenGraph } from "@/lib/opengraph";
 import { AppStatus, CATEGORIES, CHAINS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -53,14 +54,25 @@ export const POST = handler(async (req: NextRequest) => {
     return fail(`That URL is already listed as "${existingUrl.slug}"`, 409);
   }
 
+  // Fill in whatever of icon/tagline/description the submitter left blank
+  // from the app's own OpenGraph metadata, so apps are presented with real
+  // imagery/copy instead of a bare initial even when the submitter skipped
+  // the optional fields.
+  const enriched = await enrichWithOpenGraph({
+    url: body.url,
+    iconUrl: body.iconUrl,
+    tagline: body.tagline,
+    description: body.description,
+  });
+
   const app = await prisma.app.create({
     data: {
       slug,
       name: body.name,
-      tagline: body.tagline,
-      description: body.description,
+      tagline: enriched.tagline,
+      description: enriched.description,
       url: body.url,
-      iconUrl: body.iconUrl || null,
+      iconUrl: enriched.iconUrl,
       category,
       chain,
       status: AppStatus.APPROVED,
