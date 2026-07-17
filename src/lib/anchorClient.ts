@@ -68,6 +68,24 @@ export function toRawAmount(amount: number): BN {
   return new BN(Math.round(amount * 10 ** config.solana.voteTokenDecimals));
 }
 
+/** Lamports per SOL, for converting UI-facing SOL amounts to buy_neb's raw u64 lamport argument. */
+export const LAMPORTS_PER_SOL = 1_000_000_000;
+
+export function toRawLamports(sol: number): BN {
+  return new BN(Math.round(sol * LAMPORTS_PER_SOL));
+}
+
+export function nebPoolPda(programId: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([Buffer.from("neb_pool")], programId)[0];
+}
+
+export function nebPoolVaultPda(programId: PublicKey, pool: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("neb_pool_vault"), pool.toBuffer()],
+    programId,
+  )[0];
+}
+
 export interface ProgramTxResult {
   /** Confirmed transaction signature, or null when running in simulation mode. */
   txSig: string | null;

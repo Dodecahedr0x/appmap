@@ -15,53 +15,54 @@ datasource db {
 /// A user is identified by their Solana wallet public key. There are no
 /// passwords — authentication is proof of wallet ownership (sign-in-with-Solana).
 model User {
-  id           String   @id @default(cuid())
-  wallet       String   @unique // base58 Solana public key
-  handle       String?  @unique // optional display handle
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  wallet    String   @unique // base58 Solana public key
+  handle    String?  @unique // optional display handle
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  submittedApps App[]        @relation("AppSubmitter")
+  submittedApps App[]          @relation("AppSubmitter")
   votes         Vote[]
   stakes        Stake[]
-  suggestedTags AppTag[]     @relation("TagSuggester")
+  suggestedTags AppTag[]       @relation("TagSuggester")
   revenueClaims RevenueClaim[]
+  nebPurchases  NebPurchase[]
 
   @@index([wallet])
 }
 
 /// A crowd-sourced application listing.
 model App {
-  id          String   @id @default(cuid())
-  slug        String   @unique
+  id          String  @id @default(cuid())
+  slug        String  @unique
   name        String
-  tagline     String   @default("")
-  description String   @default("")
+  tagline     String  @default("")
+  description String  @default("")
   url         String
   iconUrl     String?
-  category    String   @default("other")
-  chain       String   @default("solana") // solana | ethereum | web2 | ...
+  category    String  @default("other")
+  chain       String  @default("solana") // solana | ethereum | web2 | ...
   // One of AppStatus in src/lib/constants.ts: pending | approved | rejected | flagged
-  status      String   @default("approved")
+  status      String  @default("approved")
 
   submittedBy String?
-  submitter   User?    @relation("AppSubmitter", fields: [submittedBy], references: [id])
+  submitter   User?   @relation("AppSubmitter", fields: [submittedBy], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Cached aggregates (kept in sync by the ranking engine for fast search).
-  voteCount    Int    @default(0) // number of distinct vote transactions
-  voteWeight   Float  @default(0) // sum of token-weighted votes
-  stakeTotal   Float  @default(0) // total tokens staked across all this app's tags
-  viewCount    Int    @default(0) // lifetime page views
-  rankScore    Float  @default(0) // cached ranking score (recomputed by engine)
+  voteCount  Int   @default(0) // number of distinct vote transactions
+  voteWeight Float @default(0) // sum of token-weighted votes
+  stakeTotal Float @default(0) // total tokens staked across all this app's tags
+  viewCount  Int   @default(0) // lifetime page views
+  rankScore  Float @default(0) // cached ranking score (recomputed by engine)
 
-  votes        Vote[]
-  appTags      AppTag[]
-  pageViews    PageView[]
-  adImpressions AdImpression[]
-  revenueEpochs RevenueEpoch[]
+  votes          Vote[]
+  appTags        AppTag[]
+  pageViews      PageView[]
+  adImpressions  AdImpression[]
+  revenueEpochs  RevenueEpoch[]
   statsSnapshots AppStatsSnapshot[]
 
   @@index([category])
@@ -76,7 +77,7 @@ model Tag {
   name      String
   createdAt DateTime @default(now())
 
-  appTags   AppTag[]
+  appTags AppTag[]
 
   @@index([slug])
 }
@@ -85,18 +86,18 @@ model Tag {
 /// creating one of these rows. Users then stake tokens against it. The total
 /// stake determines how strongly the tag applies and how revenue is split.
 model AppTag {
-  id          String   @id @default(cuid())
-  appId       String
-  tagId       String
-  app         App      @relation(fields: [appId], references: [id], onDelete: Cascade)
-  tag         Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  appId String
+  tagId String
+  app   App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+  tag   Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   suggestedBy String?
   suggester   User?    @relation("TagSuggester", fields: [suggestedBy], references: [id])
   createdAt   DateTime @default(now())
 
-  stakeTotal  Float    @default(0) // cached sum of active stake for this app-tag
-  stakes      Stake[]
+  stakeTotal Float   @default(0) // cached sum of active stake for this app-tag
+  stakes     Stake[]
 
   @@unique([appId, tagId])
   @@index([appId])
@@ -108,15 +109,15 @@ model AppTag {
 /// references the confirmed Solana transaction. Votes can be withdrawn,
 /// setting active=false.
 model Vote {
-  id        String   @id @default(cuid())
-  appId     String
-  userId    String
-  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  appId  String
+  userId String
+  app    App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  amount      Float    // token units committed to the vote
-  txSig       String?  @unique // Solana tx signature (null in simulation mode)
-  createdAt   DateTime @default(now())
+  amount    Float // token units committed to the vote
+  txSig     String?  @unique // Solana tx signature (null in simulation mode)
+  createdAt DateTime @default(now())
 
   active      Boolean   @default(true)
   withdrawnAt DateTime?
@@ -130,16 +131,16 @@ model Vote {
 /// that (a) boosts the tag's ranking weight and (b) earns a share of ad revenue
 /// generated by the app's page. Stakes can be withdrawn, setting active=false.
 model Stake {
-  id        String   @id @default(cuid())
-  appTagId  String
-  userId    String
-  appTag    AppTag   @relation(fields: [appTagId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  appTagId String
+  userId   String
+  appTag   AppTag @relation(fields: [appTagId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  amount    Float
-  active    Boolean  @default(true)
-  txSig     String?  @unique
-  createdAt DateTime @default(now())
+  amount      Float
+  active      Boolean   @default(true)
+  txSig       String?   @unique
+  createdAt   DateTime  @default(now())
   withdrawnAt DateTime?
 
   @@index([appTagId])
@@ -151,18 +152,18 @@ model Stake {
 /// to the app (and thus to its stakers). Visitors are pseudonymised via a
 /// salted visitor id; we never store raw IPs.
 model PageView {
-  id         String   @id @default(cuid())
-  appId      String
-  app        App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  appId String
+  app   App    @relation(fields: [appId], references: [id], onDelete: Cascade)
 
-  visitorId  String   // salted, stable-per-visitor hash
-  sessionId  String   // salted per-session hash
-  path       String
-  referrer   String?
-  country    String?
-  userAgent  String?
+  visitorId       String // salted, stable-per-visitor hash
+  sessionId       String // salted per-session hash
+  path            String
+  referrer        String?
+  country         String?
+  userAgent       String?
   revenueEligible Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   impressions AdImpression[]
 
@@ -173,15 +174,15 @@ model PageView {
 
 /// An advertisement that can be served on app pages.
 model Ad {
-  id         String   @id @default(cuid())
-  title      String
-  body       String   @default("")
-  imageUrl   String?
-  targetUrl  String
-  cpm        Float    @default(2.5) // revenue (token units) per 1000 impressions
-  weight     Int      @default(1)   // relative serving frequency
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  title     String
+  body      String   @default("")
+  imageUrl  String?
+  targetUrl String
+  cpm       Float    @default(2.5) // revenue (token units) per 1000 impressions
+  weight    Int      @default(1) // relative serving frequency
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   impressions AdImpression[]
 
@@ -191,19 +192,19 @@ model Ad {
 /// A single served ad impression, tied to the page view that generated it.
 /// `revenue` is the token-unit value credited for this impression (cpm / 1000).
 model AdImpression {
-  id          String   @id @default(cuid())
-  adId        String
-  appId       String
-  pageViewId  String
-  ad          Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
-  app         App      @relation(fields: [appId], references: [id], onDelete: Cascade)
-  pageView    PageView @relation(fields: [pageViewId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  adId       String
+  appId      String
+  pageViewId String
+  ad         Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  app        App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  pageView   PageView @relation(fields: [pageViewId], references: [id], onDelete: Cascade)
 
-  revenue     Float
-  clicked     Boolean  @default(false)
-  epochId     String?
-  epoch       RevenueEpoch? @relation(fields: [epochId], references: [id])
-  createdAt   DateTime @default(now())
+  revenue   Float
+  clicked   Boolean       @default(false)
+  epochId   String?
+  epoch     RevenueEpoch? @relation(fields: [epochId], references: [id])
+  createdAt DateTime      @default(now())
 
   @@index([appId])
   @@index([epochId])
@@ -214,19 +215,19 @@ model AdImpression {
 /// revenue accrued for an app during that window is distributed to the app's
 /// stakers (across all its tags), producing RevenueClaim rows.
 model RevenueEpoch {
-  id           String   @id @default(cuid())
-  appId        String
-  app          App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  appId String
+  app   App    @relation(fields: [appId], references: [id], onDelete: Cascade)
 
   periodStart  DateTime
   periodEnd    DateTime
-  grossRevenue Float    @default(0) // total ad revenue attributed to the app
-  distributed  Boolean  @default(false)
+  grossRevenue Float     @default(0) // total ad revenue attributed to the app
+  distributed  Boolean   @default(false)
   closedAt     DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
-  impressions  AdImpression[]
-  claims       RevenueClaim[]
+  impressions AdImpression[]
+  claims      RevenueClaim[]
 
   @@index([appId])
   @@index([distributed])
@@ -235,17 +236,17 @@ model RevenueEpoch {
 /// A distribution of revenue to a single staker for a single epoch. Represents
 /// how much of the epoch's revenue this user earned via their stake(s).
 model RevenueClaim {
-  id         String   @id @default(cuid())
-  epochId    String
-  userId     String
-  epoch      RevenueEpoch @relation(fields: [epochId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id      String       @id @default(cuid())
+  epochId String
+  userId  String
+  epoch   RevenueEpoch @relation(fields: [epochId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  amount     Float
-  claimed    Boolean  @default(false)
-  txSig      String?
-  createdAt  DateTime @default(now())
-  claimedAt  DateTime?
+  amount    Float
+  claimed   Boolean   @default(false)
+  txSig     String?
+  createdAt DateTime  @default(now())
+  claimedAt DateTime?
 
   @@unique([epochId, userId])
   @@index([userId])
@@ -255,9 +256,9 @@ model RevenueClaim {
 /// Powers trend charts without needing to reconstruct history from raw
 /// votes/stakes/views each time.
 model AppStatsSnapshot {
-  id         String   @id @default(cuid())
-  appId      String
-  app        App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  appId String
+  app   App    @relation(fields: [appId], references: [id], onDelete: Cascade)
 
   date       DateTime // truncated to the day
   voteWeight Float
@@ -265,8 +266,46 @@ model AppStatsSnapshot {
   viewCount  Int
   rankScore  Float
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([appId, date])
   @@index([appId])
+}
+
+/// Singleton row (there is only ever one, created by prisma/seed.ts or
+/// init_neb_pool locally) tracking the NEB single-sided sale pool — a
+/// bonding-curve pool that sold the initial supply for SOL, in the style of
+/// Meteora's Dynamic Bonding Curve. This row is the DB-canonical source of
+/// truth for remaining supply / price shown in the UI in BOTH simulation and
+/// on-chain mode — same "DB caches, chain settles" pattern as App's cached
+/// vote/stake aggregates. See src/lib/pool.ts for the pricing formula (kept
+/// in lockstep with programs/appmap/src/pool_math.rs).
+model NebPool {
+  id                 String   @id @default(cuid())
+  totalSupply        Float // fixed at creation, never mutated afterward
+  remainingSupply    Float
+  solRaised          Float    @default(0)
+  virtualSolReserves Float // fixed at creation — see NebPool (Rust) doc comment
+  createdAt          DateTime @default(now())
+
+  purchases NebPurchase[]
+}
+
+/// One row per NEB purchase off the bonding curve. `txSig` is set in
+/// on-chain mode (a confirmed buy_neb transaction) and null in simulation
+/// mode, same nullable-unique pattern as Vote/Stake's txSig.
+model NebPurchase {
+  id     String  @id @default(cuid())
+  poolId String
+  userId String
+  pool   NebPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  nebAmount Float
+  solAmount Float
+  txSig     String?  @unique
+  createdAt DateTime @default(now())
+
+  @@index([poolId])
+  @@index([userId])
 }

@@ -45,8 +45,11 @@ export const SORT_OPTIONS = [
   { value: "new", label: "Newest" },
 ] as const;
 
-/** Human-readable token symbol for the vote/stake token. */
-export const TOKEN_SYMBOL = "APP";
+/** Human-readable token symbol for the vote/stake/sale token. */
+export const TOKEN_SYMBOL = "NEB";
+
+/** Full name of the token, for prose/page copy (TOKEN_SYMBOL for inline amounts). */
+export const TOKEN_NAME = "Nebula";
 
 /** Public site name, used for OpenGraph og:site_name and page titles. */
 export const SITE_NAME = "nebulous.world";
