@@ -14,8 +14,8 @@ sharing**.
 - 📈 **Ads & revenue sharing** — app pages track (privacy-preserving) traffic
   and serve ads. Ad revenue is distributed to the app's stakers — across all its
   tags — proportional to their stake.
-- 📊 **Analytics** — dashboards for rankings, vote/stake distribution, traffic
-  trends, and revenue flows.
+- 📊 **Explore** — platform stats, a similar-apps map, and a tag map, both
+  clustered live by shared tags/stake.
 
 ## Tech stack
 

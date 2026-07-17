@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma } from "./prisma";
-import { getPlatformStats } from "./analytics";
+import { getPlatformStats } from "./explore";
 
 describe("getPlatformStats", () => {
   beforeEach(async () => {

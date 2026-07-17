@@ -9,7 +9,7 @@ export interface PlatformStats {
   totalViews: number;
 }
 
-/** Platform-wide totals for the analytics "pulse" row — cheap aggregate reads over the cached per-app fields, not a recomputation. */
+/** Platform-wide totals for the Explore page's at-a-glance row — cheap aggregate reads over the cached per-app fields, not a recomputation. */
 export async function getPlatformStats(): Promise<PlatformStats> {
   const [totalApps, distinctTags, totals] = await Promise.all([
     prisma.app.count({ where: { status: AppStatus.APPROVED } }),
