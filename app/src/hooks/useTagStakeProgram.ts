@@ -1,18 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
-import { config, isSimulationMode } from "@/lib/config";
-import {
-  getNebulousWorldProgram,
-  appPda,
-  appTagPda,
-  stakePositionPda,
-  toRawAmount,
-  type ProgramTxResult,
-} from "@/lib/anchorClient";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { isSimulationMode } from "@/lib/config";
+import { toRawAmount, type ProgramTxResult } from "@/lib/anchorClient";
+import { apiPost, signAndSubmit } from "@/lib/txClient";
 
 /**
  * Stake/withdraw a tag position against the real Anchor program. Mirrors
@@ -21,7 +13,6 @@ import {
  * constants.rs's MAX_TAG_ID_LEN note).
  */
 export function useTagStakeProgram() {
-  const { connection } = useConnection();
   const wallet = useWallet();
 
   const stakeTag = useCallback(
@@ -29,31 +20,16 @@ export function useTagStakeProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getNebulousWorldProgram(connection, wallet);
-      const app = appPda(program.programId, appId);
-      const appTag = appTagPda(program.programId, app, tagSlug);
-      const position = stakePositionPda(program.programId, appTag, wallet.publicKey);
-      const mint = new PublicKey(config.solana.voteTokenMint);
-      const userAta = await getAssociatedTokenAddress(mint, wallet.publicKey);
-      const appAccount = await program.account.appAccount.fetch(app);
-      const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-
-      const sig = await program.methods
-        .stakeTag(toRawAmount(amount))
-        .accountsPartial({
-          app,
-          appTag,
-          position,
-          principalVault: appTagAccount.principalVault,
-          tagsRewardVault: appAccount.tagsRewardVault,
-          userTokenAccount: userAta,
-          user: wallet.publicKey,
-        })
-        .rpc();
-
-      return { txSig: sig, simulated: false };
+      const { transaction } = await apiPost<{ transaction: string }>("/api/tx/stake-tag", {
+        appId,
+        tagSlug,
+        amount: toRawAmount(amount).toString(),
+        user: wallet.publicKey.toBase58(),
+      });
+      const txSig = await signAndSubmit(wallet, transaction);
+      return { txSig, simulated: false };
     },
-    [connection, wallet],
+    [wallet],
   );
 
   const withdrawTagStake = useCallback(
@@ -61,31 +37,19 @@ export function useTagStakeProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getNebulousWorldProgram(connection, wallet);
-      const app = appPda(program.programId, appId);
-      const appTag = appTagPda(program.programId, app, tagSlug);
-      const position = stakePositionPda(program.programId, appTag, wallet.publicKey);
-      const mint = new PublicKey(config.solana.voteTokenMint);
-      const userAta = await getAssociatedTokenAddress(mint, wallet.publicKey);
-      const appAccount = await program.account.appAccount.fetch(app);
-      const appTagAccount = await program.account.appTagAccount.fetch(appTag);
-
-      const sig = await program.methods
-        .withdrawTagStake(toRawAmount(amount))
-        .accountsPartial({
-          app,
-          appTag,
-          position,
-          principalVault: appTagAccount.principalVault,
-          tagsRewardVault: appAccount.tagsRewardVault,
-          userTokenAccount: userAta,
-          user: wallet.publicKey,
-        })
-        .rpc();
-
-      return { txSig: sig, simulated: false };
+      const { transaction } = await apiPost<{ transaction: string }>(
+        "/api/tx/withdraw-tag-stake",
+        {
+          appId,
+          tagSlug,
+          amount: toRawAmount(amount).toString(),
+          user: wallet.publicKey.toBase58(),
+        },
+      );
+      const txSig = await signAndSubmit(wallet, transaction);
+      return { txSig, simulated: false };
     },
-    [connection, wallet],
+    [wallet],
   );
 
   return { stakeTag, withdrawTagStake };

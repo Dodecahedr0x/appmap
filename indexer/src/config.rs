@@ -26,6 +26,21 @@ pub struct Config {
     /// seconds — see src/crawler.rs for why this is polled rather than
     /// streamed.
     pub crawler_poll_interval_secs: u64,
+    /// SPL mint used for voting & staking — needed to derive `user_token_account`
+    /// ATAs when building vote/stake/claim transactions (see src/api.rs).
+    /// Empty in simulation mode (no mint configured yet); tx-build endpoints
+    /// simply aren't reachable in that case since the app itself won't call
+    /// them (see isSimulationMode() in app/src/lib/config.ts).
+    pub vote_token_mint: Option<Pubkey>,
+    /// Port the HTTP API (src/api.rs) listens on.
+    pub api_port: u16,
+    /// Base URL of the dlmm-bridge sidecar (see dlmm-bridge/README.md).
+    pub dlmm_bridge_url: String,
+    /// NEB/USDC Meteora DLMM pool address (see app/scripts/launch-neb/),
+    /// forwarded to the dlmm-bridge sidecar as an env var. None until the
+    /// pool has been launched (see setup-dev.sh).
+    pub neb_dlmm_pool: Option<String>,
+    pub solana_cluster: String,
 }
 
 impl Config {
@@ -61,6 +76,19 @@ impl Config {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(15);
+        let vote_token_mint = env_non_empty("NEXT_PUBLIC_VOTE_TOKEN_MINT")
+            .map(|s| Pubkey::from_str(&s))
+            .transpose()
+            .with_context(|| "invalid NEXT_PUBLIC_VOTE_TOKEN_MINT")?;
+        let api_port = std::env::var("INDEXER_API_PORT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(8090);
+        let dlmm_bridge_url = env_non_empty("DLMM_BRIDGE_URL")
+            .unwrap_or_else(|| "http://127.0.0.1:8091".to_string());
+        let neb_dlmm_pool = env_non_empty("NEXT_PUBLIC_NEB_DLMM_POOL");
+        let solana_cluster =
+            env_non_empty("NEXT_PUBLIC_SOLANA_CLUSTER").unwrap_or_else(|| "devnet".to_string());
 
         Ok(Self {
             database_url,
@@ -69,6 +97,11 @@ impl Config {
             program_id,
             rollup_interval_secs,
             crawler_poll_interval_secs,
+            vote_token_mint,
+            api_port,
+            dlmm_bridge_url,
+            neb_dlmm_pool,
+            solana_cluster,
         })
     }
 }

@@ -19,6 +19,10 @@ services:
           property: connectionString
 
       # --- Solana ---
+      # Only used to tell the connected wallet extension which chain it's
+      # operating on (see SolanaProvider.tsx) — this app has no RPC
+      # connection of its own. Every on-chain read/write goes through the
+      # indexer instead (see INDEXER_API_URL below and src/lib/indexerClient.ts).
       - key: NEXT_PUBLIC_SOLANA_RPC
         value: https://api.devnet.solana.com
       - key: NEXT_PUBLIC_SOLANA_CLUSTER
@@ -28,18 +32,21 @@ services:
       - key: NEXT_PUBLIC_VOTE_TOKEN_DECIMALS
         value: "6"
       # Leave unset to run in off-chain "simulation" mode. Fill in once a
-      # real SPL vote-token mint / treasury address exist for this deploy.
+      # real SPL vote-token mint / treasury address exist for this deploy —
+      # and set the same mint on nebulous-world-indexer below, which needs
+      # it to build vote/stake/claim transactions.
       - key: NEXT_PUBLIC_VOTE_TOKEN_MINT
         sync: false
       - key: NEXT_PUBLIC_TREASURY_ADDRESS
         sync: false
-      # NEB/USDC Meteora DLMM pool address — created by
-      # app/scripts/launch-neb/ at deployment time. Buying NEB is a direct
-      # swap against this pool. Leave unset until that script has been run.
-      - key: NEXT_PUBLIC_NEB_DLMM_POOL
-        sync: false
-      - key: NEXT_PUBLIC_USDC_MINT
-        sync: false
+
+      # --- Indexer ---
+      # Render's internal service-to-service networking — nebulous-world-indexer
+      # is a private service (pserv), reachable only from other services in
+      # this account/region, never from the public internet. See
+      # indexer/README.md and src/lib/indexerClient.ts.
+      - key: INDEXER_API_URL
+        value: http://nebulous-world-indexer:8090
 
       # --- App config ---
       - key: TRACKING_SECRET
@@ -73,10 +80,13 @@ services:
 
   # Carbon (https://github.com/sevenlabs-hq/carbon) indexer: watches every
   # account owned by the nebulous_world program and every instruction sent
-  # to it, and runs periodic processing tasks that turn that raw on-chain
-  # data into visualization-ready rows (see indexer/README.md). Private —
-  # no public HTTP surface, only reachable on Render's internal network,
-  # since nothing outside this deployment ever calls it directly.
+  # to it, runs periodic processing tasks that turn that raw on-chain data
+  # into visualization-ready rows, AND is nebulous-world's (the app
+  # service above) only path to Solana RPC — it exposes an HTTP API
+  # (src/api.rs) for account reads and transaction building/submission
+  # (see indexer/README.md). Private — no public HTTP surface, only
+  # reachable on Render's internal network, since nothing outside this
+  # deployment (i.e. no browser) ever calls it directly.
   - type: pserv
     name: nebulous-world-indexer
     runtime: docker
@@ -94,8 +104,23 @@ services:
           property: connectionString
       - key: NEXT_PUBLIC_SOLANA_RPC
         value: https://api.devnet.solana.com
+      - key: NEXT_PUBLIC_SOLANA_CLUSTER
+        value: devnet
       - key: NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID
         value: EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx
+      # Must match nebulous-world's (the app service above) own
+      # NEXT_PUBLIC_VOTE_TOKEN_MINT — this is what src/api.rs derives
+      # `user_token_account` ATAs against when building vote/stake/claim
+      # transactions. Leave unset while the app itself is in simulation
+      # mode (it won't call the tx-build endpoints that need it).
+      - key: NEXT_PUBLIC_VOTE_TOKEN_MINT
+        sync: false
+      # NEB/USDC Meteora DLMM pool address — created by
+      # app/scripts/launch-neb/ at deployment time, forwarded to the
+      # dlmm-bridge sidecar (see dlmm-bridge/README.md). Leave unset until
+      # that script has been run.
+      - key: NEXT_PUBLIC_NEB_DLMM_POOL
+        sync: false
       # devnet's public RPC serves WS on the same host/port as HTTP — see
       # default_ws_url in indexer/src/config.rs — so this only needs
       # setting for providers that don't (e.g. a paid RPC on a different
@@ -106,6 +131,8 @@ services:
         value: "60"
       - key: CRAWLER_POLL_INTERVAL_SECS
         value: "15"
+      - key: INDEXER_API_PORT
+        value: "8090"
 
 databases:
   - name: nebulous-world-db

@@ -3,16 +3,21 @@
 # starts a local Surfnet (surfpool, forking mainnet — see surfpool.run) with
 # SOL/USDC airdropped to the dev keypair, deploys the program, launches NEB
 # (mints its supply and seeds the NEB/USDC DLMM pool — see scripts/launch-neb/),
-# and seeds the database. See README.md "Getting started" for the manual,
-# step-by-step version.
+# starts the indexer (the app's only path to Solana RPC — see
+# indexer/README.md and src/lib/indexerClient.ts), and seeds the database.
+# See README.md "Getting started" for the manual, step-by-step version.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 APP_DIR="$(pwd)"
 ROOT_DIR="$(cd "$APP_DIR/.." && pwd)"
+INDEXER_DIR="$ROOT_DIR/indexer"
 
 RPC_PORT=8899
+INDEXER_API_PORT=8090
 SURFPOOL_LOG_DIR="$ROOT_DIR/.surfpool/logs"
 SURFPOOL_PID_FILE="$ROOT_DIR/.surfpool/surfpool.pid"
+INDEXER_LOG="$ROOT_DIR/.surfpool/indexer.log"
+INDEXER_PID_FILE="$ROOT_DIR/.surfpool/indexer.pid"
 DEV_KEYPAIR="$HOME/.config/solana/id.json"
 # Real mainnet USDC — surfpool forks mainnet by default, so this (and every
 # other mainnet program/account: DLMM, Metaplex Token Metadata, ...) is
@@ -22,11 +27,13 @@ TOKEN_PROGRAM_ID="TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 
-for bin in anchor solana surfpool; do
+for bin in anchor solana surfpool cargo; do
   if ! command -v "$bin" >/dev/null 2>&1; then
     echo "error: '$bin' not found on PATH." >&2
     if [ "$bin" = "surfpool" ]; then
       echo "  Install: curl -sL https://run.surfpool.run/ | bash" >&2
+    elif [ "$bin" = "cargo" ]; then
+      echo "  Install Rust first: https://www.rust-lang.org/tools/install" >&2
     else
       echo "  Install the Solana/Anchor toolchain first: https://www.anchor-lang.com/docs/installation" >&2
     fi
@@ -171,6 +178,37 @@ JSON
   rm -f "$LAUNCH_LOG"
 fi
 
+log "Installing indexer/dlmm-bridge dependencies"
+(cd "$INDEXER_DIR/dlmm-bridge" && npm install)
+
+log "Building the indexer"
+(cd "$INDEXER_DIR" && cargo build)
+
+if lsof -i ":$INDEXER_API_PORT" >/dev/null 2>&1; then
+  log "The indexer (or something else) is already running on port $INDEXER_API_PORT, reusing it"
+else
+  log "Starting the indexer in the background (logs: $INDEXER_LOG)"
+  # dotenvy (indexer/src/config.rs) loads this same app/.env automatically —
+  # by this point it has the deployed program id, NEB mint, and pool address
+  # this run just wrote into it, so a single startup here picks up all of
+  # them (unlike starting the indexer earlier, before those existed).
+  (cd "$INDEXER_DIR" && RUST_LOG=info nohup cargo run >"$INDEXER_LOG" 2>&1 &)
+  sleep 1
+  # cargo run's own child process (the `indexer` binary) is what's actually
+  # listening — grab its pid by port rather than cargo's, so teardown-dev.sh
+  # can kill the right process even if cargo's wrapper has already exited.
+  for _ in $(seq 1 60); do
+    INDEXER_PID="$(lsof -ti ":$INDEXER_API_PORT" 2>/dev/null || true)"
+    [ -n "$INDEXER_PID" ] && break
+    sleep 1
+  done
+  if [ -z "${INDEXER_PID:-}" ]; then
+    echo "error: indexer did not come up in time, check $INDEXER_LOG" >&2
+    exit 1
+  fi
+  echo "$INDEXER_PID" > "$INDEXER_PID_FILE"
+fi
+
 log "Resetting and seeding the database"
 npm run db:reset
 
@@ -182,9 +220,11 @@ Local dev environment is ready:
   - dev keypair funded with SOL + 1000 USDC
   - nebulous_world program deployed to localnet
   - NEB minted and its DLMM pool created (or reused — see .env)
+  - indexer running on 127.0.0.1:$INDEXER_API_PORT (logs: $INDEXER_LOG) — the
+    app talks to this instead of Solana RPC directly, see indexer/README.md
   - database reset and seeded
 
 Next steps:
   - Run 'npm run dev' to start the app (http://localhost:3000)
-  - Run 'npm run teardown:dev' to stop surfpool and local Postgres
+  - Run 'npm run teardown:dev' to stop surfpool, the indexer, and local Postgres
 EOF

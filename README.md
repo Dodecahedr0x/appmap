@@ -57,31 +57,37 @@ starts it, and creates the `nebulous_world_dev`/`nebulous_world_test` role and d
 instead if you'd rather manage Postgres yourself.
 
 This runs the product in **simulation mode** (see below) — no Solana
-toolchain required. To exercise the real on-chain program (or before running
-`npm run typecheck`/`npm run build`, both of which import the program's
-generated IDL/types), you first need, from the repo root:
+toolchain required. This app has no Solana RPC connection of its own —
+every on-chain read/write goes through the indexer instead (see
+`indexer/README.md` and `app/src/lib/indexerClient.ts`) — so to exercise
+the real on-chain program you need that running too. From the repo root:
 
 ```bash
-anchor build                  # generates target/idl/nebulous_world.json + target/types/nebulous_world.ts
+anchor build                  # generates target/idl/nebulous_world.json + target/types/nebulous_world.ts,
+                                # needed by scripts/settleEpoch.ts and scripts/launch-neb/, not the app itself
 surfpool start --network mainnet --airdrop-keypair-path ~/.config/solana/id.json
                                 # in a separate terminal — forks mainnet, so real
                                 # programs (DLMM, Metaplex) and mints (USDC) are
                                 # fetched on demand, no manual account cloning
 anchor deploy --provider.cluster localnet
+cd indexer/dlmm-bridge && npm install && cd ..  # one-time
+cd indexer && cargo run          # in a separate terminal — see indexer/README.md
 ```
 
-then set `NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID` in `app/.env` to the deployed
-program id, and run `npm run launch:neb` (see below) to mint NEB and set
+then set `NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID` in `app/.env` (and
+`indexer`'s env — see `indexer/README.md`) to the deployed program id, and
+run `npm run launch:neb` (see below) to mint NEB and set
 `NEXT_PUBLIC_VOTE_TOKEN_MINT`/`NEXT_PUBLIC_NEB_DLMM_POOL`.
 
 Or run all of the above (install, `.env`, `anchor build`, a local surfpool
 Surfnet with SOL + USDC airdropped to your dev keypair, program deploy, the
-NEB launch, and `db:reset`) in one shot with `npm run setup:dev` — see
-`app/scripts/setup-dev.sh`. It requires the Solana/Anchor toolchain and
-[surfpool](https://surfpool.run) (`curl -sL https://run.surfpool.run/ | bash`),
-and leaves the Surfnet running in the background for `npm run dev` to talk
-to. Wind everything back down with `npm run teardown:dev` (stops the
-Surfnet and the local Postgres instance).
+NEB launch, starting the indexer, and `db:reset`) in one shot with
+`npm run setup:dev` — see `app/scripts/setup-dev.sh`. It requires the
+Solana/Anchor/Rust toolchain and [surfpool](https://surfpool.run)
+(`curl -sL https://run.surfpool.run/ | bash`), and leaves the Surfnet and
+the indexer running in the background for `npm run dev` to talk to. Wind
+everything back down with `npm run teardown:dev` (stops the Surfnet, the
+indexer, and the local Postgres instance).
 
 Or, for a single command that does the whole thing end to end, run
 `npm run dev:all` — it runs `setup:dev`, then starts `npm run dev`, and on
@@ -94,8 +100,8 @@ Runnable from the repo root or from `app/` — identical either way.
 
 | Script              | Purpose                                     |
 | ------------------- | ------------------------------------------- |
-| `npm run setup:dev` | One-shot full local dev env setup (surfpool + airdrops + deploy + NEB launch + db) |
-| `npm run teardown:dev` | Stop surfpool and local Postgres started by `setup:dev` |
+| `npm run setup:dev` | One-shot full local dev env setup (surfpool + airdrops + deploy + NEB launch + indexer + db) |
+| `npm run teardown:dev` | Stop surfpool, the indexer, and local Postgres started by `setup:dev` |
 | `npm run dev:all`   | `setup:dev` + `dev` in one command; Ctrl-C runs `teardown:dev` automatically |
 | `npm run dev`       | Start the dev server                        |
 | `npm run build`     | Production build (runs `prisma generate`)   |

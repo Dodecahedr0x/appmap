@@ -1,7 +1,9 @@
+mod api;
 mod backfill;
 mod config;
 mod crawler;
 mod db;
+mod dlmm_bridge;
 mod processors;
 mod rollup;
 
@@ -13,6 +15,7 @@ use config::Config;
 use processors::account::AccountProcessor;
 use solana_account_decoder_client_types::UiAccountEncoding;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
+use std::sync::Arc;
 
 /// Indexes the nebulous_world Anchor program with Carbon
 /// (https://github.com/sevenlabs-hq/carbon): the current state of every
@@ -44,6 +47,38 @@ async fn main() -> Result<()> {
         pool.clone(),
         config.crawler_poll_interval_secs,
     ));
+
+    // The dlmm-bridge sidecar (see src/dlmm_bridge.rs) — spawned as a child
+    // process rather than reimplemented in Rust; see dlmm-bridge/README.md.
+    // Failing to spawn it is non-fatal: the rest of this API (account
+    // reads, nebulous_world tx building/submission) works fine without it,
+    // only /pool and /tx/buy-neb/build degrade.
+    if let Err(e) = dlmm_bridge::spawn(&config).await {
+        log::warn!("dlmm-bridge sidecar did not start (pool/buy-neb endpoints will fail): {e}");
+    }
+
+    let api_state = Arc::new(api::ApiState {
+        pool: pool.clone(),
+        rpc: solana_client::nonblocking::rpc_client::RpcClient::new(config.rpc_http_url.clone()),
+        http: reqwest::Client::new(),
+        program_id: config.program_id,
+        vote_token_mint: config.vote_token_mint.unwrap_or_default(),
+        dlmm_bridge_url: config.dlmm_bridge_url.clone(),
+    });
+    let api_port = config.api_port;
+    tokio::spawn(async move {
+        let listener = match tokio::net::TcpListener::bind(("0.0.0.0", api_port)).await {
+            Ok(l) => l,
+            Err(e) => {
+                log::error!("failed to bind API server on port {api_port}: {e}");
+                return;
+            }
+        };
+        log::info!("HTTP API listening on 0.0.0.0:{api_port}");
+        if let Err(e) = axum::serve(listener, api::router(api_state)).await {
+            log::error!("API server exited: {e}");
+        }
+    });
 
     // Without an explicit encoding, programSubscribe defaults to one with a
     // small data-size limit that every account here exceeds (AppAccount's

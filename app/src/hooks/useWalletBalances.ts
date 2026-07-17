@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { apiGet } from "@/lib/txClient";
 
 export interface WalletBalances {
   neb: number | null;
@@ -11,11 +10,12 @@ export interface WalletBalances {
   refresh: () => void;
 }
 
-async function fetchAtaBalance(connection: Connection, mint: PublicKey, owner: PublicKey) {
+async function fetchBalance(owner: string, mint: string): Promise<number> {
   try {
-    const ata = await getAssociatedTokenAddress(mint, owner);
-    const { value } = await connection.getTokenAccountBalance(ata);
-    return value.uiAmount ?? 0;
+    const { uiAmountString } = await apiGet<{ uiAmountString: string }>(
+      `/api/balances/${owner}/${mint}`,
+    );
+    return Number(uiAmountString);
   } catch {
     // No ATA yet (never held the token) — treat as a zero balance.
     return 0;
@@ -24,7 +24,6 @@ async function fetchAtaBalance(connection: Connection, mint: PublicKey, owner: P
 
 /** The connected wallet's NEB and USDC balances, for display next to the buy panel. */
 export function useWalletBalances(nebMint: string | null, usdcMint: string | null): WalletBalances {
-  const { connection } = useConnection();
   const { publicKey } = useWallet();
   const [neb, setNeb] = useState<number | null>(null);
   const [usdc, setUsdc] = useState<number | null>(null);
@@ -37,18 +36,18 @@ export function useWalletBalances(nebMint: string | null, usdcMint: string | nul
       return;
     }
     let cancelled = false;
-    Promise.all([
-      fetchAtaBalance(connection, new PublicKey(nebMint), publicKey),
-      fetchAtaBalance(connection, new PublicKey(usdcMint), publicKey),
-    ]).then(([nebBalance, usdcBalance]) => {
-      if (cancelled) return;
-      setNeb(nebBalance);
-      setUsdc(usdcBalance);
-    });
+    const owner = publicKey.toBase58();
+    Promise.all([fetchBalance(owner, nebMint), fetchBalance(owner, usdcMint)]).then(
+      ([nebBalance, usdcBalance]) => {
+        if (cancelled) return;
+        setNeb(nebBalance);
+        setUsdc(usdcBalance);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [connection, publicKey, nebMint, usdcMint, nonce]);
+  }, [publicKey, nebMint, usdcMint, nonce]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 

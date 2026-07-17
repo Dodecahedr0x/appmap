@@ -46,6 +46,47 @@ export const trackViewSchema = z.object({
   turnstileToken: z.string().nullable().optional(),
 });
 
+// Requests to the indexer-tx-building proxy routes (see
+// app/src/app/api/tx/**, app/src/lib/indexerClient.ts). `amount` is a raw
+// on-chain u64 (already scaled by the token's decimals — see
+// lib/anchorClient.ts's toRawAmount), passed as a decimal string since it
+// can exceed JS's safe integer range.
+const pubkeyString = z.string().min(32).max(44);
+const rawAmountString = z.string().regex(/^[0-9]+$/, "must be a raw integer amount");
+
+export const buildVoteTxSchema = z.object({
+  appId: z.string().min(1),
+  amount: rawAmountString,
+  user: pubkeyString,
+});
+
+export const buildStakeTagTxSchema = z.object({
+  appId: z.string().min(1),
+  tagSlug: z.string().min(1),
+  amount: rawAmountString,
+  user: pubkeyString,
+});
+
+export const buildClaimVoteRewardTxSchema = z.object({
+  appId: z.string().min(1),
+  user: pubkeyString,
+});
+
+export const buildClaimTagRewardTxSchema = z.object({
+  appId: z.string().min(1),
+  tagSlug: z.string().min(1),
+  user: pubkeyString,
+});
+
+export const buildBuyNebTxSchema = z.object({
+  usdcAmount: z.number().positive().max(1_000_000_000),
+  user: pubkeyString,
+});
+
+export const submitTxSchema = z.object({
+  signedTransaction: z.string().min(1),
+});
+
 export const authVerifySchema = z.object({
   wallet: z.string().min(32).max(64),
   signature: z.string().min(32).max(200),
