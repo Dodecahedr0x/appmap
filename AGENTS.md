@@ -41,17 +41,99 @@ the app's DB.
   are recorded off-chain instead of via real transactions. See
   `app/src/lib/config.ts` and the README's "Simulation vs on-chain mode".
 
-## Conventions worth knowing before editing
+## Guidelines & code style
 
-- No direct Solana RPC access from `app/` — everything on-chain goes through
-  `indexer`'s HTTP API via `app/src/lib/indexerClient.ts`. If you're tempted
-  to construct a `Connection` in the app, that's a sign to look at the
-  indexer instead.
-- Pure math is kept separate from DB/IO so it can be unit-tested in
-  isolation: `app/src/lib/ranking.ts`, `revenue.ts`,
-  `programs/nebulous_world/src/reward_math.rs`. DB-touching orchestration
-  layers on top (`app/src/lib/engine.ts`) call into that pure math rather
-  than duplicating it.
+**Cross-language philosophy — comments explain *why*, not *what*.** This
+codebase leans hard on doc comments to record non-obvious reasoning:
+invariants, footguns, and rejected alternatives — not restatements of the
+code. This is deliberate and consistent in both languages; match it rather
+than adding comments that just describe what the next line does. Good
+examples to pattern-match against: `app/src/lib/opengraph.ts` (why the
+title-splitting regex handles colons differently from dashes),
+`programs/nebulous_world/src/state.rs` (the `AppAccount`/`AppTagAccount`
+CPI-signing footgun — sign with derivation seeds, not `.key()`),
+`programs/nebulous_world/src/reward_math.rs` (why explicit checked
+arithmetic instead of the `overflow-checks` build flag), and
+`indexer/src/api.rs`'s module-level `//!` doc.
+
+**Pure logic is kept separate from DB/IO**, so the interesting math can be
+unit-tested without a database or a validator: `app/src/lib/ranking.ts`,
+`revenue.ts`, `programs/nebulous_world/src/reward_math.rs`. The DB/RPC-touching
+orchestration on top of that (`app/src/lib/engine.ts`) calls into this pure
+logic rather than duplicating it — new business logic should follow the same
+split.
+
+**No direct Solana RPC access from `app/`** — everything on-chain goes
+through `indexer`'s HTTP API via `app/src/lib/indexerClient.ts`. If you're
+about to construct a `Connection` in `app/`, that's a sign to add an indexer
+endpoint instead.
+
+### TypeScript / Next.js (`app/`)
+
+- `strict` TypeScript (`app/tsconfig.json`); avoid `any` — the codebase has
+  none. Linting is `next lint` (`npm run lint`, defaults from
+  `next/core-web-vitals` + `next/typescript`, no custom rules). No Prettier
+  config — don't introduce one or bulk-reformat; match surrounding style by
+  hand.
+- Double-quoted strings, semicolons, `interface` for object shapes (`type`
+  only for unions/derived types — `interface` outnumbers `type` roughly 5:1
+  in `src/lib/`).
+- Components are named function declarations —
+  `export function ComponentName() { ... }` — never `const X = () => ...`.
+  `"use client"` only at the top of files that actually need it (event
+  handlers, hooks, browser APIs); everything else is a server component by
+  default.
+- Imports: external packages first, then internal — always via the `@/*`
+  path alias (`@/lib/...`, `@/components/...`), never relative `../../`
+  chains.
+- API routes (`src/app/api/**/route.ts`): always wrap handlers in `handler()`
+  from `@/lib/api`, respond via `ok()`/`fail()`, validate the request body
+  with a Zod schema from `@/lib/validation.ts`, and throw `ApiError` for
+  expected failures (auth, not-found, conflict) rather than returning
+  ad hoc error shapes. See `app/AGENTS.md`'s API table for the existing
+  routes to pattern-match against.
+- Client-side async actions (vote, stake, claim, submit) follow one shape
+  throughout the codebase: a `busy` boolean state, `try { … await …;
+  toast.success(...) } catch { toast.error(...) } finally { setBusy(false) }`.
+  Reuse it rather than inventing a new async-UI pattern.
+- Styling is Tailwind, utility-first. Shared primitives
+  (`.card`, `.btn`/`.btn-primary`/`.btn-secondary`/`.btn-ghost`, `.input`,
+  `.chip`/`.chip-active`) are `@apply`-based classes in
+  `src/app/globals.css` — reach for those before writing a long ad hoc
+  utility string, and add a new shared class there if a pattern repeats
+  three-plus times rather than copy-pasting utilities.
+- Tests: Vitest, colocated as `*.test.ts` next to the file it covers (see
+  `app/src/lib/AGENTS.md`). Run with `npm test`.
+
+### Rust (`programs/nebulous_world/`, `indexer/`)
+
+- Toolchain pinned in `rust-toolchain.toml` (1.89.0, `rustfmt` + `clippy`
+  installed). No custom `rustfmt.toml`/`clippy.toml` — defaults for both.
+- On-chain math (`reward_math.rs`) uses **explicit checked arithmetic**
+  (`checked_add`/`checked_mul`/…) throughout rather than relying on the
+  `overflow-checks` profile flag — see that file's top comment for why (it
+  doesn't protect the final narrowing cast to `u64`, and is an easy-to-lose
+  implicit safety net besides).
+- Anchor program errors are one `#[error_code] enum ErrorCode` in `error.rs`,
+  one variant per invariant, each with a `#[msg("...")]` — don't `panic!`/
+  `unwrap()` on a condition a caller can trigger.
+- PDA-owning account structs (`state.rs`) document their exact seed list and
+  any CPI-signing gotcha in a doc comment on the struct — follow that
+  pattern for any new PDA account rather than leaving seed derivation
+  implicit in the instruction handler alone.
+- The indexer (`indexer/src/`) mirrors the app's API-layer shape in Rust:
+  `anyhow` internally, handlers returning `Result<_, ApiError>` with a local
+  `ApiError` that maps to a clean HTTP response — the same "typed error →
+  clean JSON response" convention as `app/src/lib/api.ts`, just per-language.
+- Tests: see `programs/nebulous_world/AGENTS.md` — two distinct suites
+  (`cargo test` for the fast LiteSVM suite, `anchor test` for the
+  real-validator TS suite); don't conflate them.
+
+## Other conventions worth knowing
+
 - Git worktrees under `.worktrees/` are the norm for feature branches in this
   repo — check `git worktree list` before assuming `main`'s working tree is
   the only work in flight.
+- Commit messages follow a light conventional-commit style: `type: short
+  imperative summary` (`feat: …`, `fix: …`, `docs: …`), body explaining *why*
+  when it's not obvious from the diff.
