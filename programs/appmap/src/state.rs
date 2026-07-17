@@ -50,3 +50,22 @@ impl AppAccount {
     /// `MAX_APP_ID_LEN` (32) bytes, the Solana PDA per-seed limit.
     pub const SPACE: usize = 4 + 32 + 32 + 32 + 32 + 8 + 16 + 8 + 16 + 1;
 }
+
+/// One `VotePosition` per (app, user) pair, tracking a user's locked
+/// vote-stake principal in `AppAccount::vote_vault` and the accumulator
+/// checkpoint needed to compute rewards owed from `AppAccount::vote_reward_vault`.
+/// Seeds: `[VOTE_POSITION_SEED, app.key(), user.key()]` — unlike `AppAccount`,
+/// this PDA never needs to sign a CPI, so deriving it from `app.key()`
+/// (rather than `app_id` bytes) carries none of the footgun documented on
+/// `AppAccount::bump`; it's simply a uniqueness key per user-per-app.
+#[account]
+pub struct VotePosition {
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub reward_debt: u128,
+    pub bump: u8,
+}
+
+impl VotePosition {
+    pub const SPACE: usize = 32 + 8 + 16 + 1;
+}
