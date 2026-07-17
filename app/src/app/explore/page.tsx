@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { getPlatformStats } from "@/lib/explore";
-import { searchApps } from "@/lib/search";
-import { searchSchema } from "@/lib/validation";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
-import { AppCard } from "@/components/AppCard";
 import { ExploreMaps } from "@/components/explore/ExploreMaps";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +21,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 export default async function ExplorePage() {
-  const [stats, top] = await Promise.all([
-    getPlatformStats(),
-    searchApps(searchSchema.parse({ sort: "rank", pageSize: 6 })),
-  ]);
+  const stats = await getPlatformStats();
 
   return (
     <div className="space-y-16">
@@ -57,18 +51,6 @@ export default async function ExplorePage() {
         </p>
         <div className="mt-6">
           <ExploreMaps />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-heading font-semibold text-ink">Top ranked</h2>
-        <p className="mt-1 text-sm text-slate">
-          By the same open ranking formula every app is sorted by everywhere else on the site.
-        </p>
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {top.apps.map((app, i) => (
-            <AppCard key={app.id} app={app} rank={i + 1} />
-          ))}
         </div>
       </section>
     </div>

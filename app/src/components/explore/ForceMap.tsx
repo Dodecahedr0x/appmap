@@ -7,6 +7,8 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
@@ -49,6 +51,11 @@ interface ForceMapProps<RawNode, RawLink> {
   // "connected peers" — so callers can build a related-items list without
   // re-deriving adjacency themselves.
   onSelect?: (node: MapNode | null, neighborIds: string[]) => void;
+  // Shown instead of the canvas when a LIVE fetch succeeds but returns zero
+  // nodes (e.g. a tag-combination filter that matches nothing) — distinct
+  // from a fetch failure, which still falls back to sample data, since a
+  // genuinely empty result shouldn't be masked by unrelated sample nodes.
+  emptyMessage?: string;
 }
 
 const NODE_FILL = "#0068f9";
@@ -72,6 +79,12 @@ const RADIUS_RANGE = 33;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 4;
 const ZOOM_BUTTON_FACTOR = 1.4;
+// Gravity: a soft per-node spring toward the origin (weak relative to the
+// -150 charge/0.5 link forces, so it shapes the resting layout without
+// fighting clustering) plus a hard position clamp as an absolute backstop —
+// see the simulation setup below for why both exist.
+const GRAVITY_STRENGTH = 0.03;
+const MAX_RADIUS_FROM_CENTER = 600;
 
 /**
  * Generic force-directed map: nodes sized by a chosen metric, linked by a
@@ -93,9 +106,12 @@ export function ForceMap<RawNode, RawLink>({
   ariaLabel,
   sourceLabel,
   onSelect,
+  emptyMessage,
 }: ForceMapProps<RawNode, RawLink>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [source, setSource] = useState<"live" | "sample">("sample");
+  const [loading, setLoading] = useState(true);
+  const [isEmpty, setIsEmpty] = useState(false);
   const [hovered, setHovered] = useState<MapNode | null>(null);
   // Hover-to-highlight and drag are pointer-only (replicating them via
   // keyboard would need a whole separate nav model for what's a
@@ -126,21 +142,47 @@ export function ForceMap<RawNode, RawLink>({
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setIsEmpty(false);
+    // A previous fetchUrl's simulation may have left its last-drawn frame
+    // sitting in the canvas's pixel buffer — its own rAF loop already got
+    // cancelled by the cleanup below, so nothing will repaint over it on
+    // its own. Clear it up front so neither the "Loading…" text nor an
+    // empty-result message ever appears overlaid on stale nodes/edges.
+    const canvasAtStart = canvasRef.current;
+    canvasAtStart?.getContext("2d")?.clearRect(0, 0, canvasAtStart.width, canvasAtStart.height);
     fetch(fetchUrl)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       // API responses are wrapped as { ok: true, data } by src/lib/api.ts's ok().
       .then((body: { data?: { nodes?: RawNode[]; edges?: RawLink[] } }) => {
         if (cancelled) return;
         const data = body.data;
-        if (!data?.nodes?.length) {
+        if (!data?.nodes) {
+          // Malformed/missing response shape — treat like a fetch failure.
+          setLoading(false);
           start(fallbackNodes, fallbackLinks);
           return;
         }
+        if (data.nodes.length === 0) {
+          // A live fetch that genuinely has nothing to show (e.g. a tag
+          // filter combination matching no apps) is NOT a failure — showing
+          // unrelated sample nodes here would silently misrepresent the
+          // current filter as having real matches.
+          setSource("live");
+          setLoading(false);
+          setIsEmpty(true);
+          setNodeList([]);
+          return;
+        }
         setSource("live");
+        setLoading(false);
         start(data.nodes.map(mapNode), (data.edges ?? []).map(mapLink));
       })
       .catch(() => {
-        if (!cancelled) start(fallbackNodes, fallbackLinks);
+        if (!cancelled) {
+          setLoading(false);
+          start(fallbackNodes, fallbackLinks);
+        }
       });
 
     let cleanup: (() => void) | undefined;
@@ -228,7 +270,32 @@ export function ForceMap<RawNode, RawLink>({
         .force("link", linkForce)
         .force("collide", collideForce)
         .force("center", forceCenter(0, 0))
+        // A soft, per-node spring toward the origin — unlike forceCenter
+        // (which only nudges the whole layout so its AVERAGE position sits
+        // at the origin, doing nothing for an individual outlier), this
+        // pulls every node back toward the middle on its own, so a node
+        // with few/no links can't drift away just because charge repulsion
+        // pushed it there. Weak enough not to fight clustering.
+        .force("gravityX", forceX(0).strength(GRAVITY_STRENGTH))
+        .force("gravityY", forceY(0).strength(GRAVITY_STRENGTH))
         .alphaDecay(reduceMotion ? 1 : 0.02);
+
+      // Hard backstop on top of the soft gravity springs above: a spring
+      // pull always leaves SOME force balance where a node could still
+      // rest very far out (e.g. an isolated node with no links, fighting
+      // strong charge repulsion) — this guarantees no node ever renders
+      // farther than MAX_RADIUS_FROM_CENTER from the origin, full stop.
+      simulation.on("tick", () => {
+        for (const n of nodes) {
+          if (n.x == null || n.y == null) continue;
+          const dist = Math.hypot(n.x, n.y);
+          if (dist > MAX_RADIUS_FROM_CENTER) {
+            const scale = MAX_RADIUS_FROM_CENTER / dist;
+            n.x *= scale;
+            n.y *= scale;
+          }
+        }
+      });
 
       // Re-evaluates radius/distance against the currently selected metrics
       // and re-triggers d3-force's internal recompute (calling .distance()/
@@ -548,6 +615,16 @@ export function ForceMap<RawNode, RawLink>({
           role="img"
           aria-label={ariaLabel}
         />
+        {isEmpty && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
+            <p className="text-sm text-slate-steel">{emptyMessage ?? "Nothing to show."}</p>
+          </div>
+        )}
+        {loading && !isEmpty && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <p className="text-sm text-slate-steel">Loading…</p>
+          </div>
+        )}
         {hovered && (
           <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-hairline bg-white px-3 py-2 shadow-subtle">
             <div className="text-sm font-semibold text-ink">{hovered.label}</div>

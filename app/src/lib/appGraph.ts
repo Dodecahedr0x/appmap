@@ -42,10 +42,15 @@ const MAX_NEIGHBORS_PER_APP = 6;
  * dropped too, since an isolated dot has no relational insight to offer
  * here (search/browse already covers that job).
  *
+ * `tagSlugs`, if given, restricts the map to apps carrying EVERY one of
+ * those tags (AND/intersection semantics — "combine tags to narrow down",
+ * not "any of these") before any similarity is computed, so switching on a
+ * second tag only ever shrinks the map, never grows it back.
+ *
  * O(n^2) tag-set comparisons — fine at catalog sizes up to a few hundred
  * apps; would need an inverted-index prefilter well beyond that.
  */
-export async function buildAppGraph(): Promise<AppGraph> {
+export async function buildAppGraph(tagSlugs: string[] = []): Promise<AppGraph> {
   const apps = await prisma.app.findMany({
     where: { status: AppStatus.APPROVED },
     select: {
@@ -54,11 +59,19 @@ export async function buildAppGraph(): Promise<AppGraph> {
       stakeTotal: true,
       viewCount: true,
       voteWeight: true,
-      appTags: { select: { tagId: true, stakeTotal: true } },
+      appTags: { select: { tagId: true, stakeTotal: true, tag: { select: { slug: true } } } },
     },
   });
 
-  const tagged = apps.filter((a) => a.appTags.length > 0);
+  const filtered =
+    tagSlugs.length > 0
+      ? apps.filter((a) => {
+          const slugs = new Set(a.appTags.map((t) => t.tag.slug));
+          return tagSlugs.every((s) => slugs.has(s));
+        })
+      : apps;
+
+  const tagged = filtered.filter((a) => a.appTags.length > 0);
 
   const candidates: AppGraphEdge[] = [];
   for (let i = 0; i < tagged.length; i++) {
