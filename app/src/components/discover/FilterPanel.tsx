@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+// Kept in sync with the panel's `duration-150` exit transition — it stays
+// mounted this long after closing so the fade/scale-out can play instead of
+// the panel disappearing mid-animation.
+const EXIT_MS = 150;
 
 export interface RangeFilters {
   appStakeMin: string;
@@ -109,7 +114,24 @@ export function FilterPanel({
   onClear,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  // Mirrors `isOpen` but stays true a beat longer on close, and `panelVisible`
+  // a beat shorter, so the panel gets an actual "from" state to transition
+  // out of instead of vanishing the instant it's toggled (see Modal.tsx for
+  // the same pattern).
+  const [panelRendered, setPanelRendered] = useState(false);
+  const [panelVisible, setPanelVisible] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setPanelRendered(true);
+      const raf = requestAnimationFrame(() => setPanelVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setPanelVisible(false);
+    const t = setTimeout(() => setPanelRendered(false), EXIT_MS);
+    return () => clearTimeout(t);
+  }, [isOpen]);
 
   const activeCount = countActiveFilters(selectedTags, ranges, fuzzy);
   const hasFilters = activeCount > 0;
@@ -132,7 +154,7 @@ export function FilterPanel({
         onClick={() => setIsOpen((v) => !v)}
         className={cn(
           "btn-secondary gap-2 rounded-pill shadow-subtle",
-          isOpen && "rounded-b-none border-b-0",
+          panelRendered && "rounded-b-none border-b-0",
         )}
         aria-expanded={isOpen}
         aria-controls="discover-filter-panel"
@@ -158,10 +180,13 @@ export function FilterPanel({
         )}
       </button>
 
-      {isOpen && (
+      {panelRendered && (
         <div
           id="discover-filter-panel"
-          className="card mt-0 max-h-[75vh] w-72 space-y-5 overflow-y-auto rounded-tr-none p-4 shadow-subtle"
+          className={cn(
+            "card mt-0 max-h-[75vh] w-72 origin-top-right space-y-5 overflow-y-auto rounded-tr-none p-4 shadow-subtle transition-opacity duration-150 motion-safe:transition-[opacity,transform]",
+            panelVisible ? "opacity-100 motion-safe:scale-100" : "opacity-0 motion-safe:scale-95",
+          )}
         >
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-ink">Filters</span>

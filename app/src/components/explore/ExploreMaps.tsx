@@ -131,7 +131,7 @@ export function ExploreMaps() {
 
           {tab === "apps" && availableTags.length > 0 && (
             <div>
-              <div className="text-caption font-semibold uppercase tracking-wide text-white/40">
+              <div className="text-caption font-semibold uppercase tracking-wide text-white/50">
                 Filter by tag{selectedTags.length > 0 ? ` (${selectedTags.length} selected)` : ""}
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">

@@ -249,7 +249,19 @@ export function ForceMap<RawNode, RawLink>({
       // Kept in a plain object (not React state) since it changes on every
       // wheel tick/pointer move and is only ever read by the rAF paint loop
       // and pointer-position math below, never by JSX.
+      //
+      // `view` is what's actually drawn; `viewTarget` is where it's headed.
+      // A drag/wheel gesture writes both at once (1:1 tracking — a gesture
+      // must never lag behind the pointer). A button click (zoom in/out/
+      // reset) only moves `viewTarget`; the ease step in paintLoop below
+      // chases `view` toward it every frame, so those clicks animate
+      // smoothly instead of snapping the camera.
       const view = { k: 1, x: 0, y: 0 };
+      const viewTarget = { k: 1, x: 0, y: 0 };
+      // Time constant (seconds) for the view-follows-target ease — small
+      // enough to feel immediate, large enough to actually read as motion
+      // rather than a snap.
+      const VIEW_EASE_TIME_CONSTANT = 0.15;
       let transformInitialized = false;
 
       function resize() {
@@ -265,6 +277,8 @@ export function ForceMap<RawNode, RawLink>({
           // resizes (e.g. a window resize) must not clobber a user's pan/zoom.
           view.x = width / 2;
           view.y = height / 2;
+          viewTarget.x = view.x;
+          viewTarget.y = view.y;
           transformInitialized = true;
         }
         simulation.alpha(0.6).restart();
@@ -326,23 +340,41 @@ export function ForceMap<RawNode, RawLink>({
       };
 
       // Zooms so that the point currently under `screenPoint` stays fixed on
-      // screen — the standard "zoom to cursor" (or "zoom to button, from the
-      // canvas center") formula, clamped to [MIN_ZOOM, MAX_ZOOM].
+      // screen — the standard "zoom to cursor" formula, clamped to
+      // [MIN_ZOOM, MAX_ZOOM]. Used by the wheel handler, which is a live
+      // gesture: it writes `view` directly (no easing lag) and keeps
+      // `viewTarget` in lockstep so a zoom button clicked right after isn't
+      // animating from a stale pre-gesture target.
       function zoomAt(screenPoint: { x: number; y: number }, factor: number) {
         const nextK = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.k * factor));
         const applied = nextK / view.k;
         view.x = screenPoint.x - (screenPoint.x - view.x) * applied;
         view.y = screenPoint.y - (screenPoint.y - view.y) * applied;
         view.k = nextK;
+        viewTarget.k = view.k;
+        viewTarget.x = view.x;
+        viewTarget.y = view.y;
+      }
+
+      // Same "zoom to point" math, but for the +/-/reset buttons: a discrete
+      // click isn't a gesture, so it only moves `viewTarget` — the ease step
+      // in paintLoop below animates `view` to catch up, instead of the
+      // camera jump-cutting to the new zoom level.
+      function animateZoomAt(screenPoint: { x: number; y: number }, factor: number) {
+        const nextK = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewTarget.k * factor));
+        const applied = nextK / viewTarget.k;
+        viewTarget.x = screenPoint.x - (screenPoint.x - viewTarget.x) * applied;
+        viewTarget.y = screenPoint.y - (screenPoint.y - viewTarget.y) * applied;
+        viewTarget.k = nextK;
       }
 
       zoomActionsRef.current = {
-        zoomIn: () => zoomAt({ x: width / 2, y: height / 2 }, ZOOM_BUTTON_FACTOR),
-        zoomOut: () => zoomAt({ x: width / 2, y: height / 2 }, 1 / ZOOM_BUTTON_FACTOR),
+        zoomIn: () => animateZoomAt({ x: width / 2, y: height / 2 }, ZOOM_BUTTON_FACTOR),
+        zoomOut: () => animateZoomAt({ x: width / 2, y: height / 2 }, 1 / ZOOM_BUTTON_FACTOR),
         reset: () => {
-          view.k = 1;
-          view.x = width / 2;
-          view.y = height / 2;
+          viewTarget.k = 1;
+          viewTarget.x = width / 2;
+          viewTarget.y = height / 2;
         },
       };
 
@@ -439,9 +471,29 @@ export function ForceMap<RawNode, RawLink>({
       let raf = 0;
       let stopped = false;
       let onScreen = true;
+      let lastFrameTime = performance.now();
       function paintLoop() {
         if (stopped) return;
-        if (onScreen) draw();
+        const now = performance.now();
+        // Clamp dt so a stalled/backgrounded tab doesn't resume with one huge
+        // catch-up jump — worst case it just takes one extra frame to settle.
+        const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+        lastFrameTime = now;
+        if (onScreen) {
+          if (reduceMotion) {
+            // No moving camera under reduced motion — button zoom/reset just
+            // takes effect immediately instead of animating there.
+            view.k = viewTarget.k;
+            view.x = viewTarget.x;
+            view.y = viewTarget.y;
+          } else {
+            const ease = 1 - Math.exp(-dt / VIEW_EASE_TIME_CONSTANT);
+            view.k += (viewTarget.k - view.k) * ease;
+            view.x += (viewTarget.x - view.x) * ease;
+            view.y += (viewTarget.y - view.y) * ease;
+          }
+          draw();
+        }
         raf = requestAnimationFrame(paintLoop);
       }
       raf = requestAnimationFrame(paintLoop);
@@ -531,6 +583,8 @@ export function ForceMap<RawNode, RawLink>({
         if (panning && downPos) {
           view.x = panOrigin.x + (p.x - downPos.x);
           view.y = panOrigin.y + (p.y - downPos.y);
+          viewTarget.x = view.x;
+          viewTarget.y = view.y;
           return;
         }
         const hit = nodeAt(toWorld(p));

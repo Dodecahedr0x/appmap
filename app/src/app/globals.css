@@ -57,6 +57,15 @@ body {
   }
 }
 
+/* prefers-reduced-transparency has no Tailwind variant — translucent chrome
+   (the sticky navbar) falls back to a solid bar with the blur dropped. */
+@media (prefers-reduced-transparency: reduce) {
+  .navbar-chrome {
+    background-color: #ffffff;
+    backdrop-filter: none;
+  }
+}
+
 /* Wallet-adapter modal restyle to fit the light theme. */
 .wallet-adapter-button {
   height: auto !important;

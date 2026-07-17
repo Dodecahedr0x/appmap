@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "@/lib/utils";
+
+// Kept in sync with the `duration-200` exit transition below — the card
+// stays mounted this long after `open` goes false so the fade/scale-out can
+// actually play instead of the modal disappearing mid-animation.
+const EXIT_MS = 200;
 
 /**
  * A minimal, generic modal: fixed backdrop + centered card, closes on
@@ -9,6 +15,12 @@ import { createPortal } from "react-dom";
  * trap — every control inside is reached in the same tab order as the
  * rest of the page, and Escape/backdrop-click are enough to dismiss it
  * without one for this app's current modal use (a single short form).
+ *
+ * Opening/closing materializes the card (fade + scale from the card's own
+ * center) rather than popping in/out instantly, and mirrors the same path
+ * in reverse on close. `visible` stays mounted through the exit transition;
+ * `motion-safe:scale-*` means reduced-motion users still get the opacity
+ * cross-fade but never the transform.
  */
 export function Modal({
   open,
@@ -21,6 +33,22 @@ export function Modal({
   title: string;
   children: React.ReactNode;
 }) {
+  const [rendered, setRendered] = useState(open);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true);
+      // Mount closed first, then flip to visible on the next frame so the
+      // enter transition actually has a "from" state to animate out of.
+      const raf = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setVisible(false);
+    const t = setTimeout(() => setRendered(false), EXIT_MS);
+    return () => clearTimeout(t);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -35,18 +63,24 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!rendered) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-ink/40 p-4"
+      className={cn(
+        "fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4 transition-colors duration-200",
+        visible ? "bg-ink/40" : "bg-ink/0",
+      )}
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="card my-8 w-full max-w-lg p-6"
+        className={cn(
+          "card my-8 w-full max-w-lg p-6 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+          visible ? "opacity-100 motion-safe:scale-100" : "opacity-0 motion-safe:scale-95",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
