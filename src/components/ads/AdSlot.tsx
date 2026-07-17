@@ -41,7 +41,7 @@ export function AdSlot({ appId }: { appId: string }) {
 
   if (!ad) {
     return (
-      <div className="card grid h-32 place-items-center p-6 text-xs text-slate-600">
+      <div className="card grid h-32 place-items-center p-6 text-xs text-slate-steel">
         Sponsored
       </div>
     );
@@ -64,10 +64,10 @@ export function AdSlot({ appId }: { appId: string }) {
       target="_blank"
       rel="noopener noreferrer sponsored"
       onClick={onClick}
-      className="card group block overflow-hidden p-0 transition-colors hover:border-brand-purple/50"
+      className="card group block overflow-hidden p-0 transition-colors hover:border-cobalt/50"
     >
       <div className="flex items-center justify-between px-3 pt-2">
-        <span className="text-[10px] uppercase tracking-wide text-slate-600">
+        <span className="text-[10px] uppercase tracking-wide text-slate-steel">
           Sponsored
         </span>
       </div>
@@ -76,10 +76,10 @@ export function AdSlot({ appId }: { appId: string }) {
         <img src={ad.imageUrl} alt="" className="h-28 w-full object-cover" />
       )}
       <div className="p-3">
-        <div className="font-semibold text-white group-hover:text-brand-green">
+        <div className="font-semibold text-ink group-hover:text-cobalt">
           {ad.title}
         </div>
-        <p className="mt-0.5 text-sm text-slate-400">{ad.body}</p>
+        <p className="mt-0.5 text-sm text-slate">{ad.body}</p>
       </div>
     </a>
   );

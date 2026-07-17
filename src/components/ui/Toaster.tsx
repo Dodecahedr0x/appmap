@@ -61,13 +61,13 @@ export function Toaster({ children }: { children: ReactNode }) {
             key={t.id}
             role="status"
             className={cn(
-              "pointer-events-auto animate-fade-in rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur",
+              "pointer-events-auto animate-fade-in rounded-card border bg-white px-4 py-3 text-sm shadow-lg",
               t.kind === "success" &&
-                "border-brand-green/40 bg-brand-green/10 text-brand-green",
+                "border-forest/30 bg-forest/5 text-forest",
               t.kind === "error" &&
-                "border-red-500/40 bg-red-500/10 text-red-300",
+                "border-red-500/30 bg-red-50 text-red-600",
               t.kind === "info" &&
-                "border-surface-border bg-surface-overlay text-slate-200",
+                "border-hairline text-ink",
             )}
             onClick={() => remove(t.id)}
           >

@@ -17,7 +17,7 @@ export function Sparkline({
   height?: number;
 }) {
   if (data.length === 0) {
-    return <div className="text-sm text-slate-500">No data yet.</div>;
+    return <div className="text-sm text-slate-steel">No data yet.</div>;
   }
   const max = Math.max(1, ...data.map((d) => d.value));
   const gap = 4;
@@ -34,12 +34,12 @@ export function Sparkline({
           >
             <div className="relative w-full">
               <div
-                className="w-full rounded-t bg-brand-gradient transition-all group-hover:opacity-80"
+                className="w-full rounded-t bg-cobalt transition-all group-hover:opacity-80"
                 style={{ height: h }}
                 title={`${d.label}: ${d.value}`}
               />
             </div>
-            <span className="text-[10px] text-slate-500">{d.label}</span>
+            <span className="text-[10px] text-slate-steel">{d.label}</span>
           </div>
         );
       })}

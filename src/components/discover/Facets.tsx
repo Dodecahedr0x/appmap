@@ -23,7 +23,7 @@ function Section({
 }) {
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <h3 className="mb-2 text-caption font-semibold uppercase tracking-[0.077em] text-slate-steel">
         {title}
       </h3>
       {children}
@@ -47,10 +47,10 @@ export function Facets({
   return (
     <div className="card space-y-5 p-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-white">Filters</span>
+        <span className="text-sm font-semibold text-ink">Filters</span>
         {hasFilters && (
           <button
-            className="text-xs text-brand-purple hover:underline"
+            className="text-xs text-cobalt hover:underline"
             onClick={onClear}
           >
             Clear
@@ -66,14 +66,14 @@ export function Facets({
                 key={c.value}
                 onClick={() => onSelectCategory(c.value)}
                 className={cn(
-                  "flex items-center justify-between rounded-md px-2 py-1 text-left text-sm capitalize transition-colors",
+                  "flex items-center justify-between rounded-card px-2 py-1 text-left text-sm capitalize transition-colors",
                   category === c.value
-                    ? "bg-brand-purple/15 text-white"
-                    : "text-slate-400 hover:bg-surface-overlay hover:text-white",
+                    ? "bg-cobalt/10 text-cobalt"
+                    : "text-slate hover:bg-ivory hover:text-ink",
                 )}
               >
                 <span>{c.value}</span>
-                <span className="text-xs text-slate-500">{c.count}</span>
+                <span className="text-xs text-slate-steel">{c.count}</span>
               </button>
             ))}
           </div>
@@ -92,7 +92,7 @@ export function Facets({
                   chain === c.value && "chip-active",
                 )}
               >
-                {c.value} <span className="text-slate-500">{c.count}</span>
+                {c.value} <span className="text-slate-steel">{c.count}</span>
               </button>
             ))}
           </div>
@@ -111,7 +111,7 @@ export function Facets({
                   selectedTags.includes(t.slug) && "chip-active",
                 )}
               >
-                #{t.name} <span className="text-slate-500">{t.count}</span>
+                #{t.name} <span className="text-slate-steel">{t.count}</span>
               </button>
             ))}
           </div>

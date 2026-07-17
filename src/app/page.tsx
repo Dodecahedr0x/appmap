@@ -26,7 +26,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   const initial = await searchApps(input);
 
   return (
-    <Suspense fallback={<div className="py-16 text-center text-slate-500">Loading…</div>}>
+    <Suspense fallback={<div className="py-16 text-center text-slate-steel">Loading…</div>}>
       <Discover initial={initial} />
     </Suspense>
   );

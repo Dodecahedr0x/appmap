@@ -8,8 +8,8 @@ export default async function TagsPage() {
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Tag explorer</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-xl font-semibold text-ink">Tag explorer</h1>
+        <p className="mt-1 text-sm text-slate">
           Nodes sized by total stake, edges connect tags that co-occur on the same app.
         </p>
       </div>

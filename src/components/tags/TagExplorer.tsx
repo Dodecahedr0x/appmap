@@ -55,7 +55,7 @@ export function TagExplorer({ nodes, edges }: { nodes: GraphNode[]; edges: Graph
   }, [nodes, edges]);
 
   if (nodes.length === 0) {
-    return <p className="text-sm text-slate-500">No tags yet.</p>;
+    return <p className="text-sm text-slate-steel">No tags yet.</p>;
   }
 
   const maxStake = maxStakeOf(positioned);
@@ -73,15 +73,15 @@ export function TagExplorer({ nodes, edges }: { nodes: GraphNode[]; edges: Graph
             y1={s.y}
             x2={t.x}
             y2={t.y}
-            stroke="#232b3d"
+            stroke="#cccccc"
             strokeWidth={Math.min(4, e.weight)}
           />
         );
       })}
       {positioned.map((n) => (
         <g key={n.id} transform={`translate(${n.x},${n.y})`}>
-          <circle r={6 + 20 * (n.stake / maxStake)} fill="#9945FF" fillOpacity={0.8} />
-          <text x={10} y={4} fontSize={11} fill="#e2e8f0">
+          <circle r={6 + 20 * (n.stake / maxStake)} fill="#0068f9" fillOpacity={0.85} />
+          <text x={10} y={4} fontSize={11} fill="#121722">
             #{n.name}
           </text>
         </g>

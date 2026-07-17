@@ -30,9 +30,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="card p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-bold text-white">{value}</div>
-      {hint && <div className="text-xs text-slate-500">{hint}</div>}
+      <div className="text-xs uppercase tracking-wide text-slate-steel">{label}</div>
+      <div className="mt-1 text-xl font-bold text-ink">{value}</div>
+      {hint && <div className="text-xs text-slate-steel">{hint}</div>}
     </div>
   );
 }
@@ -49,13 +49,13 @@ export default async function AppDetailPage({ params }: Props) {
       {/* Records a page view for traffic analytics & revenue attribution. */}
       <TrafficBeacon appId={app.id} path={`/app/${app.slug}`} />
 
-      <Link href="/" className="text-sm text-slate-400 hover:text-white">
+      <Link href="/" className="text-sm text-slate hover:text-ink">
         ← Back to discover
       </Link>
 
       {/* Header */}
       <div className="card flex flex-col gap-4 p-6 sm:flex-row sm:items-center">
-        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-surface-overlay text-2xl font-bold text-brand-green">
+        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-card bg-ivory text-2xl font-bold text-cobalt">
           {app.iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={app.iconUrl} alt="" className="h-full w-full object-cover" />
@@ -65,11 +65,11 @@ export default async function AppDetailPage({ params }: Props) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-white">{app.name}</h1>
+            <h1 className="text-2xl font-bold text-ink">{app.name}</h1>
             <span className="chip capitalize">{app.category}</span>
             <span className="chip capitalize">{app.chain}</span>
           </div>
-          <p className="mt-1 text-slate-400">{app.tagline}</p>
+          <p className="mt-1 text-slate">{app.tagline}</p>
         </div>
         <a
           href={app.url}
@@ -101,19 +101,19 @@ export default async function AppDetailPage({ params }: Props) {
 
           {/* About */}
           <section className="card p-6">
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate">
               About
             </h2>
-            <p className="whitespace-pre-line text-slate-300">{app.description}</p>
+            <p className="whitespace-pre-line text-slate">{app.description}</p>
           </section>
 
           {/* Traffic */}
           <section className="card p-6">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate">
                 Traffic (last 7 days)
               </h2>
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-slate">
                 {formatNumber(viewsLast7d)} views
               </span>
             </div>
@@ -124,7 +124,7 @@ export default async function AppDetailPage({ params }: Props) {
 
           {/* Trend history */}
           <section className="card p-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate">
               Trends
             </h2>
             <TrendChart data={snapshots} />
@@ -135,27 +135,27 @@ export default async function AppDetailPage({ params }: Props) {
 
           {/* Recent activity */}
           <section className="card p-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate">
               Recent votes
             </h2>
             {recentVotes.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-steel">
                 No votes yet — be the first to vote.
               </p>
             ) : (
-              <ul className="divide-y divide-surface-border">
+              <ul className="divide-y divide-hairline">
                 {recentVotes.map((v) => (
                   <li
                     key={v.id}
                     className="flex items-center justify-between py-2 text-sm"
                   >
-                    <span className="font-mono text-slate-400">
+                    <span className="font-mono text-slate">
                       {v.wallet.length > 20 ? shortAddress(v.wallet) : v.wallet}
                     </span>
-                    <span className="text-brand-green">
+                    <span className="text-cobalt">
                       +{formatToken(v.amount, TOKEN_SYMBOL)}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-slate-steel">
                       {timeAgo(v.createdAt)}
                     </span>
                   </li>
@@ -172,11 +172,11 @@ export default async function AppDetailPage({ params }: Props) {
           <AdSlot appId={app.id} />
 
           <section className="card p-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate">
               Top stakers
             </h2>
             {topStakers.length === 0 ? (
-              <p className="text-sm text-slate-500">No stakers yet.</p>
+              <p className="text-sm text-slate-steel">No stakers yet.</p>
             ) : (
               <ul className="space-y-2">
                 {topStakers.map((s, i) => (
@@ -184,10 +184,10 @@ export default async function AppDetailPage({ params }: Props) {
                     key={i}
                     className="flex items-center justify-between text-sm"
                   >
-                    <span className="font-mono text-slate-400">
+                    <span className="font-mono text-slate">
                       {s.wallet.length > 20 ? shortAddress(s.wallet) : s.wallet}
                     </span>
-                    <span className="text-white">
+                    <span className="text-ink">
                       {formatToken(s.amount, TOKEN_SYMBOL)}
                     </span>
                   </li>

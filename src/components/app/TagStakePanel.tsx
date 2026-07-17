@@ -133,26 +133,26 @@ export function TagStakePanel({
   return (
     <section className="card space-y-4 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate">
           Tags &amp; staking
         </h2>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-steel">
           Stake backs a tag &amp; earns ad revenue
         </span>
       </div>
 
       {tags.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-steel">
           No tags yet. Suggest one below.
         </p>
       ) : (
         <ul className="space-y-2">
           {tags.map((t) => (
-            <li key={t.id} className="rounded-lg border border-surface-border p-3">
+            <li key={t.id} className="rounded-lg border border-hairline p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <span className="font-medium text-white">#{t.name}</span>
-                  <span className="ml-2 text-xs text-slate-500">
+                  <span className="font-medium text-ink">#{t.name}</span>
+                  <span className="ml-2 text-xs text-slate-steel">
                     {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
                   </span>
                 </div>
@@ -203,7 +203,7 @@ export function TagStakePanel({
       )}
 
       {user ? (
-        <div className="flex items-center gap-2 border-t border-surface-border pt-3">
+        <div className="flex items-center gap-2 border-t border-hairline pt-3">
           <input
             className="input"
             placeholder="Suggest a tag (e.g. lending)"
@@ -221,7 +221,7 @@ export function TagStakePanel({
           </button>
         </div>
       ) : (
-        <p className="border-t border-surface-border pt-3 text-xs text-slate-500">
+        <p className="border-t border-hairline pt-3 text-xs text-slate-steel">
           Sign in to stake or suggest tags.
         </p>
       )}

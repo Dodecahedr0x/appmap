@@ -23,27 +23,27 @@ interface TrendPoint {
  */
 export function TrendChart({ data }: { data: TrendPoint[] }) {
   if (data.length < 2) {
-    return <p className="text-sm text-slate-500">Not enough history yet.</p>;
+    return <p className="text-sm text-slate-steel">Not enough history yet.</p>;
   }
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={data}>
         <XAxis
           dataKey="date"
-          stroke="#64748b"
+          stroke="#a5a5a5"
           fontSize={11}
           tickFormatter={(d) =>
             new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" })
           }
         />
-        <YAxis stroke="#64748b" fontSize={11} />
+        <YAxis stroke="#a5a5a5" fontSize={11} />
         <Tooltip
-          contentStyle={{ background: "#121826", border: "1px solid #232b3d" }}
+          contentStyle={{ background: "#ffffff", border: "1px solid #efefef", borderRadius: 12 }}
           labelFormatter={(d) => new Date(d as string).toLocaleDateString()}
         />
-        <Line type="monotone" dataKey="voteWeight" stroke="#9945FF" dot={false} name="Votes" />
-        <Line type="monotone" dataKey="stakeTotal" stroke="#14F195" dot={false} name="Tag stake" />
-        <Line type="monotone" dataKey="viewCount" stroke="#19FB9B" dot={false} name="Traffic" />
+        <Line type="monotone" dataKey="voteWeight" stroke="#0068f9" dot={false} name="Votes" />
+        <Line type="monotone" dataKey="stakeTotal" stroke="#6736eb" dot={false} name="Tag stake" />
+        <Line type="monotone" dataKey="viewCount" stroke="#046645" dot={false} name="Traffic" />
       </LineChart>
     </ResponsiveContainer>
   );

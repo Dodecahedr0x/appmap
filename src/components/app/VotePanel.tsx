@@ -95,10 +95,10 @@ export function VotePanel({ appId }: { appId: string }) {
   return (
     <section className="card space-y-4 p-6">
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate">
           Vote for this app
         </h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-steel">
           Votes are token-weighted and boost this app&apos;s rank.
           {isSimulationMode() && " Running in simulation mode — no real tokens spent."}
         </p>
@@ -106,7 +106,7 @@ export function VotePanel({ appId }: { appId: string }) {
 
       {!user ? (
         <div className="space-y-2">
-          <p className="text-sm text-slate-400">Sign in to vote.</p>
+          <p className="text-sm text-slate">Sign in to vote.</p>
           <ConnectButton />
         </div>
       ) : (
@@ -131,7 +131,7 @@ export function VotePanel({ appId }: { appId: string }) {
               onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
               aria-label="Vote amount"
             />
-            <span className="text-sm text-slate-400">{TOKEN_SYMBOL}</span>
+            <span className="text-sm text-slate">{TOKEN_SYMBOL}</span>
           </div>
           <button
             className="btn-primary w-full"

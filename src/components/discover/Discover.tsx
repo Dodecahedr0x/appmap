@@ -108,10 +108,10 @@ export function Discover({ initial }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="bg-brand-gradient bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
+        <h1 className="text-heading-lg font-semibold leading-[1.15] tracking-tight text-ink">
           Discover the best apps
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-body text-slate">
           Ranked by the crowd — token-weighted votes, tag stake, and real
           traffic.
         </p>
@@ -127,7 +127,7 @@ export function Discover({ initial }: Props) {
             aria-label="Search apps"
           />
           <svg
-            className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-slate-500"
+            className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-slate-steel"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -175,7 +175,7 @@ export function Discover({ initial }: Props) {
         </aside>
 
         <section>
-          <div className="mb-3 flex items-center justify-between text-sm text-slate-400">
+          <div className="mb-3 flex items-center justify-between text-sm text-slate">
             <span>
               {loading ? "Searching…" : `${result.total} apps`}
               {query && !loading && ` for “${query}”`}
@@ -183,11 +183,11 @@ export function Discover({ initial }: Props) {
           </div>
 
           {result.apps.length === 0 ? (
-            <div className="card grid place-items-center p-12 text-center text-slate-500">
+            <div className="card grid place-items-center p-12 text-center text-slate-steel">
               <p>No apps match your search.</p>
               <p className="mt-1 text-xs">
                 Try removing a filter — or{" "}
-                <a href="/submit" className="text-brand-purple hover:underline">
+                <a href="/submit" className="text-cobalt hover:underline">
                   submit the app yourself
                 </a>
                 .
@@ -214,7 +214,7 @@ export function Discover({ initial }: Props) {
               >
                 Previous
               </button>
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-slate">
                 Page {page} of {totalPages}
               </span>
               <button

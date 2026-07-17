@@ -3,69 +3,86 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
 body {
-  background-color: #0b0f1a;
-  color: #e6ebf5;
+  background-color: #faf9f7;
+  color: #121722;
 }
 
 body {
   min-height: 100vh;
-  background-image:
-    radial-gradient(60rem 60rem at 90% -10%, rgba(153, 69, 255, 0.12), transparent 60%),
-    radial-gradient(50rem 50rem at -10% 10%, rgba(20, 241, 149, 0.1), transparent 55%);
-  background-attachment: fixed;
 }
 
-/* Thin custom scrollbars to match the dark theme. */
+/* Thin custom scrollbars to match the light theme. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3348 transparent;
+  scrollbar-color: #d6e4f1 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2a3348;
+  background: #d6e4f1;
   border-radius: 8px;
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-surface-border bg-surface-raised;
+    @apply rounded-card border border-hairline bg-white shadow-subtle;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-button px-6 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand-gradient text-black hover:opacity-90;
+    @apply btn bg-cobalt text-white hover:bg-cobalt-deep;
   }
   .btn-secondary {
-    @apply btn border border-surface-border bg-surface-overlay text-white hover:border-brand-purple/60;
+    @apply btn border border-hairline bg-white text-ink hover:border-powder;
   }
   .btn-ghost {
-    @apply btn text-slate-300 hover:bg-surface-overlay hover:text-white;
+    @apply btn text-slate hover:bg-ivory hover:text-ink;
   }
   .input {
-    @apply w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-brand-purple/60 focus:outline-none focus:ring-1 focus:ring-brand-purple/40;
+    @apply w-full rounded-card border border-hairline bg-white px-3 py-2 text-sm text-ink placeholder:text-slate-steel focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full border border-surface-border bg-surface-overlay px-2.5 py-1 text-xs text-slate-300;
+    @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate;
   }
   .chip-active {
-    @apply border-brand-purple/60 bg-brand-purple/15 text-white;
+    @apply border-cobalt/60 bg-cobalt/10 text-cobalt;
   }
 }
 
-/* Wallet-adapter modal restyle to fit the dark theme. */
+/* Wallet-adapter modal restyle to fit the light theme. */
 .wallet-adapter-button {
   height: auto !important;
   font-family: inherit !important;
 }
+.wallet-adapter-button-trigger {
+  background-color: #0068f9 !important;
+  border-radius: 48px !important;
+}
+.wallet-adapter-button-trigger:hover {
+  background-color: #024bb1 !important;
+}
 .wallet-adapter-modal-wrapper {
-  background: #121826 !important;
+  background: #ffffff !important;
+  color: #121722 !important;
+}
+.wallet-adapter-modal-button-close {
+  background: #fbfaf7 !important;
+}
+.wallet-adapter-modal-title {
+  color: #121722 !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background-color: #fbfaf7 !important;
+  color: #121722 !important;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  background-color: #f4f0ff !important;
 }
