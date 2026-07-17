@@ -1,10 +1,11 @@
-/* nebulous.world /future — an immersive, informational single-page experience built
-   on the current edge of shipped web platform features: WebGL2 shaders,
-   CSS scroll-driven animations, @property, anchor positioning, Houdini paint
-   worklets, view transitions, oklch/color-mix, subgrid, container queries,
-   :has(), and text-wrap. Every advanced rule is paired with a plain,
-   fully-usable fallback via @supports so nothing here breaks on a browser
-   that hasn't caught up yet. */
+/* nebulous.world /future — an informational single-page experience built on
+   the current edge of shipped web platform features (WebGL2 shaders, CSS
+   scroll-driven animations, @property, anchor positioning, Houdini paint
+   worklets, view transitions, color-mix, subgrid, container queries,
+   :has(), text-wrap), styled to the same "Dock" system as the rest of the
+   app (see DESIGN.md) rather than a bespoke theme. Every advanced rule is
+   paired with a plain, fully-usable fallback via @supports so nothing here
+   breaks on a browser that hasn't caught up yet. */
 
 @property --angle {
   syntax: "<angle>";
@@ -12,66 +13,45 @@
   initial-value: 0deg;
 }
 
-@property --glow-mix {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 40%;
-}
-
 .future-root {
-  color-scheme: dark;
-  --void: oklch(16% 0.03 264);
-  --void-deep: oklch(11% 0.025 264);
-  --paper: oklch(97% 0.01 90);
-  --cobalt: oklch(58% 0.19 258);
-  --violet: oklch(50% 0.22 302);
-  --glow: color-mix(in oklch, var(--cobalt) var(--glow-mix), var(--violet));
-  --edge: color-mix(in oklch, var(--paper) 14%, transparent);
-
-  background: var(--void);
-  color: var(--paper);
-  min-height: 100vh;
-  isolation: isolate;
-}
-
-.future-root * {
-  box-sizing: border-box;
+  --edge: #efefef;
 }
 
 .future-root section {
   position: relative;
-  padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 4rem);
 }
 
 .future-eyebrow {
   font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.077em;
   text-transform: uppercase;
-  color: var(--glow);
+  color: #0068f9;
 }
 
 .future-h1 {
-  font-size: clamp(2.75rem, 7vw, 6rem);
-  font-weight: 700;
-  line-height: 1.03;
-  letter-spacing: -0.02em;
+  font-size: clamp(2.5rem, 6vw, 5.25rem);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.01em;
   text-wrap: balance;
   max-width: 20ch;
+  color: #121722;
 }
 
 .future-h2 {
-  font-size: clamp(1.75rem, 4vw, 3rem);
+  font-size: clamp(1.75rem, 3.4vw, 2.5rem);
   font-weight: 600;
-  line-height: 1.08;
+  line-height: 1.15;
   letter-spacing: -0.01em;
   text-wrap: balance;
+  color: #121722;
 }
 
 .future-lede {
-  font-size: clamp(1rem, 1.6vw, 1.25rem);
-  line-height: 1.6;
-  color: color-mix(in oklch, var(--paper) 78%, transparent);
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: #121722;
   max-width: 60ch;
   text-wrap: pretty;
 }
@@ -83,6 +63,9 @@
   inset: 0;
   overflow: hidden;
   z-index: 0;
+  /* radius comes from the rounded-card Tailwind utility applied alongside
+     this class in FutureExperience.tsx, so it stays in lockstep with
+     DESIGN.md's 16px card radius instead of drifting out of sync here. */
 }
 
 .hero-canvas {
@@ -94,17 +77,7 @@
 .hero-canvas-fallback {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-      circle at 30% 20%,
-      color-mix(in oklch, var(--cobalt) 35%, transparent),
-      transparent 60%
-    ),
-    radial-gradient(
-      circle at 75% 70%,
-      color-mix(in oklch, var(--violet) 30%, transparent),
-      transparent 55%
-    ),
-    var(--void);
+  background: linear-gradient(180deg, #faf9f7 0%, #d5ecff 100%);
 }
 
 .hero-content {
@@ -113,12 +86,14 @@
 }
 
 /* Animated conic underline using @property — animates the custom <angle>
-   property directly instead of jumping between static gradients. */
+   property directly instead of jumping between static gradients. A small,
+   restrained accent (not a card/panel gradient), in the spirit of "the
+   electric blue gradient appears only as a signature moment." */
 .gradient-rule {
   height: 3px;
   width: 5rem;
   border-radius: 999px;
-  background: conic-gradient(from var(--angle), var(--cobalt), var(--violet), var(--cobalt));
+  background: conic-gradient(from var(--angle), #0068f9, #6736eb, #0068f9);
   animation: spin-angle 5s linear infinite;
 }
 @keyframes spin-angle {
@@ -165,9 +140,9 @@
 
 /* ---- Houdini paint worklet divider, with gradient fallback ---- */
 .paint-divider {
-  --dot-color: color-mix(in oklch, var(--paper) 55%, transparent);
+  --dot-color: #d6e4f1;
   --dot-density: 20;
-  height: 4rem;
+  height: 3rem;
   background: linear-gradient(90deg, transparent, var(--edge) 50%, transparent);
 }
 @supports (background: paint(dotfield)) {
@@ -213,9 +188,10 @@
   grid-template-rows: subgrid;
   gap: 0.75rem;
   border: 1px solid var(--edge);
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 1.5rem;
-  background: color-mix(in oklch, var(--void-deep) 70%, transparent);
+  background: #ffffff;
+  box-shadow: var(--shadow-subtle, rgba(0, 0, 0, 0.07) 0px 1px 1px 0px, rgba(0, 0, 0, 0.04) 0px -1px 1px 0px inset, rgba(0, 0, 0, 0.14) 0px 0px 0px 0.5px inset);
   container-type: inline-size;
 }
 @supports not (grid-template-rows: subgrid) {
@@ -226,15 +202,16 @@
 .step-index {
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--glow);
+  color: #0068f9;
   letter-spacing: 0.08em;
 }
 .step-title {
   font-size: 1.25rem;
   font-weight: 600;
+  color: #121722;
 }
 .step-body {
-  color: color-mix(in oklch, var(--paper) 72%, transparent);
+  color: #777c86;
   line-height: 1.55;
   font-size: 0.9375rem;
 }
@@ -252,7 +229,7 @@
 }
 .slider-row:has(input:focus-visible),
 .slider-row:has(input:active) {
-  background: color-mix(in oklch, var(--cobalt) 16%, transparent);
+  background: color-mix(in oklch, #0068f9 10%, transparent);
 }
 
 /* ---- Accordion (grid-template-rows 0fr/1fr smooth height) ---- */
@@ -264,7 +241,7 @@
   text-align: left;
   background: none;
   border: none;
-  color: inherit;
+  color: #121722;
   font: inherit;
   font-weight: 600;
   padding: 1.25rem 0;
@@ -287,7 +264,7 @@
 }
 .accordion-inner > p {
   padding-bottom: 1.25rem;
-  color: color-mix(in oklch, var(--paper) 72%, transparent);
+  color: #777c86;
   line-height: 1.6;
   max-width: 60ch;
 }
@@ -300,17 +277,6 @@
 ::view-transition-new(mode-card) {
   animation-duration: 0.45s;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ---- Constellation / tag graph canvas ---- */
-.constellation-canvas {
-  width: 100%;
-  height: clamp(20rem, 45vw, 34rem);
-  display: block;
-  border-radius: 20px;
-  border: 1px solid var(--edge);
-  background: color-mix(in oklch, var(--void-deep) 85%, transparent);
-  touch-action: none;
 }
 
 /* ---- Built-with ticker ---- */
@@ -340,24 +306,8 @@
   font-size: 0.8125rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in oklch, var(--paper) 60%, transparent);
+  color: #a5a5a5;
   white-space: nowrap;
-}
-
-.future-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.875rem 1.75rem;
-  border-radius: 999px;
-  background: var(--paper);
-  color: var(--void-deep);
-  font-weight: 600;
-  text-decoration: none;
-  transition: transform 0.2s ease;
-}
-.future-cta:hover {
-  transform: translateY(-2px);
 }
 
 .future-grid-2 {

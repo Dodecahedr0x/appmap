@@ -1,23 +1,6 @@
-"use client";
-
-import { usePathname } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 
-// Full-bleed routes render their own chrome (or none) instead of the
-// standard nav/footer/max-width shell — e.g. /future is an immersive,
-// edge-to-edge single-page experience.
-const FULL_BLEED_PREFIXES = ["/future"];
-
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const fullBleed = FULL_BLEED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-
-  if (fullBleed) {
-    return <>{children}</>;
-  }
-
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />

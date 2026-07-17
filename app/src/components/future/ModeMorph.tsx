@@ -50,29 +50,16 @@ export function ModeMorph() {
 
   return (
     <div>
-      <div
-        className="mode-card"
-        style={{
-          border: "1px solid var(--edge)",
-          borderRadius: 20,
-          padding: "2rem",
-          background: "color-mix(in oklch, var(--void-deep) 70%, transparent)",
-        }}
-      >
+      <div className="mode-card card p-8">
         <div className="future-eyebrow">{active.label}</div>
-        <p style={{ marginTop: "0.5rem", fontSize: "1.0625rem" }}>{active.tagline}</p>
-        <ul style={{ marginTop: "1rem", display: "grid", gap: "0.5rem", fontSize: "0.9375rem", opacity: 0.8 }}>
+        <p className="mt-2 text-subheading text-ink">{active.tagline}</p>
+        <ul className="mt-4 grid gap-2 text-sm text-slate">
           {active.points.map((p) => (
             <li key={p}>· {p}</li>
           ))}
         </ul>
       </div>
-      <button
-        type="button"
-        onClick={toggle}
-        className="future-cta"
-        style={{ marginTop: "1.5rem", background: "var(--glow)", color: "var(--void-deep)" }}
-      >
+      <button type="button" onClick={toggle} className="btn-primary mt-6">
         Switch to {mode === "simulation" ? "on-chain" : "simulation"} mode
       </button>
     </div>

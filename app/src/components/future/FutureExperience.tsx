@@ -5,7 +5,6 @@ import Link from "next/link";
 import "./future.css";
 import { ShaderHero } from "./ShaderHero";
 import { RankingLab } from "./RankingLab";
-import { TagConstellation } from "./TagConstellation";
 import { ModeMorph } from "./ModeMorph";
 import { Accordion } from "./Accordion";
 
@@ -50,12 +49,11 @@ const BUILT_WITH = [
   "CSS anchor positioning",
   "Houdini paint worklets",
   "View Transitions API",
-  "oklch + color-mix()",
+  "color-mix()",
   "Subgrid",
   "Container queries",
   ":has() selector",
   "text-wrap: balance / pretty",
-  "d3-force physics",
 ];
 
 export function FutureExperience() {
@@ -69,24 +67,32 @@ export function FutureExperience() {
   }, []);
 
   return (
-    <main className="future-root">
-      <section style={{ minHeight: "100svh", display: "flex", alignItems: "center", padding: "0 clamp(1.25rem, 5vw, 4rem)" }}>
-        <ShaderHero />
-        <div className="hero-content">
-          <div className="future-eyebrow">nebulous.world · the future of app discovery</div>
-          <h1 className="future-h1" style={{ marginTop: "1rem" }}>
-            The app store, rebuilt in the open.
-          </h1>
-          <div className="gradient-rule" style={{ margin: "1.5rem 0" }} />
-          <p className="future-lede">
-            No algorithm you can&apos;t see. Ranking is votes, stake, traffic, and freshness — in
-            the open, in code, settled on Solana. This page is itself a small demo of where the
-            web is headed: WebGL2 shaders, scroll-driven CSS, and live product data, no build step
-            beyond what your browser already ships.
-          </p>
-          <Link href="/" className="future-cta" style={{ marginTop: "2rem", background: "var(--glow)", color: "var(--void-deep)" }}>
-            Explore nebulous.world →
-          </Link>
+    <div className="future-root space-y-16">
+      <section className="reveal">
+        <div
+          className="hero-canvas-wrap relative overflow-hidden rounded-card border border-hairline"
+          style={{ minHeight: "clamp(26rem, 60vw, 34rem)" }}
+        >
+          <ShaderHero />
+          <div className="hero-content flex h-full min-h-[inherit] flex-col justify-center p-8 sm:p-14">
+            <div className="future-eyebrow">nebulous.world · the future of app discovery</div>
+            <h1 className="future-h1 mt-4">The app store, rebuilt in the open.</h1>
+            <div className="gradient-rule my-6" />
+            <p className="future-lede">
+              No algorithm you can&apos;t see. Ranking is votes, stake, traffic, and freshness —
+              in the open, in code, settled on Solana. This page is itself a small demo of where
+              the web is headed: WebGL2 shaders, scroll-driven CSS, and live product data, no
+              build step beyond what your browser already ships.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/" className="btn-primary">
+                Explore nebulous.world →
+              </Link>
+              <Link href="/analytics" className="btn-secondary">
+                See the tag constellation
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -94,10 +100,10 @@ export function FutureExperience() {
 
       <section className="reveal">
         <div className="future-eyebrow">The problem</div>
-        <h2 className="future-h2" style={{ marginTop: "0.75rem", maxWidth: "24ch" }}>
+        <h2 className="future-h2 mt-3 max-w-[24ch]">
           Most app stores rank by who pays, not by who&apos;s good.
         </h2>
-        <p className="future-lede" style={{ marginTop: "1rem" }}>
+        <p className="future-lede mt-4">
           nebulous.world flips that: the ranking inputs are public, the weights are public
           (<code>src/lib/ranking.ts</code>), and anyone staking behind a tag is putting real value
           behind their judgment — and getting paid when they&apos;re right.
@@ -108,10 +114,8 @@ export function FutureExperience() {
 
       <section className="reveal">
         <div className="future-eyebrow">How it works</div>
-        <h2 className="future-h2" style={{ marginTop: "0.75rem" }}>
-          Four steps, one open loop.
-        </h2>
-        <div className="step-rail" style={{ marginTop: "2.5rem" }}>
+        <h2 className="future-h2 mt-3">Four steps, one open loop.</h2>
+        <div className="step-rail mt-10">
           {STEPS.map((s, i) => (
             <div key={s.title} className="step-card">
               <span className="step-index">{String(i + 1).padStart(2, "0")}</span>
@@ -126,10 +130,8 @@ export function FutureExperience() {
 
       <section className="reveal">
         <div className="future-eyebrow">Ranking lab</div>
-        <h2 className="future-h2" style={{ marginTop: "0.75rem" }}>
-          Move the real inputs. Watch the real score.
-        </h2>
-        <p className="future-lede" style={{ marginTop: "0.75rem", marginBottom: "2.5rem" }}>
+        <h2 className="future-h2 mt-3">Move the real inputs. Watch the real score.</h2>
+        <p className="future-lede mb-10 mt-3">
           This isn&apos;t a mock chart — it calls the exact <code>computeRankScore</code> function
           that ranks every app in production.
         </p>
@@ -140,24 +142,22 @@ export function FutureExperience() {
 
       <section className="reveal">
         <div className="future-eyebrow">Tag constellation</div>
-        <h2 className="future-h2" style={{ marginTop: "0.75rem" }}>
-          Apps don&apos;t live in one category.
-        </h2>
-        <p className="future-lede" style={{ marginTop: "0.75rem", marginBottom: "2rem" }}>
-          Each node is a tag, sized by total stake; each edge is how often two tags share an app.
-          Drag a node — it&apos;s a live d3-force simulation, seeded from{" "}
-          <code>/api/tags/graph</code> when reachable.
+        <h2 className="future-h2 mt-3">Apps don&apos;t live in one category.</h2>
+        <p className="future-lede mt-3">
+          A live d3-force simulation of every tag, sized by total stake and linked by how often
+          two tags share an app — now a real part of{" "}
+          <Link href="/analytics" className="font-medium text-cobalt hover:underline">
+            Analytics
+          </Link>
+          , not just a demo here.
         </p>
-        <TagConstellation />
       </section>
 
       <div className="paint-divider" />
 
       <section className="reveal">
         <div className="future-eyebrow">Two ways to run it</div>
-        <h2 className="future-h2" style={{ marginTop: "0.75rem", marginBottom: "2.5rem" }}>
-          Simulation today, on-chain whenever you&apos;re ready.
-        </h2>
+        <h2 className="future-h2 mb-10 mt-3">Simulation today, on-chain whenever you&apos;re ready.</h2>
         <ModeMorph />
       </section>
 
@@ -165,9 +165,7 @@ export function FutureExperience() {
 
       <section className="reveal">
         <div className="future-eyebrow">Questions</div>
-        <h2 className="future-h2" style={{ marginTop: "0.75rem", marginBottom: "1.5rem" }}>
-          Why it&apos;s built this way.
-        </h2>
+        <h2 className="future-h2 mb-6 mt-3">Why it&apos;s built this way.</h2>
         <Accordion items={FAQ} />
       </section>
 
@@ -181,18 +179,12 @@ export function FutureExperience() {
         </div>
       </div>
 
-      <section style={{ textAlign: "center", paddingTop: "5rem", paddingBottom: "6rem" }}>
-        <h2 className="future-h2" style={{ marginInline: "auto" }}>
-          Go rank something.
-        </h2>
-        <Link
-          href="/"
-          className="future-cta"
-          style={{ marginTop: "2rem", background: "var(--paper)", color: "var(--void-deep)" }}
-        >
+      <section className="pb-8 text-center">
+        <h2 className="future-h2 mx-auto">Go rank something.</h2>
+        <Link href="/" className="btn-primary mt-8 inline-flex">
           Back to nebulous.world →
         </Link>
       </section>
-    </main>
+    </div>
   );
 }
