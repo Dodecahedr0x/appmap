@@ -374,22 +374,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
-name = "appmap"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "bincode",
- "litesvm",
- "solana-account",
- "solana-keypair",
- "solana-message",
- "solana-signer",
- "solana-transaction",
- "spl-token-interface",
-]
-
-[[package]]
 name = "ark-bn254"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1730,6 +1714,22 @@ dependencies = [
  "keccak",
  "rand_core 0.6.4",
  "zeroize",
+]
+
+[[package]]
+name = "nebulous_world"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bincode",
+ "litesvm",
+ "solana-account",
+ "solana-keypair",
+ "solana-message",
+ "solana-signer",
+ "solana-transaction",
+ "spl-token-interface",
 ]
 
 [[package]]

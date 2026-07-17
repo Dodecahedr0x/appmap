@@ -8,7 +8,7 @@ use {
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    appmap::constants::{
+    nebulous_world::constants::{
         APP_SEED, CONFIG_SEED, TAGS_REWARD_VAULT_SEED, VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
     },
     litesvm::LiteSVM,
@@ -20,7 +20,7 @@ use {
     spl_token_interface::state::{Account as SplTokenAccount, Mint},
 };
 
-/// See `test_initialize.rs` for context: overwrites the appmap program's
+/// See `test_initialize.rs` for context: overwrites the nebulous_world program's
 /// `ProgramData` account so `upgrade_authority` is its recorded upgrade
 /// authority, which is required to call `initialize` (but *not* `init_app`,
 /// which is permissionless).
@@ -45,16 +45,16 @@ fn set_upgrade_authority(
     program_data_address
 }
 
-/// Sets up a fresh LiteSVM instance with the appmap program loaded, a funded
+/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, a funded
 /// deployer/payer, and a fake SPL mint account. Then initializes `Config`
 /// (seeds = [CONFIG_SEED]) so `init_app` has a singleton to read
 /// `vote_mint` from. Returns the SVM, the deployer keypair (the program's
 /// upgrade authority), and the vote mint pubkey.
 fn setup() -> (LiteSVM, Keypair, Pubkey) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/appmap.so");
+    let bytes = include_bytes!("../../../target/deploy/nebulous_world.so");
     svm.add_program(program_id, bytes).unwrap();
     svm.airdrop(&deployer.pubkey(), 1_000_000_000).unwrap();
 
@@ -84,11 +84,11 @@ fn setup() -> (LiteSVM, Keypair, Pubkey) {
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::Initialize {
+        &nebulous_world::instruction::Initialize {
             protocol_fee_bps: 250,
         }
         .data(),
-        appmap::accounts::Initialize {
+        nebulous_world::accounts::Initialize {
             config,
             authority: deployer.pubkey(),
             vote_mint,
@@ -140,11 +140,11 @@ fn init_app_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::InitApp {
+        &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
         }
         .data(),
-        appmap::accounts::InitApp {
+        nebulous_world::accounts::InitApp {
             app: pdas.app,
             config: *config,
             vote_vault: pdas.vote_vault,
@@ -161,7 +161,7 @@ fn init_app_ix(
 
 #[test]
 fn test_init_app() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, deployer, vote_mint) = setup();
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
@@ -192,7 +192,7 @@ fn test_init_app() {
     // The `AppAccount` was created with zeroed counters and the right vault
     // pubkeys.
     let app_account_raw = svm.get_account(&pdas.app).expect("app account must exist");
-    let app_account: appmap::AppAccount =
+    let app_account: nebulous_world::AppAccount =
         anchor_lang::AccountDeserialize::try_deserialize(&mut app_account_raw.data.as_slice())
             .unwrap();
     assert_eq!(app_account.app_id, app_id);
@@ -224,7 +224,7 @@ fn test_init_app() {
 
 #[test]
 fn test_init_app_rejects_app_id_over_32_bytes() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, _deployer, vote_mint) = setup();
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
 
@@ -235,7 +235,7 @@ fn test_init_app_rejects_app_id_over_32_bytes() {
     // panics on an oversized seed on *any* target (not just on-chain), so we
     // can't even derive the "real" PDAs for this app_id here — the same way
     // a client can't either (`PublicKey.findProgramAddressSync` throws
-    // client-side too, see `tests/appmap.ts`). That's fine: we only need
+    // client-side too, see `tests/nebulous_world.ts`). That's fine: we only need
     // *some* pubkeys in the `app`/vault account slots, because the program's
     // own `find_program_address` call (during account resolution, before the
     // handler body or any other constraint runs — see the comment in

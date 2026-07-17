@@ -12,7 +12,7 @@ export const config = {
     voteTokenDecimals: Number(
       process.env.NEXT_PUBLIC_VOTE_TOKEN_DECIMALS || "6",
     ),
-    programId: process.env.NEXT_PUBLIC_APPMAP_PROGRAM_ID || "",
+    programId: process.env.NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID || "",
     treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS || "",
   },
   ads: {

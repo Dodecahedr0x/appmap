@@ -11,7 +11,7 @@ if [ -z "$DB_URL" ]; then
   if [ -f .env ]; then
     DB_URL="$(grep -E '^DATABASE_URL=' .env | tail -1 | cut -d= -f2- | tr -d '"')"
   fi
-  DB_URL="${DB_URL:-postgresql://postgres:postgres@localhost:5432/appmap_dev}"
+  DB_URL="${DB_URL:-postgresql://postgres:postgres@localhost:5432/nebulous_world_dev}"
 fi
 
 read -r PROTOCOL HOST PORT PGUSER PGPASS DBNAME <<EOF

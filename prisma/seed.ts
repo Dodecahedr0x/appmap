@@ -59,7 +59,7 @@ const ADS = [
 ];
 
 async function main() {
-  console.log("🌱 Seeding AppMap…");
+  console.log("🌱 Seeding nebulous.world…");
 
   // Clear in FK-safe order.
   await prisma.revenueClaim.deleteMany();
@@ -110,7 +110,7 @@ async function main() {
         slug,
         name: appDef.name,
         tagline: appDef.tagline,
-        description: `${appDef.name} — ${appDef.tagline}. A leading ${appDef.category} application in the Solana ecosystem, curated and ranked by the AppMap community.`,
+        description: `${appDef.name} — ${appDef.tagline}. A leading ${appDef.category} application in the Solana ecosystem, curated and ranked by the nebulous.world community.`,
         url: `https://${slug}.example.com`,
         category: appDef.category,
         chain: "solana",

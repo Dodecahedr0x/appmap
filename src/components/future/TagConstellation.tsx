@@ -258,7 +258,7 @@ export function TagConstellation() {
         ref={canvasRef}
         className="constellation-canvas"
         role="img"
-        aria-label="Force-directed graph of AppMap tags, sized by total stake and linked by how often two tags share an app. Draggable, decorative beyond the summary in the caption below."
+        aria-label="Force-directed graph of nebulous.world tags, sized by total stake and linked by how often two tags share an app. Draggable, decorative beyond the summary in the caption below."
       />
       <p style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: "0.5rem" }}>
         {source === "live" ? "Live from /api/tags/graph — drag a node." : "Sample graph — drag a node."}

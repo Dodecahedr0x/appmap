@@ -2,13 +2,13 @@ import { AnchorProvider, BN, Program } from "@anchor-lang/core";
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { config } from "@/lib/config";
-import idl from "../../target/idl/appmap.json";
-import type { Appmap } from "../../target/types/appmap";
+import idl from "../../target/idl/nebulous_world.json";
+import type { NebulousWorld } from "../../target/types/nebulous_world";
 
-export function getAppmapProgram(
+export function getNebulousWorldProgram(
   connection: Connection,
   wallet: WalletContextState,
-): Program<Appmap> {
+): Program<NebulousWorld> {
   if (!wallet.publicKey || !wallet.signTransaction || !wallet.signAllTransactions) {
     throw new Error("Wallet must be connected and support transaction signing");
   }
@@ -21,7 +21,7 @@ export function getAppmapProgram(
     },
     { commitment: "confirmed" },
   );
-  return new Program(idl as Appmap, provider);
+  return new Program(idl as NebulousWorld, provider);
 }
 
 export function configPda(programId: PublicKey): PublicKey {

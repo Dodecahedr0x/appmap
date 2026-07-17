@@ -8,7 +8,7 @@ use {
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
     anchor_spl::token::ID as TOKEN_PROGRAM_ID,
-    appmap::constants::{
+    nebulous_world::constants::{
         APP_SEED, CONFIG_SEED, TAGS_REWARD_VAULT_SEED, TAG_SEED, TAG_VAULT_SEED,
         VOTE_REWARD_VAULT_SEED, VOTE_VAULT_SEED,
     },
@@ -21,7 +21,7 @@ use {
     spl_token_interface::state::{Account as SplTokenAccount, Mint},
 };
 
-/// See `test_init_app.rs` for context: overwrites the appmap program's
+/// See `test_init_app.rs` for context: overwrites the nebulous_world program's
 /// `ProgramData` account so `upgrade_authority` is its recorded upgrade
 /// authority, which is required to call `initialize`.
 fn set_upgrade_authority(
@@ -54,13 +54,13 @@ struct Env {
     vote_mint: Pubkey,
 }
 
-/// Sets up a fresh LiteSVM instance with the appmap program loaded, a funded
+/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, a funded
 /// deployer/payer, and a fake SPL mint account, then initializes `Config`.
 fn setup() -> (LiteSVM, Keypair, Env) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let deployer = Keypair::new();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/appmap.so");
+    let bytes = include_bytes!("../../../target/deploy/nebulous_world.so");
     svm.add_program(program_id, bytes).unwrap();
     svm.airdrop(&deployer.pubkey(), 1_000_000_000).unwrap();
 
@@ -90,11 +90,11 @@ fn setup() -> (LiteSVM, Keypair, Env) {
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], &program_id);
     let initialize_ix = Instruction::new_with_bytes(
         program_id,
-        &appmap::instruction::Initialize {
+        &nebulous_world::instruction::Initialize {
             protocol_fee_bps: 250,
         }
         .data(),
-        appmap::accounts::Initialize {
+        nebulous_world::accounts::Initialize {
             config,
             authority: deployer.pubkey(),
             vote_mint,
@@ -147,11 +147,11 @@ fn derive_app_pdas(program_id: &Pubkey, app_id: &str) -> AppPdas {
 fn init_app_ix(env: &Env, payer: &Pubkey, app_id: &str, pdas: &AppPdas) -> Instruction {
     Instruction::new_with_bytes(
         env.program_id,
-        &appmap::instruction::InitApp {
+        &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
         }
         .data(),
-        appmap::accounts::InitApp {
+        nebulous_world::accounts::InitApp {
             app: pdas.app,
             config: env.config,
             vote_vault: pdas.vote_vault,
@@ -192,12 +192,12 @@ fn suggest_tag_ix(
 ) -> Instruction {
     Instruction::new_with_bytes(
         env.program_id,
-        &appmap::instruction::SuggestTag {
+        &nebulous_world::instruction::SuggestTag {
             app_id: app_id.to_string(),
             tag_id: tag_id.to_string(),
         }
         .data(),
-        appmap::accounts::SuggestTag {
+        nebulous_world::accounts::SuggestTag {
             app: *app,
             app_tag: tag_pdas.app_tag,
             config: env.config,
@@ -255,7 +255,7 @@ fn test_suggest_tag_happy_path() {
     let raw = svm
         .get_account(&tag_pdas.app_tag)
         .expect("app_tag account must exist");
-    let app_tag: appmap::AppTagAccount =
+    let app_tag: nebulous_world::AppTagAccount =
         anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap();
     assert_eq!(app_tag.app, app_pdas.app);
     assert_eq!(app_tag.tag_id, tag_id);
@@ -410,10 +410,10 @@ fn test_suggest_tag_same_tag_id_different_apps_no_collision() {
     assert!(res_b.is_ok(), "suggest_tag for app B failed: {:?}", res_b);
 
     let raw_a = svm.get_account(&tag_pdas_a.app_tag).unwrap();
-    let app_tag_a: appmap::AppTagAccount =
+    let app_tag_a: nebulous_world::AppTagAccount =
         anchor_lang::AccountDeserialize::try_deserialize(&mut raw_a.data.as_slice()).unwrap();
     let raw_b = svm.get_account(&tag_pdas_b.app_tag).unwrap();
-    let app_tag_b: appmap::AppTagAccount =
+    let app_tag_b: nebulous_world::AppTagAccount =
         anchor_lang::AccountDeserialize::try_deserialize(&mut raw_b.data.as_slice()).unwrap();
 
     assert_eq!(app_tag_a.app, app_pdas_a.app);

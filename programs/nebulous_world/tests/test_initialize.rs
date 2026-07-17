@@ -7,7 +7,7 @@ use {
         system_program,
     },
     anchor_lang::{solana_program::instruction::Instruction, InstructionData, ToAccountMetas},
-    appmap::constants::CONFIG_SEED,
+    nebulous_world::constants::CONFIG_SEED,
     litesvm::LiteSVM,
     solana_account::Account,
     solana_keypair::Keypair,
@@ -17,7 +17,7 @@ use {
     spl_token_interface::state::Mint,
 };
 
-/// Overwrites the appmap program's `ProgramData` account (created by
+/// Overwrites the nebulous_world program's `ProgramData` account (created by
 /// `svm.add_program`, which defaults to `upgrade_authority_address: None`) so
 /// that `upgrade_authority` is its recorded upgrade authority. Returns the
 /// programdata account's address.
@@ -42,14 +42,14 @@ fn set_upgrade_authority(
     program_data_address
 }
 
-/// Sets up a fresh LiteSVM instance with the appmap program loaded, a funded
+/// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, a funded
 /// payer, and a fake SPL mint account (so it satisfies `Account<'info, Mint>`
 /// deserialization). Returns the SVM, the payer, and the mint pubkey.
 fn setup() -> (LiteSVM, Keypair, Pubkey) {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let payer = Keypair::new();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../target/deploy/appmap.so");
+    let bytes = include_bytes!("../../../target/deploy/nebulous_world.so");
     svm.add_program(program_id, bytes).unwrap();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
 
@@ -88,8 +88,8 @@ fn initialize_ix(
     let (config, _bump) = Pubkey::find_program_address(&[CONFIG_SEED], program_id);
     Instruction::new_with_bytes(
         *program_id,
-        &appmap::instruction::Initialize { protocol_fee_bps }.data(),
-        appmap::accounts::Initialize {
+        &nebulous_world::instruction::Initialize { protocol_fee_bps }.data(),
+        nebulous_world::accounts::Initialize {
             config,
             authority: *authority,
             vote_mint: *vote_mint,
@@ -103,7 +103,7 @@ fn initialize_ix(
 
 #[test]
 fn test_initialize() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, payer, vote_mint) = setup();
     let program_data = set_upgrade_authority(&mut svm, &program_id, payer.pubkey());
 
@@ -119,7 +119,7 @@ fn test_initialize() {
 
 #[test]
 fn test_initialize_rejects_fee_above_10_000_bps() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, payer, vote_mint) = setup();
     let program_data = set_upgrade_authority(&mut svm, &program_id, payer.pubkey());
 
@@ -144,7 +144,7 @@ fn test_initialize_rejects_fee_above_10_000_bps() {
 
 #[test]
 fn test_initialize_rejects_non_upgrade_authority_signer() {
-    let program_id = appmap::id();
+    let program_id = nebulous_world::id();
     let (mut svm, payer, vote_mint) = setup();
     // Leave the program's upgrade authority as some other, unrelated key —
     // `payer` (who signs the `initialize` call below) is NOT that authority.

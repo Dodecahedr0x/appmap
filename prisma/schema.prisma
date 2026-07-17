@@ -1,4 +1,4 @@
-// AppMap data model.
+// nebulous.world data model.
 //
 // Postgres-backed (Render's managed Postgres in production). Local dev also
 // points at a Postgres instance via DATABASE_URL — see .env.example.

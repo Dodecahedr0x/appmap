@@ -18,7 +18,7 @@ const MODES = {
     points: [
       "Votes and stakes require a confirmed Solana transaction.",
       "Auth is Sign-In-With-Solana: an ed25519 signature, no password.",
-      "The appmap Anchor program enforces stake/vote/withdraw on-chain.",
+      "The nebulous_world Anchor program enforces stake/vote/withdraw on-chain.",
     ],
   },
 } as const;
@@ -26,7 +26,7 @@ const MODES = {
 type ModeKey = keyof typeof MODES;
 
 /**
- * Demonstrates the View Transitions API: toggling between AppMap's two real
+ * Demonstrates the View Transitions API: toggling between nebulous.world's two real
  * runtime modes (see src/lib/config.ts) morphs the card in place via
  * document.startViewTransition instead of a hard swap. Falls back to an
  * instant state change on browsers without the API.

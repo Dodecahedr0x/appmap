@@ -14,7 +14,7 @@ void main() {
 `;
 
 // A field of drifting, domain-warped nodes and connective glow — standing in
-// for AppMap's tag graph: many small apps, linked and weighted by the crowd.
+// for nebulous.world's tag graph: many small apps, linked and weighted by the crowd.
 const FRAGMENT_SRC = `#version 300 es
 precision highp float;
 

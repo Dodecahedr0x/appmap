@@ -24,7 +24,7 @@ export function Navbar() {
             <span className="grid h-8 w-8 place-items-center rounded-icon bg-cobalt text-lg font-black text-white">
               A
             </span>
-            <span className="text-lg font-bold tracking-tight text-ink">AppMap</span>
+            <span className="text-lg font-bold tracking-tight text-ink">nebulous.world</span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {NAV.map((item) => {

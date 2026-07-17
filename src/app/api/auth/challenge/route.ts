@@ -18,7 +18,7 @@ export const POST = handler(async (req: NextRequest) => {
     nonce,
     issuedAt,
     statement:
-      "Sign in to AppMap. This request will not trigger a blockchain transaction or cost any fees.",
+      "Sign in to nebulous.world. This request will not trigger a blockchain transaction or cost any fees.",
   });
 
   return ok({ message, nonce, issuedAt });
