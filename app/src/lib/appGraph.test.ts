@@ -66,6 +66,25 @@ describe("buildAppGraph", () => {
     expect(graph.nodes.map((n) => n.id).sort()).toEqual(["app-a", "app-b"]);
   });
 
+  it("restricts nodes to apps carrying every given tag (AND, not OR)", async () => {
+    const a = await makeApp("app-a"); // defi + nft
+    const b = await makeApp("app-b"); // defi + nft
+    const c = await makeApp("app-c"); // defi only
+    const defi = await makeTag("defi");
+    const nft = await makeTag("nft");
+    await prisma.appTag.create({ data: { appId: a.id, tagId: defi.id } });
+    await prisma.appTag.create({ data: { appId: a.id, tagId: nft.id } });
+    await prisma.appTag.create({ data: { appId: b.id, tagId: defi.id } });
+    await prisma.appTag.create({ data: { appId: b.id, tagId: nft.id } });
+    await prisma.appTag.create({ data: { appId: c.id, tagId: defi.id } });
+
+    const graph = await buildAppGraph(["defi", "nft"]);
+
+    // Only app-a and app-b carry BOTH tags; app-c (defi only) is excluded
+    // even though it matches one of the two selected tags.
+    expect(graph.nodes.map((n) => n.id).sort()).toEqual(["app-a", "app-b"]);
+  });
+
   it("weights shared-tag similarity by stake, favoring heavily-staked overlap", async () => {
     // app-a carries both tags; app-b only shares the heavily-staked one,
     // app-c only shares the barely-staked one. Plain tag overlap (`shared`)

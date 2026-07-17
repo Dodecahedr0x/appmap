@@ -33,18 +33,36 @@ const FALLBACK_LINKS: MapLink[] = [
  * Which apps overlap most in what they're tagged as — a way to find
  * something similar to an app you already like. Click a node to select it
  * and see it (and its closest neighbors) listed below the map.
+ * `selectedTags`, if given, restricts the map to apps carrying every one of
+ * those tags (see buildAppGraph's doc comment for why this is AND, not OR).
  */
-export function AppMap({ onSelect }: { onSelect?: (node: MapNode | null, neighborIds: string[]) => void }) {
+export function AppMap({
+  onSelect,
+  selectedTags = [],
+}: {
+  onSelect?: (node: MapNode | null, neighborIds: string[]) => void;
+  selectedTags?: string[];
+}) {
+  const fetchUrl =
+    selectedTags.length > 0
+      ? `/api/apps/graph?tags=${encodeURIComponent(selectedTags.join(","))}`
+      : "/api/apps/graph";
+
   return (
     <ForceMap<AppGraphNode, AppGraphEdge>
-      fetchUrl="/api/apps/graph"
+      fetchUrl={fetchUrl}
       mapNode={(n) => ({ id: n.id, label: n.name, metrics: { stake: n.stake, views: n.views, votes: n.votes } })}
       mapLink={(l) => ({ source: l.source, target: l.target, metrics: { shared: l.shared, weighted: l.weighted } })}
-      fallbackNodes={FALLBACK_NODES}
-      fallbackLinks={FALLBACK_LINKS}
+      fallbackNodes={selectedTags.length > 0 ? [] : FALLBACK_NODES}
+      fallbackLinks={selectedTags.length > 0 ? [] : FALLBACK_LINKS}
       sourceLabel="apps"
       ariaLabel="Map of nebulous.world apps, grouped by how similar their tags are. Circle size depends on the selected option — by default, total stake. Click an app to select it and see related apps below; drag a node to reposition, drag the background to pan, scroll to zoom."
       onSelect={onSelect}
+      emptyMessage={
+        selectedTags.length > 0
+          ? `No apps carry every selected tag: ${selectedTags.map((t) => `#${t}`).join(", ")}.`
+          : undefined
+      }
       sizeMetrics={[
         { key: "stake", label: "Stake", format: (v) => `${formatToken(v, TOKEN_SYMBOL)} staked` },
         { key: "views", label: "Page views", format: (v) => `${formatNumber(v)} views` },
