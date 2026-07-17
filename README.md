@@ -29,9 +29,18 @@ sharing**.
 | Charts     | Recharts                                            |
 | On-chain   | Anchor program (`programs/nebulous_world`) for vote/stake/revenue |
 
+## Repo layout
+
+This is an Anchor workspace at the repo root (`Anchor.toml`, `Cargo.toml`,
+`programs/`, `tests/`) with the Next.js web app contained in [`app/`](app/).
+Anchor-related commands (`anchor build`, `anchor deploy`, `anchor test`) run
+from the repo root; app commands (`npm install`, `npm run dev`, etc.) run
+from `app/`.
+
 ## Getting started
 
 ```bash
+cd app
 npm install
 cp .env.example .env          # tweak if needed
 npm run db:reset              # push schema + seed demo data
@@ -41,13 +50,13 @@ npm run dev                   # http://localhost:3000
 `db:reset` (and `db:push`/`test`) auto-provisions a local Postgres via
 Homebrew the first time you run them — installs `postgresql@15` if missing,
 starts it, and creates the `nebulous_world_dev`/`nebulous_world_test` role and database (see
-`scripts/ensure-postgres.sh`). Point `DATABASE_URL` at your own instance
+`app/scripts/ensure-postgres.sh`). Point `DATABASE_URL` at your own instance
 instead if you'd rather manage Postgres yourself.
 
 This runs the product in **simulation mode** (see below) — no Solana
 toolchain required. To exercise the real on-chain program (or before running
-`npm run typecheck`/`npm run build`, both of which import the program's
-generated IDL/types), you first need:
+`npm run typecheck`/`npm run build` from `app/`, both of which import the
+program's generated IDL/types), you first need, from the repo root:
 
 ```bash
 anchor build                  # generates target/idl/nebulous_world.json + target/types/nebulous_world.ts
@@ -57,14 +66,14 @@ anchor deploy --provider.cluster localnet
 ```
 
 then set `NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID` and `NEXT_PUBLIC_VOTE_TOKEN_MINT` in
-`.env` to the deployed program id and a real SPL mint.
+`app/.env` to the deployed program id and a real SPL mint.
 
 Or run all of the above (install, `.env`, `anchor build`, a local validator,
-program deploy, and `db:reset`) in one shot with `npm run setup:dev` — see
-`scripts/setup-dev.sh`. It requires the Solana/Anchor toolchain and leaves the
-validator running in the background for `npm run dev` to talk to. Wind
-everything back down with `npm run teardown:dev` (stops the validator and the
-local Postgres instance).
+program deploy, and `db:reset`) in one shot with `npm run setup:dev` (from
+`app/`) — see `app/scripts/setup-dev.sh`. It requires the Solana/Anchor
+toolchain and leaves the validator running in the background for `npm run
+dev` to talk to. Wind everything back down with `npm run teardown:dev`
+(stops the validator and the local Postgres instance).
 
 ### Useful scripts
 
@@ -91,15 +100,15 @@ Set `NEXT_PUBLIC_VOTE_TOKEN_MINT` to a real SPL mint (and deploy the Anchor
 program) to run **on-chain**: votes and stakes require confirmed Solana
 transactions. Leave it blank to run in **simulation mode** — the same flows are
 recorded off-chain so the entire product can be exercised without a funded
-wallet. See `src/lib/config.ts`.
+wallet. See `app/src/lib/config.ts`.
 
 ## Architecture
 
-- `src/lib/ranking.ts` — pure ranking math (weights, freshness decay).
-- `src/lib/revenue.ts` — pure revenue-split math (stake-proportional).
-- `src/lib/engine.ts` — bridges the pure math to the database (aggregate
+- `app/src/lib/ranking.ts` — pure ranking math (weights, freshness decay).
+- `app/src/lib/revenue.ts` — pure revenue-split math (stake-proportional).
+- `app/src/lib/engine.ts` — bridges the pure math to the database (aggregate
   refresh, epoch settlement).
-- `src/app/api/**` — REST API (apps, tags, votes, stakes, tracking, ads, auth).
+- `app/src/app/api/**` — REST API (apps, tags, votes, stakes, tracking, ads, auth).
 - `programs/nebulous_world` — the on-chain Anchor program.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.

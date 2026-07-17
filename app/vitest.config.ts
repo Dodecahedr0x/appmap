@@ -1,4 +1,4 @@
-import { defineConfig, configDefaults } from "vitest/config";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
@@ -13,10 +13,5 @@ export default defineConfig({
     // surfacing as intermittent foreign-key-constraint failures once enough
     // files touch the same tables (as adding snapshot.test.ts did).
     fileParallelism: false,
-    // .worktrees holds sibling git worktrees of this same repo (see
-    // .gitignore) — without this exclusion, running from the main
-    // checkout picks up their *.test.ts files too and runs every test
-    // twice.
-    exclude: [...configDefaults.exclude, "**/.worktrees/**"],
   },
 });

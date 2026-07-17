@@ -4,8 +4,10 @@
 # See README.md "Getting started" for the manual, step-by-step version.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+APP_DIR="$(pwd)"
+ROOT_DIR="$(cd "$APP_DIR/.." && pwd)"
 
-LEDGER_DIR="test-ledger"
+LEDGER_DIR="$ROOT_DIR/test-ledger"
 VALIDATOR_LOG="$LEDGER_DIR.log"
 RPC_PORT=8899
 
@@ -31,17 +33,16 @@ fi
 
 BUILD_LOG="$(mktemp)"
 trap 'rm -f "$BUILD_LOG"' EXIT
-if ! anchor build 2>&1 | tee "$BUILD_LOG"; then
+if ! (cd "$ROOT_DIR" && anchor build) 2>&1 | tee "$BUILD_LOG"; then
   if grep -q "Program ID mismatch" "$BUILD_LOG"; then
     log "Program ID mismatch (target/ is gitignored, so a fresh keypair was generated) — syncing keys"
-    anchor keys sync
-    anchor build
+    (cd "$ROOT_DIR" && anchor keys sync && anchor build)
   else
     exit 1
   fi
 fi
 
-PROGRAM_ID="$(solana-keygen pubkey target/deploy/nebulous_world-keypair.json)"
+PROGRAM_ID="$(solana-keygen pubkey "$ROOT_DIR/target/deploy/nebulous_world-keypair.json")"
 if grep -q '^NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=' .env; then
   sed -i.bak "s|^NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=.*|NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=\"$PROGRAM_ID\"|" .env
   rm -f .env.bak
@@ -69,7 +70,7 @@ else
 fi
 
 log "Deploying the Anchor program to localnet"
-anchor deploy --provider.cluster localnet
+(cd "$ROOT_DIR" && anchor deploy --provider.cluster localnet)
 
 log "Resetting and seeding the database"
 npm run db:reset

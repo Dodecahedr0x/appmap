@@ -4,8 +4,9 @@
 # scripts/ensure-postgres.sh). Safe to run even if some/none are up.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+ROOT_DIR="$(cd .. && pwd)"
 
-LEDGER_DIR="test-ledger"
+LEDGER_DIR="$ROOT_DIR/test-ledger"
 RPC_PORT=8899
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }

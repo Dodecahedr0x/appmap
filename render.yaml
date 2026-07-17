@@ -3,6 +3,7 @@ services:
     name: nebulous-world
     runtime: node
     repo: https://github.com/Dodecahedr0x/appmap
+    rootDir: app
     plan: free
     region: oregon
     branch: main
@@ -47,11 +48,12 @@ services:
         sync: false
 
   # Writes the AppStatsSnapshot rows that power per-app trend charts
-  # (see scripts/dailySnapshot.ts). No secrets beyond DATABASE_URL.
+  # (see app/scripts/dailySnapshot.ts). No secrets beyond DATABASE_URL.
   - type: cron
     name: nebulous-world-daily-snapshot
     runtime: node
     repo: https://github.com/Dodecahedr0x/appmap
+    rootDir: app
     plan: starter
     schedule: "0 0 * * *"
     buildCommand: npm ci

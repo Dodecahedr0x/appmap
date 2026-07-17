@@ -2,8 +2,8 @@ import { AnchorProvider, BN, Program } from "@anchor-lang/core";
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { config } from "@/lib/config";
-import idl from "../../target/idl/nebulous_world.json";
-import type { NebulousWorld } from "../../target/types/nebulous_world";
+import idl from "../../../target/idl/nebulous_world.json";
+import type { NebulousWorld } from "../../../target/types/nebulous_world";
 
 export function getNebulousWorldProgram(
   connection: Connection,
