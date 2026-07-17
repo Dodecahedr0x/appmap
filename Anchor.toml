@@ -12,7 +12,10 @@ appmap = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
 appmap = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx"
 
 [provider]
-cluster = "devnet"
+# Devnet's public RPC is currently unreliable for program deploys (repeated
+# "Max retries exceeded" on data writes). Defaulting to localnet until that
+# clears up; pass --provider.cluster devnet to override for a one-off deploy.
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
