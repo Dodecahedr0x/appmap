@@ -4,7 +4,7 @@ import { TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: `Buy ${TOKEN_SYMBOL}`,
-  description: `Buy ${TOKEN_NAME} (${TOKEN_SYMBOL}) — AppMap's vote/stake token — off the initial single-sided sale pool.`,
+  description: `Buy ${TOKEN_NAME} (${TOKEN_SYMBOL}) — nebulous.world's vote/stake token — on the NEB/USDC Meteora DLMM pool.`,
 };
 
 export default function TokenPage() {
@@ -15,9 +15,9 @@ export default function TokenPage() {
           {TOKEN_NAME} ({TOKEN_SYMBOL})
         </h1>
         <p className="mt-2 text-sm text-slate">
-          {TOKEN_SYMBOL} is the token behind every vote and tag stake on AppMap. Its entire
-          initial supply is sold from a single-sided bonding-curve pool — seeded with only{" "}
-          {TOKEN_SYMBOL}, no SOL — so the price rises purely from demand as the supply depletes.
+          {TOKEN_SYMBOL} is the token behind every vote and tag stake on nebulous.world. Its
+          entire supply was minted at launch and seeded single-sided into a public NEB/USDC
+          Meteora DLMM pool — buying {TOKEN_SYMBOL} is a direct swap against that pool.
         </p>
       </div>
       <BuyPanel />

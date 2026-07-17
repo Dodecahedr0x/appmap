@@ -23,10 +23,4 @@ pub enum ErrorCode {
     NoStakers,
     #[msg("app_tag does not belong to the provided app")]
     TagAppMismatch,
-    #[msg("The NEB pool has sold its entire supply")]
-    PoolSoldOut,
-    #[msg("SOL amount is too small to receive any NEB at the current price")]
-    BuyTooSmall,
-    #[msg("Requested withdrawal exceeds the pool's withdrawable SOL balance")]
-    InsufficientPoolBalance,
 }

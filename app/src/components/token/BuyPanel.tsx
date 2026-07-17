@@ -3,21 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
-import { useNebPoolProgram } from "@/hooks/useNebPoolProgram";
-import { isSimulationMode } from "@/lib/config";
+import { useNebDlmmSwap } from "@/hooks/useNebDlmmSwap";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
-import { computeBuyQuote, type PoolStatus } from "@/lib/pool";
+import type { NebPoolStatus } from "@/lib/dlmm";
 import { ConnectButton } from "@/components/ConnectButton";
 
-const PRESETS = [0.1, 0.5, 1, 5];
+const PRESETS = [10, 50, 100, 500];
 
 export function BuyPanel() {
   const { user } = useAuth();
   const toast = useToast();
-  const { buy } = useNebPoolProgram();
-  const [pool, setPool] = useState<PoolStatus | null | undefined>(undefined);
-  const [solAmount, setSolAmount] = useState(0.5);
+  const { buy } = useNebDlmmSwap();
+  const [pool, setPool] = useState<NebPoolStatus | null | undefined>(undefined);
+  const [usdcAmount, setUsdcAmount] = useState(50);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
@@ -31,36 +30,17 @@ export function BuyPanel() {
   }, []);
 
   const quote = useMemo(() => {
-    if (!pool || solAmount <= 0) return null;
-    try {
-      return computeBuyQuote(pool, solAmount);
-    } catch {
-      return null;
-    }
-  }, [pool, solAmount]);
-
-  const soldOut = pool != null && pool.remainingSupply <= 0;
+    if (!pool || usdcAmount <= 0) return null;
+    return usdcAmount / pool.price;
+  }, [pool, usdcAmount]);
 
   async function handleBuy() {
-    if (solAmount <= 0) return;
+    if (usdcAmount <= 0) return;
     setBusy(true);
     try {
-      const { txSig, simulated } = await buy(solAmount);
-
-      const res = await fetch("/api/pool/buy", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ solAmount, txSig: txSig ?? undefined }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Purchase failed");
-
-      toast.success(
-        simulated
-          ? `Bought ${formatToken(json.data.purchase.nebAmount, TOKEN_SYMBOL)} (simulated)`
-          : `Bought ${formatToken(json.data.purchase.nebAmount, TOKEN_SYMBOL)} — tx confirmed`,
-      );
-      setPool(json.data.pool);
+      const { nebOut } = await buy(usdcAmount);
+      toast.success(`Bought ${formatToken(nebOut, TOKEN_SYMBOL)} — tx confirmed`);
+      await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Purchase failed");
     } finally {
@@ -75,12 +55,10 @@ export function BuyPanel() {
   if (pool === null) {
     return (
       <section className="card p-6 text-sm text-slate">
-        The {TOKEN_SYMBOL} pool hasn&apos;t been seeded yet.
+        {TOKEN_SYMBOL} isn&apos;t tradable yet — the launch pool hasn&apos;t been created.
       </section>
     );
   }
-
-  const pct = Math.round(pool.soldFraction * 100);
 
   return (
     <section className="card space-y-4 p-6">
@@ -89,27 +67,16 @@ export function BuyPanel() {
           Buy {TOKEN_SYMBOL}
         </h2>
         <p className="mt-1 text-xs text-slate-steel">
-          Single-sided bonding-curve sale — price rises as supply depletes.
-          {isSimulationMode() && " Running in simulation mode — no real SOL spent."}
+          Swaps USDC for {TOKEN_SYMBOL} directly against the public NEB/USDC Meteora DLMM pool.
         </p>
       </div>
 
-      <div className="space-y-1">
-        <div className="h-2 overflow-hidden rounded-pill bg-ivory">
-          <div
-            className="h-full rounded-pill bg-cobalt transition-[width]"
-            style={{ width: `${Math.min(100, pct)}%` }}
-          />
-        </div>
-        <div className="flex justify-between text-xs text-slate-steel">
-          <span>{formatToken(pool.remainingSupply, TOKEN_SYMBOL)} left</span>
-          <span>{pct}% sold · {pool.solRaised.toFixed(2)} SOL raised</span>
-        </div>
+      <div className="flex justify-between text-xs text-slate-steel">
+        <span>{formatToken(pool.nebReserve, TOKEN_SYMBOL)} in pool</span>
+        <span>1 {TOKEN_SYMBOL} ≈ {pool.price.toFixed(6)} USDC</span>
       </div>
 
-      {soldOut ? (
-        <p className="text-sm font-medium text-slate">Sold out — the entire supply has been bought.</p>
-      ) : !user ? (
+      {!user ? (
         <div className="space-y-2">
           <p className="text-sm text-slate">Sign in to buy.</p>
           <ConnectButton />
@@ -120,10 +87,10 @@ export function BuyPanel() {
             {PRESETS.map((p) => (
               <button
                 key={p}
-                onClick={() => setSolAmount(p)}
-                className={`chip ${solAmount === p ? "chip-active" : ""}`}
+                onClick={() => setUsdcAmount(p)}
+                className={`chip ${usdcAmount === p ? "chip-active" : ""}`}
               >
-                {p} SOL
+                {p} USDC
               </button>
             ))}
           </div>
@@ -131,13 +98,13 @@ export function BuyPanel() {
             <input
               type="number"
               min={0}
-              step={0.01}
+              step={1}
               className="input"
-              value={solAmount}
-              onChange={(e) => setSolAmount(Math.max(0, Number(e.target.value)))}
-              aria-label="SOL amount"
+              value={usdcAmount}
+              onChange={(e) => setUsdcAmount(Math.max(0, Number(e.target.value)))}
+              aria-label="USDC amount"
             />
-            <span className="text-sm text-slate">SOL</span>
+            <span className="text-sm text-slate">USDC</span>
           </div>
           {quote != null && (
             <p className="text-xs text-slate-steel">
@@ -146,10 +113,10 @@ export function BuyPanel() {
           )}
           <button
             className="btn-primary w-full"
-            disabled={busy || solAmount <= 0 || quote == null}
+            disabled={busy || usdcAmount <= 0}
             onClick={handleBuy}
           >
-            {busy ? "Buying…" : `Buy for ${solAmount} SOL`}
+            {busy ? "Buying…" : `Buy for ${usdcAmount} USDC`}
           </button>
         </>
       )}

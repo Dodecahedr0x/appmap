@@ -14,3 +14,4 @@ pub enum RewardPool {
     Vote,
     Tags,
 }
+

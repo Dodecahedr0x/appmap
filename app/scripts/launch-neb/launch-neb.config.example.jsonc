@@ -1,0 +1,63 @@
+// Copy this file to launch-neb.config.json (gitignored) and fill in the
+// blanks before running:
+//
+//   tsx scripts/launch-neb/index.ts --config=./scripts/launch-neb/launch-neb.config.json
+//
+// Leave "dryRun": true until every value below has been reviewed — dry runs
+// print the full plan (mint params, computed active bin, pool params)
+// without sending any transactions.
+{
+  "rpcUrl": "https://api.devnet.solana.com",
+  "cluster": "devnet",
+
+  // Path to the keypair that pays for everything and becomes the mint/update
+  // authority and DLMM pool creator. Needs enough SOL to cover the mint,
+  // metadata account, pool, and position rent (a few tenths of a SOL on
+  // devnet is comfortable) — AND a small nonzero balance of the quote token
+  // below (any amount, even a fraction of a cent) before running for real.
+  // The DLMM program rejects pool creation from a wallet holding only the
+  // base token ("MissingTokenAmountAsTokenLaunchProof") as an anti-rug
+  // check; get some devnet USDC from https://faucet.circle.com first.
+  "keypairFilePath": "~/.config/solana/id.json",
+
+  // USDC mint to pair NEB against. This is devnet USDC (Circle's official
+  // devnet faucet mint) — replace with mainnet USDC
+  // (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v) before a real launch.
+  "quoteMint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+
+  "dryRun": true,
+
+  "token": {
+    "name": "Nebula",
+    "symbol": "NEB",
+    "decimals": 6,
+    // Full supply, in UI units (not raw base units) — minted entirely at
+    // inception, then the mint authority is revoked (see
+    // revokeMintAuthority) so this is the permanent, final supply.
+    "totalSupply": 1000000000,
+    // Off-chain JSON metadata (name/symbol/image/description — the standard
+    // Metaplex token metadata JSON shape), hosted wherever you like (Arweave,
+    // IPFS, a plain HTTPS URL). The on-chain metadata account created by this
+    // script points at this URI; it does not host the JSON itself.
+    "uri": "https://example.com/neb-metadata.json",
+    "revokeMintAuthority": true,
+    "isMutable": true
+  },
+
+  "pool": {
+    // Price increment between adjacent bins, in basis points.
+    "binStep": 100,
+    // Trading fee on swaps through this pool, in basis points.
+    "feeBps": 100,
+    // Starting price, USDC per NEB.
+    "initialPrice": 0.001,
+    "priceRounding": "up",
+    // "timestamp" activates at a wall-clock time (activationPoint = unix
+    // seconds); "slot" activates at a specific slot number.
+    "activationType": "timestamp",
+    // null = trading opens as soon as the pool + liquidity seed land.
+    "activationPoint": null,
+    // If true, the deployer keypair can pause/resume trading after launch.
+    "creatorPoolOnOffControl": false
+  }
+}

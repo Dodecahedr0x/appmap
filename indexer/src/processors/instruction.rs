@@ -5,17 +5,14 @@ use sqlx::PgPool;
 
 fn instruction_name(instruction: &NebulousWorldInstruction) -> &'static str {
     match instruction {
-        NebulousWorldInstruction::BuyNeb(_) => "buy_neb",
         NebulousWorldInstruction::ClaimTagReward(_) => "claim_tag_reward",
         NebulousWorldInstruction::ClaimVoteReward(_) => "claim_vote_reward",
         NebulousWorldInstruction::FundAppRewards(_) => "fund_app_rewards",
         NebulousWorldInstruction::InitApp(_) => "init_app",
         NebulousWorldInstruction::Initialize(_) => "initialize",
-        NebulousWorldInstruction::InitNebPool(_) => "init_neb_pool",
         NebulousWorldInstruction::StakeTag(_) => "stake_tag",
         NebulousWorldInstruction::SuggestTag(_) => "suggest_tag",
         NebulousWorldInstruction::Vote(_) => "vote",
-        NebulousWorldInstruction::WithdrawPoolSol(_) => "withdraw_pool_sol",
         NebulousWorldInstruction::WithdrawTagStake(_) => "withdraw_tag_stake",
         NebulousWorldInstruction::WithdrawVote(_) => "withdraw_vote",
     }

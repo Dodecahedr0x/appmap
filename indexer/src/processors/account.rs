@@ -12,7 +12,6 @@ fn account_type_name(account: &NebulousWorldAccount) -> &'static str {
         NebulousWorldAccount::AppAccount(_) => "AppAccount",
         NebulousWorldAccount::AppTagAccount(_) => "AppTagAccount",
         NebulousWorldAccount::Config(_) => "Config",
-        NebulousWorldAccount::NebPool(_) => "NebPool",
         NebulousWorldAccount::StakePosition(_) => "StakePosition",
         NebulousWorldAccount::VotePosition(_) => "VotePosition",
     }
@@ -21,9 +20,9 @@ fn account_type_name(account: &NebulousWorldAccount) -> &'static str {
 /// Postgres BIGINT is a signed i64; every value stored here originates as a
 /// u64 on-chain, and while none of them are realistically anywhere near
 /// u64::MAX at this app's scale, the on-chain program itself only ever
-/// checks `> 0` (see e.g. `init_neb_pool`'s handler), not an upper bound —
-/// silently wrapping an oversized value negative via `as i64` would corrupt
-/// whichever row it lands in. Reject and skip instead.
+/// checks values are nonzero, not an upper bound — silently wrapping an
+/// oversized value negative via `as i64` would corrupt whichever row it
+/// lands in. Reject and skip instead.
 fn to_pg_i64(value: u64, field: &str) -> CarbonResult<i64> {
     i64::try_from(value).map_err(|_| {
         carbon_core::error::Error::Custom(format!(
@@ -32,13 +31,10 @@ fn to_pg_i64(value: u64, field: &str) -> CarbonResult<i64> {
     })
 }
 
-/// Upserts one decoded account's current state into `indexed_account`, and —
-/// for `NebPool` specifically — additionally appends an immutable row to
-/// `neb_pool_snapshot`, building the historical price/supply time series the
-/// app's own DB has no way to reconstruct on its own (see the migration's
-/// doc comment). Shared between the live pipeline processor below and the
-/// one-shot startup backfill (src/backfill.rs), so both paths write
-/// identically instead of duplicating the upsert logic.
+/// Upserts one decoded account's current state into `indexed_account`.
+/// Shared between the live pipeline processor below and the one-shot
+/// startup backfill (src/backfill.rs), so both paths write identically
+/// instead of duplicating the upsert logic.
 pub async fn index_account(
     pool: &PgPool,
     metadata: &AccountMetadata,
@@ -79,39 +75,12 @@ pub async fn index_account(
         // Either a brand-new row (rows_affected is 0 on ON CONFLICT
         // DO UPDATE's guard failing, not on plain INSERT) — check which:
         // sqlx reports 1 for a fresh INSERT, so 0 here specifically means
-        // the WHERE guard rejected a stale (out-of-order) update. Also skip
-        // the snapshot insert below: recording a snapshot for an
-        // observation that lost the write race would put a stale slot
-        // out of chronological order in neb_pool_snapshot.
+        // the WHERE guard rejected a stale (out-of-order) update.
         log::debug!(
             "skipped stale {account_type} update for {pubkey} at slot {} (already have a newer one)",
             metadata.slot
         );
         return Ok(());
-    }
-
-    if let NebulousWorldAccount::NebPool(nebpool) = &decoded.data {
-        let total_supply = to_pg_i64(nebpool.total_supply, "total_supply")?;
-        let remaining_supply = to_pg_i64(nebpool.remaining_supply, "remaining_supply")?;
-        let sol_raised = to_pg_i64(nebpool.sol_raised, "sol_raised")?;
-        let virtual_sol_reserves = to_pg_i64(nebpool.virtual_sol_reserves, "virtual_sol_reserves")?;
-
-        sqlx::query(
-            r#"
-            INSERT INTO neb_pool_snapshot
-                (pubkey, slot, total_supply, remaining_supply, sol_raised, virtual_sol_reserves)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            "#,
-        )
-        .bind(&pubkey)
-        .bind(slot)
-        .bind(total_supply)
-        .bind(remaining_supply)
-        .bind(sol_raised)
-        .bind(virtual_sol_reserves)
-        .execute(pool)
-        .await
-        .map_err(|e| carbon_core::error::Error::Custom(e.to_string()))?;
     }
 
     Ok(())

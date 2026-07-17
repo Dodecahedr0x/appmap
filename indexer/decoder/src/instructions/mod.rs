@@ -2,31 +2,26 @@
 use crate::NebulousWorldDecoder;
 use crate::PROGRAM_ID;
 
-pub mod buy_neb;
+
 pub mod claim_tag_reward;
 pub mod claim_vote_reward;
 pub mod fund_app_rewards;
 pub mod init_app;
-pub mod init_neb_pool;
 pub mod initialize;
 pub mod stake_tag;
 pub mod suggest_tag;
 pub mod vote;
-pub mod withdraw_pool_sol;
 pub mod withdraw_tag_stake;
 pub mod withdraw_vote;
 
-pub use self::buy_neb::*;
 pub use self::claim_tag_reward::*;
 pub use self::claim_vote_reward::*;
 pub use self::fund_app_rewards::*;
 pub use self::init_app::*;
-pub use self::init_neb_pool::*;
 pub use self::initialize::*;
 pub use self::stake_tag::*;
 pub use self::suggest_tag::*;
 pub use self::vote::*;
-pub use self::withdraw_pool_sol::*;
 pub use self::withdraw_tag_stake::*;
 pub use self::withdraw_vote::*;
 
@@ -34,17 +29,14 @@ pub use self::withdraw_vote::*;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum NebulousWorldInstruction {
-    BuyNeb(BuyNeb),
     ClaimTagReward(ClaimTagReward),
     ClaimVoteReward(ClaimVoteReward),
     FundAppRewards(FundAppRewards),
     InitApp(InitApp),
     Initialize(Initialize),
-    InitNebPool(InitNebPool),
     StakeTag(StakeTag),
     SuggestTag(SuggestTag),
     Vote(Vote),
-    WithdrawPoolSol(WithdrawPoolSol),
     WithdrawTagStake(WithdrawTagStake),
     WithdrawVote(WithdrawVote),
 }
@@ -62,15 +54,6 @@ impl carbon_core::instruction::InstructionDecoder<'_> for NebulousWorldDecoder {
 
         let data = instruction.data.as_slice();
 
-        {
-            if let Some(decoded) = buy_neb::BuyNeb::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: NebulousWorldInstruction::BuyNeb(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
         {
             if let Some(decoded) = claim_tag_reward::ClaimTagReward::decode(data) {
                 return Some(carbon_core::instruction::DecodedInstruction {
@@ -108,15 +91,6 @@ impl carbon_core::instruction::InstructionDecoder<'_> for NebulousWorldDecoder {
             }
         }
         {
-            if let Some(decoded) = init_neb_pool::InitNebPool::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: NebulousWorldInstruction::InitNebPool(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
             if let Some(decoded) = initialize::Initialize::decode(data) {
                 return Some(carbon_core::instruction::DecodedInstruction {
                     program_id: instruction.program_id,
@@ -148,15 +122,6 @@ impl carbon_core::instruction::InstructionDecoder<'_> for NebulousWorldDecoder {
                 return Some(carbon_core::instruction::DecodedInstruction {
                     program_id: instruction.program_id,
                     data: NebulousWorldInstruction::Vote(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = withdraw_pool_sol::WithdrawPoolSol::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: NebulousWorldInstruction::WithdrawPoolSol(decoded),
                     accounts: instruction.accounts.clone(),
                 });
             }

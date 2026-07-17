@@ -98,6 +98,24 @@ Runnable from the repo root or from `app/` — identical either way.
 | `npm run test:anchor` | Run the Anchor program's Rust test suite |
 | `npm run settle:epoch` | Manual revenue settlement run (AdSense → on-chain reward funding) |
 | `npm run snapshot:daily` | Write today's `AppStatsSnapshot` row per app (for trend charts) |
+| `npm run launch:neb` | Mint NEB's full supply and seed the NEB/USDC Meteora DLMM pool (see below) |
+
+## NEB token launch
+
+NEB isn't minted or sold by the Anchor program — `app/scripts/launch-neb/`
+mints the full configured supply with on-chain Metaplex metadata, then
+creates a NEB/USDC Meteora DLMM pool and seeds it single-sided with that
+entire supply, so buying NEB is a direct swap against a public pool rather
+than an instruction on our own program. Copy
+`app/scripts/launch-neb/launch-neb.config.example.jsonc` to
+`launch-neb.config.json` in that same directory, fill in the token/pool
+parameters, and run `npm run launch:neb` (defaults to a dry run — set
+`"dryRun": false` once you've reviewed the plan it prints). The deployer
+wallet needs a small nonzero balance of the quote token (any amount) before
+running for real — the DLMM program rejects pool creation from a wallet
+holding only the freshly minted base token. Set the printed mint and pool
+addresses as `NEXT_PUBLIC_VOTE_TOKEN_MINT` and `NEXT_PUBLIC_NEB_DLMM_POOL`
+afterward.
 
 ## Simulation vs on-chain mode
 
