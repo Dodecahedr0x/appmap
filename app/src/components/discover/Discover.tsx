@@ -229,7 +229,10 @@ export function Discover({ initial }: Props) {
         </div>
 
         {result.apps.length === 0 ? (
-          <div className="card grid place-items-center p-12 text-center text-slate-steel">
+          <div
+            key={query + JSON.stringify(ranges) + fuzzy + selectedTags.join(",")}
+            className="card animate-fade-in grid place-items-center p-12 text-center text-slate-steel"
+          >
             <p>No apps match your search.</p>
             <p className="mt-1 text-xs">
               Try removing a filter — or{" "}

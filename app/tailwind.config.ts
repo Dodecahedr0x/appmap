@@ -75,9 +75,16 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        // Opacity-only, no rise — for swapping content in place (e.g. a tab
+        // panel) rather than content entering the page from below.
+        "fade-in-fast": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.25s ease-out",
+        "fade-in-fast": "fade-in-fast 0.15s ease-out",
       },
     },
   },

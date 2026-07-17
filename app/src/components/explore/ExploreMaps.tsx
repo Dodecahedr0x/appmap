@@ -159,7 +159,7 @@ export function ExploreMaps() {
             </div>
           )}
 
-          <div>
+          <div key={tab} className="animate-fade-in-fast">
             {tab === "apps" ? (
               <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} />
             ) : (

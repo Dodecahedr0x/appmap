@@ -34,7 +34,7 @@
     // Full supply, in UI units (not raw base units) — minted entirely at
     // inception, then the mint authority is revoked (see
     // revokeMintAuthority) so this is the permanent, final supply.
-    "totalSupply": 1000000000,
+    "totalSupply": 100000000,
     // Off-chain JSON metadata (name/symbol/image/description — the standard
     // Metaplex token metadata JSON shape), hosted wherever you like (Arweave,
     // IPFS, a plain HTTPS URL). The on-chain metadata account created by this
@@ -50,7 +50,7 @@
     // Trading fee on swaps through this pool, in basis points.
     "feeBps": 100,
     // Starting price, USDC per NEB.
-    "initialPrice": 0.001,
+    "initialPrice": 0.0005,
     "priceRounding": "up",
     // "timestamp" activates at a wall-clock time (activationPoint = unix
     // seconds); "slot" activates at a specific slot number.

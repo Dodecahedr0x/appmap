@@ -4,9 +4,14 @@ import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { ConnectButton } from "@/components/ConnectButton";
+import { cn } from "@/lib/utils";
 import { CATEGORIES, CHAINS } from "@/lib/constants";
 
 const MAX_TAGS = 10;
+// Kept in sync with .chip-pop's transition duration in globals.css — a
+// removed tag stays in `tags` (marked `chip-leaving`) this long so its exit
+// can actually play before it's spliced out for real.
+const CHIP_EXIT_MS = 150;
 
 interface Props {
   onSuccess: () => void;
@@ -31,6 +36,9 @@ export function CreateAppForm({ onSuccess }: Props) {
   const [category, setCategory] = useState<string>("other");
   const [chain, setChain] = useState<string>("solana");
   const [tags, setTags] = useState<string[]>([]);
+  // Tags mid-removal: still in `tags` (rendered with `chip-leaving`) so their
+  // exit transition can play before the actual splice below.
+  const [leavingTags, setLeavingTags] = useState<Set<string>>(new Set());
   const [tagInput, setTagInput] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -45,7 +53,15 @@ export function CreateAppForm({ onSuccess }: Props) {
   }
 
   function removeTag(t: string) {
-    setTags((prev) => prev.filter((x) => x !== t));
+    setLeavingTags((prev) => new Set(prev).add(t));
+    setTimeout(() => {
+      setTags((prev) => prev.filter((x) => x !== t));
+      setLeavingTags((prev) => {
+        const next = new Set(prev);
+        next.delete(t);
+        return next;
+      });
+    }, CHIP_EXIT_MS);
   }
 
   const canSubmit = name.trim().length >= 2 && url.trim().length > 0 && !busy;
@@ -237,7 +253,8 @@ export function CreateAppForm({ onSuccess }: Props) {
                 key={t}
                 type="button"
                 onClick={() => removeTag(t)}
-                className="chip chip-active"
+                disabled={leavingTags.has(t)}
+                className={cn("chip chip-active chip-pop", leavingTags.has(t) && "chip-leaving")}
                 title="Remove"
               >
                 #{t} ✕

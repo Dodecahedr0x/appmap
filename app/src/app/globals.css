@@ -66,6 +66,67 @@ body {
   }
 }
 
+/* .animate-fade-in (opacity + a 4px rise) is this app's one mount-entrance
+   keyframe, shared by every one-shot "content just arrived" moment (toasts,
+   empty states, async content swaps). Under reduced motion it keeps the
+   opacity fade — that's what actually signals "new thing is here" — and
+   just drops the rise. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation-name: fade-in-opacity-only;
+  }
+}
+@keyframes fade-in-opacity-only {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Tag chips (CreateAppForm): entrance plays automatically via @starting-style
+   the instant a chip mounts — no JS needed for "add". Exit needs the chip to
+   stay mounted a beat longer to actually play, so the component adds
+   `chip-leaving` and removes the chip from state only after the transition
+   finishes; see CreateAppForm.tsx. Uses longhand transition-property (not
+   the `transition` shorthand, which would reset .chip's own color/
+   background-color/border-color transition — same specificity, later in the
+   stylesheet, so it'd otherwise win outright) so hover/active chip color
+   transitions keep working alongside the enter/exit here. A CSS transition,
+   not a keyframe, so rapid add/remove clicks retarget smoothly instead of
+   queuing or snapping. */
+.chip-pop {
+  opacity: 1;
+  transform: scale(1);
+  transition-property: opacity, transform, color, background-color, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+@starting-style {
+  .chip-pop {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+.chip-pop.chip-leaving {
+  opacity: 0;
+  transform: scale(0.95);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chip-pop {
+    transition-property: opacity, color, background-color, border-color;
+  }
+  @starting-style {
+    .chip-pop {
+      transform: none;
+    }
+  }
+  .chip-pop.chip-leaving {
+    transform: none;
+  }
+}
+
 /* Wallet-adapter modal restyle to fit the light theme. */
 .wallet-adapter-button {
   height: auto !important;

@@ -64,7 +64,7 @@ export function AdSlot({ appId }: { appId: string }) {
       target="_blank"
       rel="noopener noreferrer sponsored"
       onClick={onClick}
-      className="card group block overflow-hidden p-0 transition-colors hover:border-cobalt/50"
+      className="card group animate-fade-in block overflow-hidden p-0 transition-colors hover:border-cobalt/50"
     >
       <div className="flex items-center justify-between px-3 pt-2">
         <span className="text-[10px] uppercase tracking-wide text-slate-steel">

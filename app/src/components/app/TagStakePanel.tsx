@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
-import { formatToken } from "@/lib/utils";
+import { cn, formatToken } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import type { TagDTO } from "@/lib/types";
 
@@ -27,11 +27,27 @@ export function TagStakePanel({
   const { stakeTag, withdrawTagStake } = useTagStakeProgram();
 
   const [stakingId, setStakingId] = useState<string | null>(null);
+  // Mirrors `stakingId` but stays mounted a beat longer on close so the
+  // stake-input row can fade/rise out instead of popping away the instant
+  // "Cancel" is clicked — same mount-delay pattern as Modal.tsx/FilterPanel.tsx.
+  const [revealRendered, setRevealRendered] = useState<string | null>(null);
+  const [revealVisible, setRevealVisible] = useState(false);
   const [stakeAmount, setStakeAmount] = useState(100);
   const [busy, setBusy] = useState(false);
   const [newTag, setNewTag] = useState("");
   // appTagId -> the current user's active stake on that tag.
   const [myStakes, setMyStakes] = useState<Record<string, { id: string; amount: number }>>({});
+
+  useEffect(() => {
+    if (stakingId) {
+      setRevealRendered(stakingId);
+      const raf = requestAnimationFrame(() => setRevealVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setRevealVisible(false);
+    const t = setTimeout(() => setRevealRendered(null), 200);
+    return () => clearTimeout(t);
+  }, [stakingId]);
 
   useEffect(() => {
     if (!user) {
@@ -176,8 +192,15 @@ export function TagStakePanel({
                   </button>
                 )}
               </div>
-              {stakingId === t.id && (
-                <div className="mt-3 flex items-center gap-2">
+              {revealRendered === t.id && (
+                <div
+                  className={cn(
+                    "mt-3 flex items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+                    revealVisible
+                      ? "opacity-100 motion-safe:translate-y-0"
+                      : "opacity-0 motion-safe:-translate-y-1",
+                  )}
+                >
                   <input
                     type="number"
                     min={1}
