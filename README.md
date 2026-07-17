@@ -23,7 +23,7 @@ sharing**.
 | ---------- | -------------------------------------------------- |
 | Framework  | Next.js 14 (App Router) + TypeScript               |
 | Styling    | Tailwind CSS                                        |
-| Database   | Prisma ORM + SQLite (dev) / Postgres (prod)         |
+| Database   | Prisma ORM + Postgres                               |
 | Wallet     | `@solana/wallet-adapter` (Phantom, Solflare, …)     |
 | Auth       | Sign-In-With-Solana (ed25519 signature, no passwords) |
 | Charts     | Recharts                                            |
@@ -37,6 +37,12 @@ cp .env.example .env          # tweak if needed
 npm run db:reset              # push schema + seed demo data
 npm run dev                   # http://localhost:3000
 ```
+
+`db:reset` (and `db:push`/`test`) auto-provisions a local Postgres via
+Homebrew the first time you run them — installs `postgresql@15` if missing,
+starts it, and creates the `appmap_dev`/`appmap_test` role and database (see
+`scripts/ensure-postgres.sh`). Point `DATABASE_URL` at your own instance
+instead if you'd rather manage Postgres yourself.
 
 This runs the product in **simulation mode** (see below) — no Solana
 toolchain required. To exercise the real on-chain program (or before running
