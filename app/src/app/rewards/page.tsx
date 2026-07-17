@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { Connection } from "@solana/web3.js";
-import { config } from "@/lib/config";
-import { fetchNebPoolStatus } from "@/lib/dlmm";
+import { fetchPoolStatus } from "@/lib/indexerClient";
 import { TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 import { BuyPanel } from "@/components/token/BuyPanel";
 import { PoolAnalytics } from "@/components/rewards/PoolAnalytics";
@@ -15,8 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RewardsPage() {
-  const connection = new Connection(config.solana.rpc, "confirmed");
-  const pool = await fetchNebPoolStatus(connection);
+  const pool = await fetchPoolStatus();
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">

@@ -1,25 +1,20 @@
 "use client";
 
 import { useCallback } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
-import { config, isSimulationMode } from "@/lib/config";
-import {
-  getNebulousWorldProgram,
-  appPda,
-  votePositionPda,
-  toRawAmount,
-  type ProgramTxResult,
-} from "@/lib/anchorClient";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { isSimulationMode } from "@/lib/config";
+import { toRawAmount, type ProgramTxResult } from "@/lib/anchorClient";
+import { apiPost, signAndSubmit } from "@/lib/txClient";
 
 /**
  * Vote/withdraw against the real Anchor program. In simulation mode (no
- * mint configured) both resolve immediately without touching the chain, same
- * as the plain-transfer hook this replaces.
+ * mint configured) both resolve immediately without touching the chain,
+ * same as the plain-transfer hook this replaces. On a real deployment, the
+ * indexer builds the unsigned transaction (see app/api/tx/vote,
+ * app/api/tx/withdraw-vote) — the wallet signs it locally and the indexer
+ * relays it; this hook never holds an RPC connection of its own.
  */
 export function useVoteProgram() {
-  const { connection } = useConnection();
   const wallet = useWallet();
 
   const vote = useCallback(
@@ -27,28 +22,15 @@ export function useVoteProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getNebulousWorldProgram(connection, wallet);
-      const app = appPda(program.programId, appId);
-      const position = votePositionPda(program.programId, app, wallet.publicKey);
-      const mint = new PublicKey(config.solana.voteTokenMint);
-      const userAta = await getAssociatedTokenAddress(mint, wallet.publicKey);
-      const appAccount = await program.account.appAccount.fetch(app);
-
-      const sig = await program.methods
-        .vote(toRawAmount(amount))
-        .accountsPartial({
-          app,
-          position,
-          voteVault: appAccount.voteVault,
-          voteRewardVault: appAccount.voteRewardVault,
-          userTokenAccount: userAta,
-          user: wallet.publicKey,
-        })
-        .rpc();
-
-      return { txSig: sig, simulated: false };
+      const { transaction } = await apiPost<{ transaction: string }>("/api/tx/vote", {
+        appId,
+        amount: toRawAmount(amount).toString(),
+        user: wallet.publicKey.toBase58(),
+      });
+      const txSig = await signAndSubmit(wallet, transaction);
+      return { txSig, simulated: false };
     },
-    [connection, wallet],
+    [wallet],
   );
 
   const withdrawVote = useCallback(
@@ -56,28 +38,15 @@ export function useVoteProgram() {
       if (isSimulationMode()) return { txSig: null, simulated: true };
       if (!wallet.publicKey) throw new Error("Connect your wallet first");
 
-      const program = getNebulousWorldProgram(connection, wallet);
-      const app = appPda(program.programId, appId);
-      const position = votePositionPda(program.programId, app, wallet.publicKey);
-      const mint = new PublicKey(config.solana.voteTokenMint);
-      const userAta = await getAssociatedTokenAddress(mint, wallet.publicKey);
-      const appAccount = await program.account.appAccount.fetch(app);
-
-      const sig = await program.methods
-        .withdrawVote(toRawAmount(amount))
-        .accountsPartial({
-          app,
-          position,
-          voteVault: appAccount.voteVault,
-          voteRewardVault: appAccount.voteRewardVault,
-          userTokenAccount: userAta,
-          user: wallet.publicKey,
-        })
-        .rpc();
-
-      return { txSig: sig, simulated: false };
+      const { transaction } = await apiPost<{ transaction: string }>("/api/tx/withdraw-vote", {
+        appId,
+        amount: toRawAmount(amount).toString(),
+        user: wallet.publicKey.toBase58(),
+      });
+      const txSig = await signAndSubmit(wallet, transaction);
+      return { txSig, simulated: false };
     },
-    [connection, wallet],
+    [wallet],
   );
 
   return { vote, withdrawVote };

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { BN } from "@anchor-lang/core";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useClaimRewards } from "@/hooks/useClaimRewards";
@@ -10,14 +11,9 @@ import { ConnectButton } from "@/components/ConnectButton";
 import { isSimulationMode } from "@/lib/config";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
-import {
-  appPda,
-  appTagPda,
-  votePositionPda,
-  stakePositionPda,
-  fromRawAmount,
-  getReadOnlyNebulousWorldProgram,
-} from "@/lib/anchorClient";
+import { fromRawAmount } from "@/lib/anchorClient";
+import { apiGet } from "@/lib/txClient";
+import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import { settlePendingRaw } from "@/lib/rewards";
 
 interface VotePositionDTO {
@@ -59,7 +55,6 @@ interface ClaimRow {
 export function ClaimRewards() {
   const { user } = useAuth();
   const wallet = useWallet();
-  const { connection } = useConnection();
   const toast = useToast();
   const { claimVoteReward, claimTagReward } = useClaimRewards();
 
@@ -108,31 +103,35 @@ export function ClaimRewards() {
 
       if (isSimulationMode() || !wallet.publicKey) return;
 
-      const program = getReadOnlyNebulousWorldProgram(connection);
-      const owner = wallet.publicKey;
+      const owner = wallet.publicKey.toBase58();
 
       const withPending = await Promise.all(
         base.map(async (row) => {
           try {
-            const app = appPda(program.programId, row.appId);
-            const appAccount = await program.account.appAccount.fetch(app);
+            const { app } = await apiGet<{ app: AppAccountData | null }>(
+              `/api/accounts/app/${encodeURIComponent(row.appId)}`,
+            );
+            if (!app) return row;
             if (row.kind === "vote") {
-              const position = votePositionPda(program.programId, app, owner);
-              const positionAccount = await program.account.votePosition.fetch(position);
+              const { position } = await apiGet<{ position: PositionData | null }>(
+                `/api/accounts/vote-position/${encodeURIComponent(row.appId)}?owner=${owner}`,
+              );
+              if (!position) return row;
               const pending = settlePendingRaw(
-                positionAccount.amount,
-                positionAccount.rewardDebt,
-                appAccount.voteAccRewardPerShare,
+                new BN(position.amount),
+                new BN(position.rewardDebt),
+                new BN(app.voteAccRewardPerShare),
               );
               return { ...row, pending: fromRawAmount(pending) };
             }
-            const appTag = appTagPda(program.programId, app, row.tagSlug!);
-            const position = stakePositionPda(program.programId, appTag, owner);
-            const positionAccount = await program.account.stakePosition.fetch(position);
+            const { position } = await apiGet<{ position: PositionData | null }>(
+              `/api/accounts/stake-position/${encodeURIComponent(row.appId)}/${encodeURIComponent(row.tagSlug!)}?owner=${owner}`,
+            );
+            if (!position) return row;
             const pending = settlePendingRaw(
-              positionAccount.amount,
-              positionAccount.rewardDebt,
-              appAccount.tagsAccRewardPerShare,
+              new BN(position.amount),
+              new BN(position.rewardDebt),
+              new BN(app.tagsAccRewardPerShare),
             );
             return { ...row, pending: fromRawAmount(pending) };
           } catch {
@@ -151,7 +150,7 @@ export function ClaimRewards() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, wallet.publicKey, connection]);
+  }, [user, wallet.publicKey]);
 
   async function claim(row: ClaimRow) {
     setClaimingKey(row.key);

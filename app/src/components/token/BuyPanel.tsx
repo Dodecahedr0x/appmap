@@ -7,7 +7,7 @@ import { useNebDlmmSwap } from "@/hooks/useNebDlmmSwap";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
-import type { NebPoolStatus } from "@/lib/dlmm";
+import type { NebPoolStatus } from "@/lib/indexerClient";
 import { ConnectButton } from "@/components/ConnectButton";
 
 const PRESETS = [10, 50, 100, 500];

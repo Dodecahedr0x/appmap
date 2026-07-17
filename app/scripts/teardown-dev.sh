@@ -1,31 +1,47 @@
 #!/usr/bin/env bash
 # Winds down everything scripts/setup-dev.sh starts: the local surfpool
-# Surfnet and the local Postgres instance (see scripts/ensure-postgres.sh).
-# Safe to run even if some/none are up.
+# Surfnet, the indexer (and the dlmm-bridge sidecar it spawns), and the
+# local Postgres instance (see scripts/ensure-postgres.sh). Safe to run
+# even if some/none are up.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT_DIR="$(cd .. && pwd)"
 
 SURFPOOL_PID_FILE="$ROOT_DIR/.surfpool/surfpool.pid"
 RPC_PORT=8899
+INDEXER_PID_FILE="$ROOT_DIR/.surfpool/indexer.pid"
+INDEXER_API_PORT=8090
+DLMM_BRIDGE_PORT=8091
 
 log() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 
+stop_by_pid_or_port() {
+  local label="$1" pid_file="$2" port="$3"
+  local pid=""
+  if [ -n "$pid_file" ] && [ -f "$pid_file" ]; then
+    pid="$(cat "$pid_file")"
+  fi
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid"
+    echo "  $label stopped (pid $pid)"
+  elif lsof -ti ":$port" >/dev/null 2>&1; then
+    lsof -ti ":$port" | xargs kill
+    echo "  $label stopped (found on port $port)"
+  else
+    echo "  $label not running"
+  fi
+  [ -n "$pid_file" ] && rm -f "$pid_file"
+}
+
 log "Stopping surfpool"
-SURFPOOL_PID=""
-if [ -f "$SURFPOOL_PID_FILE" ]; then
-  SURFPOOL_PID="$(cat "$SURFPOOL_PID_FILE")"
-fi
-if [ -n "$SURFPOOL_PID" ] && kill -0 "$SURFPOOL_PID" 2>/dev/null; then
-  kill "$SURFPOOL_PID"
-  echo "  stopped (pid $SURFPOOL_PID)"
-elif lsof -ti ":$RPC_PORT" >/dev/null 2>&1; then
-  lsof -ti ":$RPC_PORT" | xargs kill
-  echo "  stopped (found on port $RPC_PORT)"
-else
-  echo "  not running"
-fi
-rm -f "$SURFPOOL_PID_FILE"
+stop_by_pid_or_port "surfpool" "$SURFPOOL_PID_FILE" "$RPC_PORT"
+
+log "Stopping the indexer and dlmm-bridge"
+stop_by_pid_or_port "indexer" "$INDEXER_PID_FILE" "$INDEXER_API_PORT"
+# dlmm-bridge is a child process the indexer spawns (see
+# indexer/src/dlmm_bridge.rs) — killing the indexer's own pid doesn't
+# propagate to it, so it's stopped independently by its own port.
+stop_by_pid_or_port "dlmm-bridge" "" "$DLMM_BRIDGE_PORT"
 
 log "Stopping local Postgres (postgresql@15)"
 if ! command -v brew >/dev/null 2>&1 || ! brew list --formula postgresql@15 >/dev/null 2>&1; then

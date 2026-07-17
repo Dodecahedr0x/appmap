@@ -1,36 +1,28 @@
-// Live NEB/USDC Meteora DLMM pool state — reads directly from chain, no DB
-// cache. Unlike the old native bonding-curve pool (which our own program
-// owned and updated), the DLMM pool is a public AMM anyone can trade
-// against, so it — not our database — is the only source of truth for
-// price/liquidity. See scripts/launch-neb/ for how the pool gets created.
+// Mirrors app/src/lib/dlmm.ts exactly (this sidecar exists specifically so
+// that logic can keep living here, server-side, instead of in the Next.js
+// app — see README.md).
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import DLMM from "@meteora-ag/dlmm";
-import { config } from "./config";
 
 export interface NebPoolStatus {
   poolAddress: string;
-  /** USDC per NEB, at the pool's current active bin. */
   price: number;
-  /** NEB currently held by the pool, UI units. */
   nebReserve: number;
-  /** USDC currently held by the pool, UI units. */
   usdcReserve: number;
-  /** NEB mint address (the pool's token X). */
   nebMint: string;
-  /** USDC mint address (the pool's token Y). */
   usdcMint: string;
 }
 
+function dlmmCluster(): "mainnet-beta" | "devnet" {
+  return process.env.SOLANA_CLUSTER === "mainnet-beta" ? "mainnet-beta" : "devnet";
+}
+
 export function getNebDlmmPoolAddress(): PublicKey | null {
-  return config.solana.nebDlmmPool ? new PublicKey(config.solana.nebDlmmPool) : null;
+  const addr = process.env.NEB_DLMM_POOL;
+  return addr ? new PublicKey(addr) : null;
 }
 
-function dlmmCluster() {
-  return config.solana.cluster === "mainnet-beta" ? "mainnet-beta" : "devnet";
-}
-
-/** Loads the live DLMM pool. Returns null when no pool is configured (mirrors isSimulationMode()'s "no mint configured" pattern). */
 export async function loadNebPool(connection: Connection) {
   const poolAddress = getNebDlmmPoolAddress();
   if (!poolAddress) return null;

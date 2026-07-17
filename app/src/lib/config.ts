@@ -14,12 +14,6 @@ export const config = {
     ),
     programId: process.env.NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID || "",
     treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS || "",
-    // NEB/USDC Meteora DLMM pool address — created by scripts/launch-neb/ at
-    // deployment time (see that script's README for how NEB's full supply
-    // gets minted and seeded into this pool). Buying NEB is a direct swap
-    // against this pool, not an instruction on our own program.
-    nebDlmmPool: process.env.NEXT_PUBLIC_NEB_DLMM_POOL || "",
-    usdcMint: process.env.NEXT_PUBLIC_USDC_MINT || "",
   },
   ads: {
     // Default CPM (revenue in token units per 1000 impressions).
@@ -28,6 +22,12 @@ export const config = {
   tracking: {
     secret: process.env.TRACKING_SECRET || "dev-tracking-secret-change-me",
   },
+  // Base URL of the indexer's HTTP API (indexer/src/api.rs) — server-only,
+  // never exposed to the browser. Every on-chain read/write in this app
+  // (pool status, vote/stake/claim positions, transaction building and
+  // submission) goes through this instead of a direct Solana RPC
+  // connection — see lib/indexerClient.ts.
+  indexerApiUrl: process.env.INDEXER_API_URL || "http://127.0.0.1:8090",
 } as const;
 
 /**

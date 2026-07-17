@@ -1,6 +1,6 @@
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
-import type { NebPoolStatus } from "@/lib/dlmm";
+import type { NebPoolStatus } from "@/lib/indexerClient";
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
@@ -12,11 +12,11 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Live NEB/USDC Meteora DLMM pool indicators (price, reserves) — read
- * directly from chain (see lib/dlmm.ts), not a DB cache. Unlike the old
- * native bonding-curve pool, swaps against this pool don't go through our
- * API, so there's no local purchase ledger left to chart a history from —
- * this is a snapshot, not a time series.
+ * Live NEB/USDC Meteora DLMM pool indicators (price, reserves) — proxied
+ * from the indexer (see lib/indexerClient.ts's fetchPoolStatus), not a DB
+ * cache. Unlike the old native bonding-curve pool, swaps against this pool
+ * don't go through our API, so there's no local purchase ledger left to
+ * chart a history from — this is a snapshot, not a time series.
  */
 export function PoolAnalytics({ pool }: { pool: NebPoolStatus | null }) {
   if (!pool) {
