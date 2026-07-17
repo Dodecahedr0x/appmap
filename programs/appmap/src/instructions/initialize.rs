@@ -23,6 +23,13 @@ pub struct Initialize<'info> {
     /// authority. This closes the front-running window where anyone could
     /// otherwise race the legitimate deployer to call `initialize` first and
     /// permanently seize `Config.authority`.
+    ///
+    /// Deployment ordering matters: `initialize` must be called before the
+    /// upgrade authority is ever revoked/finalized. Once
+    /// `upgrade_authority_address` is `None`, this constraint can never be
+    /// satisfied again and `Config` (a fixed-address PDA) can never be
+    /// created — finalizing the program before initializing it permanently
+    /// bricks deployment.
     #[account(constraint = program.programdata_address()? == Some(program_data.key()) @ ErrorCode::Unauthorized)]
     pub program: Program<'info, crate::program::Appmap>,
     #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()) @ ErrorCode::Unauthorized)]
