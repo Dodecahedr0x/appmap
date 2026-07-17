@@ -1442,6 +1442,8 @@ git add programs/appmap/src/lib.rs tests/appmap.ts
 git commit -m "feat(anchor): fund_app_rewards + claim_vote_reward"
 ```
 
+**Architectural note (added after Task 15, flagged for Task 27):** `fund_app_rewards`'s `NoStakers` guard only prevents a divide-by-zero — it does not prevent a low-but-nonzero `total_vote_stake`/`total_tag_stake` denominator from distorting `delta = amount * PRECISION / total_stake`. Because `fund_app_rewards` is authority-gated (only the platform's settlement script calls it), an attacker who can predict when a settlement transaction will land could time a `withdraw_vote` immediately beforehand to shrink `total_vote_stake` down to a tiny residual (e.g. mostly just their own remaining stake), inflating their per-share credit for that funding round, then `claim_vote_reward` afterward to walk away with a disproportionate share of that epoch's funding — at the expense of stakers who withdrew/re-entered around the settlement boundary. This is *not* permanent pool corruption: later stakers checkpoint correctly against the post-funding accumulator and are not diluted going forward: the damage is scoped to whichever single funding round gets front-run. When implementing Task 27 (the settlement script), either (a) have the settlement script sanity-check that `total_vote_stake`/`total_tag_stake` aren't anomalously low relative to recent history immediately before calling `fund_app_rewards`, or (b) add a minimum-stake floor to the on-chain program. This is a design decision to make at Task 27, not a change to make to the Anchor program now.
+
 ---
 
 ### Task 16: `AppTagAccount` + `suggest_tag` instruction

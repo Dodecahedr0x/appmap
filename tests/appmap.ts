@@ -702,3 +702,456 @@ describe("appmap: withdraw_vote", () => {
     assert.equal(positionAccount.amount.toString(), initialStake.toString());
   });
 });
+
+describe("appmap: fund_app_rewards + claim_vote_reward", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  const program = anchor.workspace.Appmap as Program<Appmap>;
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId,
+  );
+
+  let voteMint: PublicKey;
+
+  // Same reuse-or-initialize pattern as the other describe blocks above:
+  // `Config` is a singleton, so reuse it (and its `authority`, the
+  // `provider.wallet` deployer) if a prior describe block already created
+  // it.
+  before(async () => {
+    try {
+      const config = await program.account.config.fetch(configPda);
+      voteMint = config.voteMint;
+      return;
+    } catch {
+      // Config not initialized yet — fall through and initialize it.
+    }
+
+    voteMint = await createMint(
+      provider.connection,
+      (provider.wallet as any).payer,
+      provider.wallet.publicKey,
+      null,
+      6,
+    );
+    const [programDataPda] = PublicKey.findProgramAddressSync(
+      [program.programId.toBuffer()],
+      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+    );
+    await program.methods
+      .initialize(1000)
+      .accounts({
+        config: configPda,
+        authority: provider.wallet.publicKey,
+        voteMint,
+        programData: programDataPda,
+      })
+      .rpc();
+  });
+
+  function derivePdas(appId: string) {
+    const [app] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app"), Buffer.from(appId)],
+      program.programId,
+    );
+    const [voteVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [voteRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tags_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    return { app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  function derivePositionPda(app: PublicKey, user: PublicKey) {
+    const [position] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_pos"), app.toBuffer(), user.toBuffer()],
+      program.programId,
+    );
+    return position;
+  }
+
+  async function registerApp() {
+    const appId = `cid${randomBytes(11).toString("hex")}`;
+    const { app, voteVault, voteRewardVault, tagsRewardVault } =
+      derivePdas(appId);
+    await program.methods
+      .initApp(appId)
+      .accounts({
+        app,
+        config: configPda,
+        voteVault,
+        voteRewardVault,
+        tagsRewardVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+    return { appId, app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  // Registers a fresh app, funds a fresh user's wallet, and votes `stake`
+  // in to create a `VotePosition` — the common fixture every test below
+  // builds on.
+  async function setupWithPosition(stake: number, walletAmount: number) {
+    const { app, voteVault, voteRewardVault, tagsRewardVault } =
+      await registerApp();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      userTokenAccount.address,
+      provider.wallet.publicKey,
+      walletAmount,
+    );
+
+    const position = derivePositionPda(app, user.publicKey);
+
+    await program.methods
+      .vote(new BN(stake))
+      .accounts({
+        app,
+        position,
+        voteVault,
+        voteRewardVault,
+        userTokenAccount: userTokenAccount.address,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    return {
+      app,
+      voteVault,
+      voteRewardVault,
+      tagsRewardVault,
+      user,
+      userTokenAccount: userTokenAccount.address,
+      position,
+    };
+  }
+
+  it("bumps the vote-pool accumulator and transfers real tokens into the reward vault", async () => {
+    const stake = 1_000;
+    const { app, voteRewardVault, tagsRewardVault } = await setupWithPosition(
+      stake,
+      10_000,
+    );
+
+    const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      provider.wallet.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      funderTokenAccount.address,
+      provider.wallet.publicKey,
+      20_000,
+    );
+    const funderBefore = await getAccount(
+      provider.connection,
+      funderTokenAccount.address,
+    );
+
+    const fundAmount = 500;
+    await program.methods
+      .fundAppRewards({ vote: {} }, new BN(fundAmount))
+      .accounts({
+        app,
+        config: configPda,
+        voteRewardVault,
+        tagsRewardVault,
+        funderTokenAccount: funderTokenAccount.address,
+        authority: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const rewardVaultAfter = await getAccount(
+      provider.connection,
+      voteRewardVault,
+    );
+    assert.equal(rewardVaultAfter.amount.toString(), fundAmount.toString());
+
+    const funderAfter = await getAccount(
+      provider.connection,
+      funderTokenAccount.address,
+    );
+    assert.equal(
+      funderAfter.amount.toString(),
+      (funderBefore.amount - BigInt(fundAmount)).toString(),
+    );
+
+    const appAccount = await program.account.appAccount.fetch(app);
+    // acc = fundAmount * PRECISION / stake = 500 * 1e12 / 1_000 = 5e11.
+    assert.equal(
+      appAccount.voteAccRewardPerShare.toString(),
+      new BN(fundAmount).mul(new BN(10).pow(new BN(12))).div(new BN(stake)).toString(),
+    );
+  });
+
+  it("rejects a non-authority signer", async () => {
+    const { app, voteRewardVault, tagsRewardVault } = await setupWithPosition(
+      1_000,
+      10_000,
+    );
+
+    const stranger = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(
+        stranger.publicKey,
+        1_000_000_000,
+      ),
+    );
+    const strangerTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      stranger.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      strangerTokenAccount.address,
+      provider.wallet.publicKey,
+      20_000,
+    );
+
+    let threw = false;
+    try {
+      await program.methods
+        .fundAppRewards({ vote: {} }, new BN(500))
+        .accounts({
+          app,
+          config: configPda,
+          voteRewardVault,
+          tagsRewardVault,
+          funderTokenAccount: strangerTokenAccount.address,
+          authority: stranger.publicKey,
+        })
+        .signers([stranger])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(
+      threw,
+      "expected fund_app_rewards to reject a non-authority signer",
+    );
+  });
+
+  it("rejects funding a pool with zero total stake", async () => {
+    const { app, voteRewardVault, tagsRewardVault } = await registerApp();
+
+    const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      provider.wallet.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      funderTokenAccount.address,
+      provider.wallet.publicKey,
+      20_000,
+    );
+
+    let threw = false;
+    try {
+      await program.methods
+        .fundAppRewards({ vote: {} }, new BN(500))
+        .accounts({
+          app,
+          config: configPda,
+          voteRewardVault,
+          tagsRewardVault,
+          funderTokenAccount: funderTokenAccount.address,
+          authority: provider.wallet.publicKey,
+        })
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(
+      threw,
+      "expected fund_app_rewards to reject funding a pool with no stakers",
+    );
+  });
+
+  it("pays out the pending reward on claim and leaves principal untouched", async () => {
+    const stake = 1_000;
+    const walletAmount = 10_000;
+    const { app, voteVault, voteRewardVault, tagsRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(stake, walletAmount);
+
+    const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      provider.wallet.publicKey,
+    );
+    const fundAmount = 2_000;
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      funderTokenAccount.address,
+      provider.wallet.publicKey,
+      fundAmount,
+    );
+    await program.methods
+      .fundAppRewards({ vote: {} }, new BN(fundAmount))
+      .accounts({
+        app,
+        config: configPda,
+        voteRewardVault,
+        tagsRewardVault,
+        funderTokenAccount: funderTokenAccount.address,
+        authority: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    // acc = 2_000 * PRECISION / 1_000 = 2 * PRECISION.
+    // pending = settle_pending(1_000, 0, 2*PRECISION) = 2_000 (the entire
+    // funded amount, since this user holds 100% of the stake).
+    const expectedPending = fundAmount;
+
+    await program.methods
+      .claimVoteReward()
+      .accounts({
+        app,
+        position,
+        voteRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const positionAccount = await program.account.votePosition.fetch(position);
+    assert.equal(positionAccount.amount.toString(), stake.toString());
+
+    const userTokenAfter = await getAccount(provider.connection, userTokenAccount);
+    assert.equal(
+      userTokenAfter.amount.toString(),
+      (walletAmount - stake + expectedPending).toString(),
+    );
+
+    const rewardVaultAfter = await getAccount(provider.connection, voteRewardVault);
+    assert.equal(rewardVaultAfter.amount.toString(), "0");
+
+    // Principal vault untouched by a claim.
+    const voteVaultAfter = await getAccount(provider.connection, voteVault);
+    assert.equal(voteVaultAfter.amount.toString(), stake.toString());
+  });
+
+  it("pays nothing extra on a second claim with no intervening vote/fund", async () => {
+    const stake = 1_000;
+    const walletAmount = 10_000;
+    const { app, voteRewardVault, tagsRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(stake, walletAmount);
+
+    const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      provider.wallet.publicKey,
+    );
+    const fundAmount = 2_000;
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      funderTokenAccount.address,
+      provider.wallet.publicKey,
+      fundAmount,
+    );
+    await program.methods
+      .fundAppRewards({ vote: {} }, new BN(fundAmount))
+      .accounts({
+        app,
+        config: configPda,
+        voteRewardVault,
+        tagsRewardVault,
+        funderTokenAccount: funderTokenAccount.address,
+        authority: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    await program.methods
+      .claimVoteReward()
+      .accounts({
+        app,
+        position,
+        voteRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const balanceAfterFirstClaim = (
+      await getAccount(provider.connection, userTokenAccount)
+    ).amount;
+    const positionAfterFirstClaim = await program.account.votePosition.fetch(
+      position,
+    );
+
+    // Claim again immediately — nothing new has accrued.
+    await program.methods
+      .claimVoteReward()
+      .accounts({
+        app,
+        position,
+        voteRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const balanceAfterSecondClaim = (
+      await getAccount(provider.connection, userTokenAccount)
+    ).amount;
+    assert.equal(
+      balanceAfterSecondClaim.toString(),
+      balanceAfterFirstClaim.toString(),
+    );
+
+    const positionAfterSecondClaim = await program.account.votePosition.fetch(
+      position,
+    );
+    assert.equal(
+      positionAfterSecondClaim.amount.toString(),
+      positionAfterFirstClaim.amount.toString(),
+    );
+    assert.equal(
+      positionAfterSecondClaim.rewardDebt.toString(),
+      positionAfterFirstClaim.rewardDebt.toString(),
+    );
+  });
+});

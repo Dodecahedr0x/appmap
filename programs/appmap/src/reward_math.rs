@@ -37,6 +37,32 @@ pub fn reward_debt_for(amount: u64, acc_reward_per_share: u128) -> Result<u128> 
         .ok_or_else(|| ErrorCode::MathOverflow.into())
 }
 
+/// The "fund" side of the reward-per-share accumulator pattern, mirroring
+/// `settle_pending`/`reward_debt_for` (the "read" side): computes the new
+/// accumulator value after `amount` reward tokens are deposited across a
+/// pool currently holding `total_stake` staked units.
+///
+/// Rejects `total_stake == 0` with `NoStakers` — funding an empty pool would
+/// divide by zero, and even setting that aside, deposited tokens would be
+/// stuck forever with nobody able to accrue a claim on them.
+///
+/// Pool-agnostic like its `settle_pending`/`reward_debt_for` counterparts:
+/// `fund_app_rewards` (Task 15) uses this for both the vote pool
+/// (`total_vote_stake`/`vote_acc_reward_per_share`) and the tags pool
+/// (`total_tag_stake`/`tags_acc_reward_per_share`) today, and Task 18's
+/// tags-specific funding path (if any) can reuse it as-is instead of
+/// duplicating the formula.
+pub fn bump_accumulator(amount: u64, total_stake: u64, current_acc: u128) -> Result<u128> {
+    require!(total_stake > 0, ErrorCode::NoStakers);
+    let delta = (amount as u128)
+        .checked_mul(REWARD_PRECISION)
+        .ok_or(ErrorCode::MathOverflow)?
+        / total_stake as u128;
+    current_acc
+        .checked_add(delta)
+        .ok_or_else(|| ErrorCode::MathOverflow.into())
+}
+
 /// Transfer `amount` out of a vault owned by the `app` PDA, with the PDA
 /// signing via its ORIGINAL derivation seeds (`app_id` bytes, not
 /// `app.key()` — see the critical note on `AppAccount::bump`). No-ops if
@@ -173,6 +199,42 @@ mod tests {
     #[test]
     fn reward_debt_for_rejects_multiply_overflow() {
         let err = reward_debt_for(u64::MAX, u128::MAX);
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn bump_accumulator_realistic_case() {
+        // 1_000 tokens staked, funding 40 reward tokens => delta = 40 *
+        // PRECISION / 1_000 = PRECISION / 25, added on top of a nonzero
+        // starting accumulator.
+        let starting_acc = 5 * REWARD_PRECISION;
+        let new_acc = bump_accumulator(40, 1_000, starting_acc).unwrap();
+        assert_eq!(new_acc, starting_acc + REWARD_PRECISION / 25);
+    }
+
+    #[test]
+    fn bump_accumulator_rejects_zero_total_stake() {
+        let err = bump_accumulator(1_000, 0, 0);
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn bump_accumulator_matches_settle_pending_round_trip() {
+        // Funding a pool and then immediately settling a position that holds
+        // the entire stake should yield exactly the funded amount back
+        // (modulo integer-division rounding, avoided here by choosing evenly
+        // divisible numbers) — this is the property that makes
+        // `fund_app_rewards` + `claim_vote_reward` round-trip correctly.
+        let total_stake = 2_000u64;
+        let funded_amount = 6_000u64;
+        let acc = bump_accumulator(funded_amount, total_stake, 0).unwrap();
+        let pending = settle_pending(total_stake, 0, acc).unwrap();
+        assert_eq!(pending, funded_amount);
+    }
+
+    #[test]
+    fn bump_accumulator_rejects_multiply_overflow() {
+        let err = bump_accumulator(u64::MAX, 1, u128::MAX);
         assert!(err.is_err());
     }
 }

@@ -4,7 +4,10 @@ use anchor_lang::prelude::*;
 pub enum ErrorCode {
     #[msg("Protocol fee must not exceed 10,000 basis points (100%)")]
     InvalidFeeBps,
-    #[msg("Signer is not the program's upgrade authority")]
+    // Shared by `initialize` (must be the program's upgrade authority) and
+    // `fund_app_rewards` (must be `Config.authority`, via `has_one`) — the
+    // message is deliberately generic so it fits both authorization checks.
+    #[msg("Signer is not authorized to perform this action")]
     Unauthorized,
     #[msg("app_id must not exceed 32 bytes")]
     AppIdTooLong,
@@ -14,4 +17,6 @@ pub enum ErrorCode {
     MathOverflow,
     #[msg("Withdrawal amount exceeds the position's staked amount")]
     InsufficientStake,
+    #[msg("Cannot fund a reward pool that has no stakers")]
+    NoStakers,
 }

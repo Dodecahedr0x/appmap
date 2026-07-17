@@ -31,4 +31,16 @@ pub mod appmap {
     pub fn withdraw_vote(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
         withdraw_vote::handler(ctx, amount)
     }
+
+    pub fn fund_app_rewards(
+        ctx: Context<FundAppRewards>,
+        pool: RewardPool,
+        amount: u64,
+    ) -> Result<()> {
+        fund_app_rewards::handler(ctx, pool, amount)
+    }
+
+    pub fn claim_vote_reward(ctx: Context<ClaimVoteReward>) -> Result<()> {
+        claim_vote_reward::handler(ctx)
+    }
 }

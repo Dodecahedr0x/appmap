@@ -69,3 +69,16 @@ pub struct VotePosition {
 impl VotePosition {
     pub const SPACE: usize = 32 + 8 + 16 + 1;
 }
+
+/// Selects which of `AppAccount`'s two reward pools an instruction operates
+/// on. Introduced by `fund_app_rewards` (Task 15), which needs to fund
+/// either pool through one instruction rather than two near-duplicate ones.
+/// `Tags` is scaffolded now even though `AppTagAccount`/tag-staking
+/// (`total_tag_stake` ever becoming nonzero) don't exist until Tasks 16-18,
+/// specifically so `fund_app_rewards` doesn't need a breaking-change
+/// migration once tag staking lands.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RewardPool {
+    Vote,
+    Tags,
+}
