@@ -10,6 +10,8 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
+import { formatToken } from "@/lib/utils";
+import { TOKEN_SYMBOL } from "@/lib/constants";
 
 interface GraphNode extends SimulationNodeDatum {
   id: string;
@@ -52,14 +54,29 @@ const FALLBACK_LINKS: GraphLink[] = [
   { source: "developer-tools", target: "defi", weight: 2 },
 ];
 
+const NODE_FILL = "#0068f9";
+const NODE_FILL_DIM = "#a5a5a5";
+const EDGE_STROKE = "#0068f9";
+const LABEL_INK = "#121722";
+const LABEL_DIM = "#a5a5a5";
+
 /**
  * Force-directed tag constellation — nodes sized by total stake, edges by
  * co-occurrence. Fetches live data from /api/tags/graph and falls back to a
  * representative static graph if the request fails or returns nothing.
+ * Hovering a node highlights it and its direct connections, dimming the
+ * rest of the graph; a small legend explains the size/hover encoding.
  */
 export function TagConstellation() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [source, setSource] = useState<"live" | "sample">("sample");
+  const [hovered, setHovered] = useState<GraphNode | null>(null);
+  // The canvas's hover-to-highlight interaction is pointer-only (replicating
+  // it via keyboard would need a whole separate nav model for what's a
+  // decorative, supplementary view) — this is the WCAG-required text
+  // alternative instead, giving screen reader/keyboard users the same
+  // underlying data (name + stake) directly.
+  const [nodeList, setNodeList] = useState<GraphNode[]>(FALLBACK_NODES);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,14 +110,27 @@ export function TagConstellation() {
       const links: GraphLink[] = rawLinks
         .filter((l) => nodeById.has(String(l.source)) && nodeById.has(String(l.target)))
         .map((l) => ({ ...l }));
+      setNodeList([...rawNodes].sort((a, b) => b.stake - a.stake));
+
+      // Direct-neighbor lookup for the hover-highlight, built once per
+      // dataset rather than walked on every pointer move.
+      const neighbors = new Map<string, Set<string>>();
+      for (const n of nodes) neighbors.set(n.id, new Set());
+      for (const l of links) {
+        const s = String(l.source);
+        const t = String(l.target);
+        neighbors.get(s)?.add(t);
+        neighbors.get(t)?.add(s);
+      }
 
       const maxStake = Math.max(1, ...nodes.map((n) => n.stake));
-      const radius = (n: GraphNode) => 5 + Math.sqrt(n.stake / maxStake) * 22;
+      const radius = (n: GraphNode) => 6 + Math.sqrt(n.stake / maxStake) * 20;
 
       let width = 0;
       let height = 0;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let hoveredNode: GraphNode | null = null;
 
       function resize() {
         if (!canvas) return;
@@ -115,17 +145,22 @@ export function TagConstellation() {
       }
 
       const simulation = forceSimulation(nodes)
-        .force("charge", forceManyBody().strength(-140))
+        .force("charge", forceManyBody().strength(-150))
         .force(
           "link",
           forceLink<GraphNode, GraphLink>(links)
             .id((d) => d.id)
-            .distance((l) => 70 - Math.min(40, l.weight * 4))
+            .distance((l) => 76 - Math.min(40, l.weight * 4))
             .strength(0.5),
         )
-        .force("collide", forceCollide<GraphNode>((n) => radius(n) + 8))
+        .force("collide", forceCollide<GraphNode>((n) => radius(n) + 10))
         .force("center", forceCenter(0, 0))
         .alphaDecay(reduceMotion ? 1 : 0.02);
+
+      function isDimmed(id: string) {
+        if (!hoveredNode) return false;
+        return id !== hoveredNode.id && !neighbors.get(hoveredNode.id)?.has(id);
+      }
 
       function draw() {
         if (!ctx) return;
@@ -136,35 +171,49 @@ export function TagConstellation() {
           const s = l.source as GraphNode;
           const t = l.target as GraphNode;
           if (s.x == null || t.x == null) continue;
-          ctx.strokeStyle = `rgba(150, 180, 255, ${0.08 + Math.min(0.35, l.weight * 0.05)})`;
-          ctx.lineWidth = 1;
+          const dim = isDimmed(s.id) || isDimmed(t.id);
+          const highlighted = hoveredNode && (s.id === hoveredNode.id || t.id === hoveredNode.id);
+          ctx.strokeStyle = EDGE_STROKE;
+          ctx.globalAlpha = dim ? 0.05 : highlighted ? 0.5 : 0.15 + Math.min(0.25, l.weight * 0.04);
+          ctx.lineWidth = highlighted ? 2 : 1;
           ctx.beginPath();
           ctx.moveTo(s.x, s.y ?? 0);
           ctx.lineTo(t.x, t.y ?? 0);
           ctx.stroke();
         }
+        ctx.globalAlpha = 1;
 
         for (const n of nodes) {
           if (n.x == null || n.y == null) continue;
           const r = radius(n);
-          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2.2);
-          grad.addColorStop(0, "rgba(0, 104, 249, 0.9)");
+          const dim = isDimmed(n.id);
+          const isHovered = hoveredNode?.id === n.id;
+
+          ctx.globalAlpha = dim ? 0.35 : 1;
+          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2);
+          grad.addColorStop(0, dim ? "rgba(165, 165, 165, 0.35)" : "rgba(0, 104, 249, 0.28)");
           grad.addColorStop(1, "rgba(103, 54, 235, 0)");
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, r * 2.2, 0, Math.PI * 2);
+          ctx.arc(n.x, n.y, r * 2, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.fillStyle = "rgba(250, 249, 247, 0.95)";
+          ctx.fillStyle = dim ? NODE_FILL_DIM : NODE_FILL;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, Math.max(2, r * 0.35), 0, Math.PI * 2);
+          ctx.arc(n.x, n.y, isHovered ? r * 0.55 : r * 0.4, 0, Math.PI * 2);
           ctx.fill();
+          if (isHovered) {
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
 
-          ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillStyle = "rgba(250, 249, 247, 0.75)";
+          ctx.font = isHovered ? "600 12px ui-sans-serif, system-ui, sans-serif" : "11px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillStyle = dim ? LABEL_DIM : LABEL_INK;
           ctx.textAlign = "center";
           ctx.fillText(n.name, n.x, n.y - r - 6);
         }
+        ctx.globalAlpha = 1;
       }
 
       // The simulation runs its own internal timer regardless of listeners;
@@ -191,14 +240,11 @@ export function TagConstellation() {
       ro.observe(canvas);
       resize();
 
-      // Drag-to-reposition.
-      let dragging: GraphNode | null = null;
       function pos(e: PointerEvent) {
         const rect = canvas!.getBoundingClientRect();
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
       }
-      function onDown(e: PointerEvent) {
-        const p = pos(e);
+      function nodeAt(p: { x: number; y: number }): GraphNode | null {
         let closest: GraphNode | null = null;
         let closestDist = Infinity;
         for (const n of nodes) {
@@ -209,8 +255,21 @@ export function TagConstellation() {
             closestDist = dist;
           }
         }
-        if (closest) {
-          dragging = closest;
+        return closest;
+      }
+
+      // Drag-to-reposition. Listeners live on the canvas itself, not
+      // window: setPointerCapture below routes every subsequent event for
+      // this pointerId to the canvas regardless of where the cursor
+      // physically is, so a window-level listener (which used to run a
+      // full node hit-test on every mouse move anywhere on the page, even
+      // nowhere near the canvas) isn't needed for the drag to keep working
+      // once the cursor leaves the canvas bounds mid-drag.
+      let dragging: GraphNode | null = null;
+      function onDown(e: PointerEvent) {
+        const hit = nodeAt(pos(e));
+        if (hit) {
+          dragging = hit;
           dragging.fx = dragging.x;
           dragging.fy = dragging.y;
           simulation.alphaTarget(0.3).restart();
@@ -218,10 +277,18 @@ export function TagConstellation() {
         }
       }
       function onMove(e: PointerEvent) {
-        if (!dragging) return;
         const p = pos(e);
-        dragging.fx = p.x;
-        dragging.fy = p.y;
+        if (dragging) {
+          dragging.fx = p.x;
+          dragging.fy = p.y;
+          return;
+        }
+        const hit = nodeAt(p);
+        if (hit?.id !== hoveredNode?.id) {
+          hoveredNode = hit;
+          setHovered(hit);
+        }
+        canvas!.style.cursor = hit ? "grab" : "default";
       }
       function onUp() {
         if (!dragging) return;
@@ -230,9 +297,14 @@ export function TagConstellation() {
         simulation.alphaTarget(0);
         dragging = null;
       }
+      function onLeave() {
+        hoveredNode = null;
+        setHovered(null);
+      }
       canvas.addEventListener("pointerdown", onDown);
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
+      canvas.addEventListener("pointerleave", onLeave);
+      canvas.addEventListener("pointermove", onMove);
+      canvas.addEventListener("pointerup", onUp);
 
       cleanup = () => {
         stopped = true;
@@ -241,8 +313,9 @@ export function TagConstellation() {
         io.disconnect();
         ro.disconnect();
         canvas!.removeEventListener("pointerdown", onDown);
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
+        canvas!.removeEventListener("pointerleave", onLeave);
+        canvas!.removeEventListener("pointermove", onMove);
+        canvas!.removeEventListener("pointerup", onUp);
       };
     }
 
@@ -254,15 +327,36 @@ export function TagConstellation() {
 
   return (
     <div>
-      <canvas
-        ref={canvasRef}
-        className="constellation-canvas"
-        role="img"
-        aria-label="Force-directed graph of nebulous.world tags, sized by total stake and linked by how often two tags share an app. Draggable, decorative beyond the summary in the caption below."
-      />
-      <p style={{ fontSize: "0.75rem", opacity: 0.5, marginTop: "0.5rem" }}>
-        {source === "live" ? "Live from /api/tags/graph — drag a node." : "Sample graph — drag a node."}
-      </p>
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          className="block h-[24rem] w-full touch-none rounded-card border border-hairline bg-ivory sm:h-[30rem]"
+          role="img"
+          aria-label="Force-directed graph of nebulous.world tags, sized by total stake and linked by how often two tags share an app. Hover a tag to highlight its connections; drag to reposition."
+        />
+        {hovered && (
+          <div className="pointer-events-none absolute left-3 top-3 rounded-card border border-hairline bg-white px-3 py-2 shadow-subtle">
+            <div className="text-sm font-semibold text-ink">{hovered.name}</div>
+            <div className="text-caption text-slate">
+              {formatToken(hovered.stake, TOKEN_SYMBOL)} staked
+            </div>
+          </div>
+        )}
+      </div>
+      <ul className="sr-only">
+        {nodeList.map((n) => (
+          <li key={n.id}>
+            {n.name}: {formatToken(n.stake, TOKEN_SYMBOL)} staked
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-caption text-slate">
+        <span>{source === "live" ? "Live from /api/tags/graph." : "Sample graph."} Drag a node, hover to trace connections.</span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-cobalt" aria-hidden="true" />
+          size = total stake
+        </span>
+      </div>
     </div>
   );
 }

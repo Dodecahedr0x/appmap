@@ -71,17 +71,22 @@ void main() {
 
   float w = warped(p, t);
 
-  // Void base, oklch-ish cool blacks lifted toward cobalt/violet in the folds.
-  vec3 void_ = vec3(0.02, 0.024, 0.035);
-  vec3 cobalt = vec3(0.0, 0.408, 0.976);
-  vec3 violet = vec3(0.404, 0.212, 0.922);
+  // Dock's hero palette (see DESIGN.md): cream canvas lifted through the
+  // hero's signature sky-blue-to-lavender-mist gradient in the folds,
+  // cobalt reserved for the sparse node glints below — the single accent
+  // color, used sparingly, not washed across the whole field.
+  vec3 cream = vec3(0.980, 0.976, 0.969);
+  vec3 skyBlue = vec3(0.835, 0.925, 1.0);
+  vec3 mist = vec3(0.957, 0.941, 1.0);
 
-  vec3 col = mix(void_, cobalt, smoothstep(0.25, 0.62, w));
-  col = mix(col, violet, smoothstep(0.55, 0.95, w) * 0.85);
+  vec3 col = mix(cream, skyBlue, smoothstep(0.25, 0.62, w));
+  col = mix(col, mist, smoothstep(0.55, 0.95, w) * 0.7);
 
   // Sparse procedural node glints: a jittered grid, each cell lit if a hashed
   // threshold passes, brightness modulated by the warped field so glints
-  // cluster inside the bright folds — "apps" sitting on the graph.
+  // cluster inside the bright folds — "apps" sitting on the graph. Mixed
+  // toward cobalt (not added) since additive light on an already-pale base
+  // would just blow out to white instead of reading as a glint.
   vec2 grid = uv * 14.0;
   vec2 cell = floor(grid);
   vec2 cellUv = fract(grid) - 0.5;
@@ -89,11 +94,14 @@ void main() {
   float d = length(cellUv - jitter * 0.6);
   float node = smoothstep(0.09, 0.0, d) * step(0.55, hash(cell + 3.1));
   float glintBoost = smoothstep(0.2, 0.8, w);
-  col += node * glintBoost * vec3(0.65, 0.8, 1.0) * 1.4;
+  vec3 cobalt = vec3(0.0, 0.408, 0.976);
+  col = mix(col, cobalt, node * glintBoost * 0.85);
 
-  // Gentle vignette so text laid over the hero stays legible at the edges.
+  // Fade toward pure cream at the edges (rather than darkening, which would
+  // read as a muddy vignette on a light field) so overlaid text stays on a
+  // flat, legible background near the margins.
   float vig = smoothstep(1.05, 0.2, length(uv * vec2(1.0, 1.15)));
-  col *= mix(0.55, 1.0, vig);
+  col = mix(cream, col, vig);
 
   fragColor = vec4(col, 1.0);
 }
