@@ -38,6 +38,21 @@ npm run db:reset              # push schema + seed demo data
 npm run dev                   # http://localhost:3000
 ```
 
+This runs the product in **simulation mode** (see below) — no Solana
+toolchain required. To exercise the real on-chain program (or before running
+`npm run typecheck`/`npm run build`, both of which import the program's
+generated IDL/types), you first need:
+
+```bash
+anchor build                  # generates target/idl/appmap.json + target/types/appmap.ts
+solana-test-validator          # in a separate terminal — devnet's public RPC is currently
+                                # unreliable for program deploys, see Anchor.toml
+anchor deploy --provider.cluster localnet
+```
+
+then set `NEXT_PUBLIC_APPMAP_PROGRAM_ID` and `NEXT_PUBLIC_VOTE_TOKEN_MINT` in
+`.env` to the deployed program id and a real SPL mint.
+
 ### Useful scripts
 
 | Script              | Purpose                                     |
@@ -48,8 +63,12 @@ npm run dev                   # http://localhost:3000
 | `npm run db:seed`   | Seed demo apps / votes / stakes / traffic   |
 | `npm run db:reset`  | Force-reset the DB and re-seed              |
 | `npm run db:studio` | Open Prisma Studio                          |
-| `npm run test`      | Run unit tests (ranking / revenue math)     |
-| `npm run typecheck` | Type-check without emitting                 |
+| `npm run test`      | Run unit tests                              |
+| `npm run typecheck` | Type-check without emitting (needs `anchor build` first) |
+| `npm run lint`       | ESLint |
+| `npm run test:anchor` | Run the Anchor program's Rust test suite |
+| `npm run settle:epoch` | Manual revenue settlement run (AdSense → on-chain reward funding) |
+| `npm run snapshot:daily` | Write today's `AppStatsSnapshot` row per app (for trend charts) |
 
 ## Simulation vs on-chain mode
 
