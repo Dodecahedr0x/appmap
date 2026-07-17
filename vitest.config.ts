@@ -3,13 +3,10 @@ import { defineConfig, configDefaults } from "vitest/config";
 export default defineConfig({
   test: {
     env: {
-      // Prisma resolves relative SQLite URLs relative to schema.prisma's
-      // directory (prisma/), both for the CLI and for the generated Client
-      // at runtime — so "./test.db" here lands at prisma/test.db, not
-      // prisma/prisma/test.db. Verified empirically; see pretest script.
-      DATABASE_URL: "file:./test.db",
+      DATABASE_URL:
+        process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/appmap_test",
     },
-    // Test files share one on-disk SQLite database (no per-file schema/
+    // Test files share one Postgres database (no per-file schema/
     // transaction isolation) and several files unconditionally wipe shared
     // tables like `app` in beforeEach/setup — running files in parallel
     // worker threads races those wipes against other files' inserts,
