@@ -44,6 +44,7 @@ yarn-error.log*
 /programs/**/target
 .anchor
 test-ledger
+test-ledger.pid
 **/*.rs.bk
 
 # git worktrees
