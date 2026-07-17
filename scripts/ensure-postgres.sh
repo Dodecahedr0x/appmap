@@ -14,12 +14,18 @@ if [ -z "$DB_URL" ]; then
   DB_URL="${DB_URL:-postgresql://postgres:postgres@localhost:5432/appmap_dev}"
 fi
 
-read -r HOST PORT PGUSER PGPASS DBNAME <<EOF
+read -r PROTOCOL HOST PORT PGUSER PGPASS DBNAME <<EOF
 $(node -e '
   const u = new URL(process.argv[1]);
-  console.log([u.hostname, u.port || "5432", decodeURIComponent(u.username), decodeURIComponent(u.password), u.pathname.slice(1)].join(" "));
+  console.log([u.protocol, u.hostname, u.port || "5432", decodeURIComponent(u.username), decodeURIComponent(u.password), u.pathname.slice(1)].join(" "));
 ' "$DB_URL")
 EOF
+
+if [ "$PROTOCOL" != "postgresql:" ] && [ "$PROTOCOL" != "postgres:" ]; then
+  echo "error: DATABASE_URL is not a Postgres connection string: $DB_URL" >&2
+  echo "       (this app's Prisma schema requires postgresql://... — see .env.example)" >&2
+  exit 1
+fi
 
 if [ "$HOST" != "localhost" ] && [ "$HOST" != "127.0.0.1" ]; then
   exit 0
