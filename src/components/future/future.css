@@ -1,0 +1,372 @@
+/* AppMap /future — an immersive, informational single-page experience built
+   on the current edge of shipped web platform features: WebGL2 shaders,
+   CSS scroll-driven animations, @property, anchor positioning, Houdini paint
+   worklets, view transitions, oklch/color-mix, subgrid, container queries,
+   :has(), and text-wrap. Every advanced rule is paired with a plain,
+   fully-usable fallback via @supports so nothing here breaks on a browser
+   that hasn't caught up yet. */
+
+@property --angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --glow-mix {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 40%;
+}
+
+.future-root {
+  color-scheme: dark;
+  --void: oklch(16% 0.03 264);
+  --void-deep: oklch(11% 0.025 264);
+  --paper: oklch(97% 0.01 90);
+  --cobalt: oklch(58% 0.19 258);
+  --violet: oklch(50% 0.22 302);
+  --glow: color-mix(in oklch, var(--cobalt) var(--glow-mix), var(--violet));
+  --edge: color-mix(in oklch, var(--paper) 14%, transparent);
+
+  background: var(--void);
+  color: var(--paper);
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.future-root * {
+  box-sizing: border-box;
+}
+
+.future-root section {
+  position: relative;
+  padding: clamp(4rem, 10vw, 8rem) clamp(1.25rem, 5vw, 4rem);
+}
+
+.future-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--glow);
+}
+
+.future-h1 {
+  font-size: clamp(2.75rem, 7vw, 6rem);
+  font-weight: 700;
+  line-height: 1.03;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  max-width: 20ch;
+}
+
+.future-h2 {
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.future-lede {
+  font-size: clamp(1rem, 1.6vw, 1.25rem);
+  line-height: 1.6;
+  color: color-mix(in oklch, var(--paper) 78%, transparent);
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* ---- Hero shader canvas ---- */
+
+.hero-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.hero-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hero-canvas-fallback {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      circle at 30% 20%,
+      color-mix(in oklch, var(--cobalt) 35%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 75% 70%,
+      color-mix(in oklch, var(--violet) 30%, transparent),
+      transparent 55%
+    ),
+    var(--void);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Animated conic underline using @property — animates the custom <angle>
+   property directly instead of jumping between static gradients. */
+.gradient-rule {
+  height: 3px;
+  width: 5rem;
+  border-radius: 999px;
+  background: conic-gradient(from var(--angle), var(--cobalt), var(--violet), var(--cobalt));
+  animation: spin-angle 5s linear infinite;
+}
+@keyframes spin-angle {
+  to {
+    --angle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gradient-rule {
+    animation: none;
+  }
+}
+
+/* ---- Scroll-driven reveal ----
+   Base state is fully visible so content works with zero JS/CSS-feature
+   support; @supports layers in the scroll-linked animation only where the
+   browser can actually drive it off the scroll timeline. */
+.reveal {
+  opacity: 1;
+  transform: none;
+}
+@supports (animation-timeline: view()) {
+  @keyframes reveal-in {
+    from {
+      opacity: 0;
+      transform: translateY(28px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .reveal {
+    animation: reveal-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 32%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none !important;
+  }
+}
+
+/* ---- Houdini paint worklet divider, with gradient fallback ---- */
+.paint-divider {
+  --dot-color: color-mix(in oklch, var(--paper) 55%, transparent);
+  --dot-density: 20;
+  height: 4rem;
+  background: linear-gradient(90deg, transparent, var(--edge) 50%, transparent);
+}
+@supports (background: paint(dotfield)) {
+  .paint-divider {
+    background: paint(dotfield);
+  }
+}
+
+/* ---- Anchor positioning for the ranking-score annotation ---- */
+.rank-score-target {
+  anchor-name: --rank-score;
+}
+.rank-annotation {
+  position: relative;
+  margin-top: 0.5rem;
+}
+@supports (anchor-name: --a) {
+  .rank-annotation {
+    position: fixed;
+    position-anchor: --rank-score;
+    top: anchor(top);
+    left: anchor(right);
+    margin: -0.25rem 0 0 0.75rem;
+    position-try-fallbacks: flip-inline, flip-block;
+  }
+}
+
+/* ---- Subgrid: align icon / title / body across the 4 step cards ---- */
+.step-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(15rem, 1fr);
+  grid-template-rows: auto auto 1fr;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 1rem;
+}
+.step-card {
+  scroll-snap-align: start;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  gap: 0.75rem;
+  border: 1px solid var(--edge);
+  border-radius: 20px;
+  padding: 1.5rem;
+  background: color-mix(in oklch, var(--void-deep) 70%, transparent);
+  container-type: inline-size;
+}
+@supports not (grid-template-rows: subgrid) {
+  .step-card {
+    grid-template-rows: auto auto 1fr;
+  }
+}
+.step-index {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--glow);
+  letter-spacing: 0.08em;
+}
+.step-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.step-body {
+  color: color-mix(in oklch, var(--paper) 72%, transparent);
+  line-height: 1.55;
+  font-size: 0.9375rem;
+}
+@container (min-width: 22rem) {
+  .step-title {
+    font-size: 1.4rem;
+  }
+}
+
+/* ---- :has() — highlight the active slider row in the ranking lab ---- */
+.slider-row {
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  transition: background-color 0.2s ease;
+}
+.slider-row:has(input:focus-visible),
+.slider-row:has(input:active) {
+  background: color-mix(in oklch, var(--cobalt) 16%, transparent);
+}
+
+/* ---- Accordion (grid-template-rows 0fr/1fr smooth height) ---- */
+.accordion-item {
+  border-top: 1px solid var(--edge);
+}
+.accordion-trigger {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 1.25rem 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s ease;
+}
+.accordion-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.accordion-inner {
+  overflow: hidden;
+}
+.accordion-inner > p {
+  padding-bottom: 1.25rem;
+  color: color-mix(in oklch, var(--paper) 72%, transparent);
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+/* ---- Mode morph (view transitions) ---- */
+.mode-card {
+  view-transition-name: mode-card;
+}
+::view-transition-old(mode-card),
+::view-transition-new(mode-card) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- Constellation / tag graph canvas ---- */
+.constellation-canvas {
+  width: 100%;
+  height: clamp(20rem, 45vw, 34rem);
+  display: block;
+  border-radius: 20px;
+  border: 1px solid var(--edge);
+  background: color-mix(in oklch, var(--void-deep) 85%, transparent);
+  touch-action: none;
+}
+
+/* ---- Built-with ticker ---- */
+.ticker-track {
+  display: flex;
+  gap: 3rem;
+  width: max-content;
+  animation: ticker 26s linear infinite;
+}
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
+.ticker-viewport {
+  overflow: hidden;
+  border-top: 1px solid var(--edge);
+  border-bottom: 1px solid var(--edge);
+  padding: 1.25rem 0;
+}
+.ticker-item {
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--paper) 60%, transparent);
+  white-space: nowrap;
+}
+
+.future-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--void-deep);
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+.future-cta:hover {
+  transform: translateY(-2px);
+}
+
+.future-grid-2 {
+  display: grid;
+  gap: 3rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 60rem) {
+  .future-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
