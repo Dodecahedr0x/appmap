@@ -18,4 +18,8 @@ pub mod appmap {
     pub fn initialize(ctx: Context<Initialize>, protocol_fee_bps: u16) -> Result<()> {
         initialize::handler(ctx, protocol_fee_bps)
     }
+
+    pub fn init_app(ctx: Context<InitApp>, app_id: String) -> Result<()> {
+        init_app::handler(ctx, app_id)
+    }
 }

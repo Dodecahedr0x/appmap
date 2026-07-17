@@ -1078,6 +1078,8 @@ git add programs/appmap/src/lib.rs tests/appmap.ts
 git commit -m "feat(anchor): AppAccount + init_app instruction"
 ```
 
+**Correction note (added after Task 12):** `AppAccount`'s PDA is derived from `[APP_SEED, app_id.as_bytes()]` — the off-chain `app_id` string, not the account's own pubkey. Task 13's `transfer_from_vault` pseudocode below signs CPIs with `seeds: &[&[u8]] = &[b"app", app_key.as_ref(), &[app_bump]]`, which uses the app's pubkey and is **wrong** — signer seeds for `invoke_signed` must exactly match the seeds the PDA was originally derived with, so this must instead be `&[b"app", app.app_id.as_bytes(), &[app.bump]]`. Using `app.key()` in place of `app_id.as_bytes()` compiles fine but fails signature verification at runtime with a confusing error, since the resulting derived address won't match `app`'s actual address. Fix this when implementing Task 13 (and any other task that has the `app` PDA sign a CPI).
+
 ---
 
 ### Task 13: `VotePosition` + `vote` instruction

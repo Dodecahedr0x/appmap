@@ -6,4 +6,6 @@ pub enum ErrorCode {
     InvalidFeeBps,
     #[msg("Signer is not the program's upgrade authority")]
     Unauthorized,
+    #[msg("app_id must not exceed 32 bytes")]
+    AppIdTooLong,
 }
