@@ -47,4 +47,12 @@ pub mod appmap {
     pub fn claim_vote_reward(ctx: Context<ClaimVoteReward>) -> Result<()> {
         claim_vote_reward::handler(ctx)
     }
+
+    pub fn stake_tag(ctx: Context<StakeTag>, amount: u64) -> Result<()> {
+        stake_tag::handler(ctx, amount)
+    }
+
+    pub fn withdraw_tag_stake(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
+        withdraw_tag_stake::handler(ctx, amount)
+    }
 }

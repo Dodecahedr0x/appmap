@@ -1,4 +1,4 @@
-use crate::constants::{APP_SEED, REWARD_PRECISION};
+use crate::constants::{APP_SEED, REWARD_PRECISION, TAG_SEED};
 use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
@@ -63,12 +63,45 @@ pub fn bump_accumulator(amount: u64, total_stake: u64, current_acc: u128) -> Res
         .ok_or_else(|| ErrorCode::MathOverflow.into())
 }
 
+/// Shared CPI-construction boilerplate behind `transfer_from_app_vault` and
+/// `transfer_from_tag_vault`: both need the exact same `token::transfer` +
+/// `CpiContext::new_with_signer` shape, differing only in WHICH pubkey signs
+/// and WHAT seeds prove it. Keeping this one private helper means neither
+/// public function can drift out of sync with the other on the CPI plumbing
+/// itself (only the seeds differ, which is the one thing that must NOT be
+/// shared — see the doc comments on the two public callers).
+///
+/// No-ops if `amount` is 0 (several callers compute a `pending` reward that
+/// may legitimately be zero, and a zero-amount SPL transfer is both wasted
+/// CPI cost and, for some token programs, an outright error).
+fn transfer_from_pda_vault<'info>(
+    vault: &Account<'info, TokenAccount>,
+    to: &Account<'info, TokenAccount>,
+    authority_ai: &AccountInfo<'info>,
+    signer_seeds: &[&[u8]],
+    token_program: &Program<'info, Token>,
+    amount: u64,
+) -> Result<()> {
+    if amount == 0 {
+        return Ok(());
+    }
+    token::transfer(
+        CpiContext::new_with_signer(
+            token_program.key(),
+            Transfer {
+                from: vault.to_account_info(),
+                to: to.to_account_info(),
+                authority: authority_ai.clone(),
+            },
+            &[signer_seeds],
+        ),
+        amount,
+    )
+}
+
 /// Transfer `amount` out of a vault owned by the `app` PDA, with the PDA
 /// signing via its ORIGINAL derivation seeds (`app_id` bytes, not
-/// `app.key()` — see the critical note on `AppAccount::bump`). No-ops if
-/// `amount` is 0 (several callers compute a `pending` reward that may
-/// legitimately be zero, and a zero-amount SPL transfer is both wasted CPI
-/// cost and, for some token programs, an outright error).
+/// `app.key()` — see the critical note on `AppAccount::bump`).
 ///
 /// Generic over which vault (vote_vault, vote_reward_vault,
 /// tags_reward_vault) is being drained — callers pass whichever
@@ -83,23 +116,39 @@ pub fn transfer_from_app_vault<'info>(
     token_program: &Program<'info, Token>,
     amount: u64,
 ) -> Result<()> {
-    if amount == 0 {
-        return Ok(());
-    }
     let bump_seed = [app_bump];
     let seeds: &[&[u8]] = &[APP_SEED, app_id.as_bytes(), &bump_seed];
-    token::transfer(
-        CpiContext::new_with_signer(
-            token_program.key(),
-            Transfer {
-                from: vault.to_account_info(),
-                to: to.to_account_info(),
-                authority: app_ai.clone(),
-            },
-            &[seeds],
-        ),
-        amount,
-    )
+    transfer_from_pda_vault(vault, to, app_ai, seeds, token_program, amount)
+}
+
+/// Transfer `amount` out of a vault owned by the `app_tag` PDA (i.e.
+/// `principal_vault`), signing with `app_tag`'s ORIGINAL derivation seeds —
+/// `[TAG_SEED, app_tag.app.as_ref(), app_tag.tag_id.as_bytes(), &[bump]]`,
+/// per the doc comment on `AppTagAccount::bump`. A DIFFERENT signing
+/// authority than `transfer_from_app_vault` (which signs for `app`'s own
+/// vaults) — do not conflate the two.
+///
+/// One parameter over clippy's default `too_many_arguments` threshold: the
+/// `app_tag` PDA's seeds need three separate pieces (`app`, `tag_id`, its
+/// own `bump`) versus `transfer_from_app_vault`'s two (`app_id`, `bump`),
+/// since `AppTagAccount` is keyed by an (app, tag_id) pair rather than a
+/// single id. Splitting this further would fragment the seed material this
+/// function exists to assemble correctly in one place — not worth it for a
+/// one-argument overage.
+#[allow(clippy::too_many_arguments)]
+pub fn transfer_from_tag_vault<'info>(
+    vault: &Account<'info, TokenAccount>,
+    to: &Account<'info, TokenAccount>,
+    app_tag_ai: &AccountInfo<'info>,
+    app: &Pubkey,
+    tag_id: &str,
+    app_tag_bump: u8,
+    token_program: &Program<'info, Token>,
+    amount: u64,
+) -> Result<()> {
+    let bump_seed = [app_tag_bump];
+    let seeds: &[&[u8]] = &[TAG_SEED, app.as_ref(), tag_id.as_bytes(), &bump_seed];
+    transfer_from_pda_vault(vault, to, app_tag_ai, seeds, token_program, amount)
 }
 
 #[cfg(test)]

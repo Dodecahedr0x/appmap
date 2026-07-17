@@ -19,6 +19,9 @@ pub const TAGS_REWARD_VAULT_SEED: &[u8] = b"tags_reward_vault";
 pub const VOTE_POSITION_SEED: &[u8] = b"vote_pos";
 
 #[constant]
+pub const STAKE_POSITION_SEED: &[u8] = b"stake_pos";
+
+#[constant]
 pub const TAG_SEED: &[u8] = b"tag";
 
 #[constant]

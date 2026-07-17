@@ -2,8 +2,10 @@ pub mod claim_vote_reward;
 pub mod fund_app_rewards;
 pub mod init_app;
 pub mod initialize;
+pub mod stake_tag;
 pub mod suggest_tag;
 pub mod vote;
+pub mod withdraw_tag_stake;
 pub mod withdraw_vote;
 
 // Each instruction module's `handler` fn is only ever called via its module
@@ -19,8 +21,10 @@ mod reexports {
     pub use super::fund_app_rewards::*;
     pub use super::init_app::*;
     pub use super::initialize::*;
+    pub use super::stake_tag::*;
     pub use super::suggest_tag::*;
     pub use super::vote::*;
+    pub use super::withdraw_tag_stake::*;
     pub use super::withdraw_vote::*;
 }
 pub use reexports::*;

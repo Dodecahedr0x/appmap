@@ -1425,3 +1425,964 @@ describe("appmap: fund_app_rewards + claim_vote_reward", () => {
     );
   });
 });
+
+describe("appmap: stake_tag", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  const program = anchor.workspace.Appmap as Program<Appmap>;
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId,
+  );
+
+  let voteMint: PublicKey;
+
+  // Same reuse-or-initialize pattern as the other describe blocks above:
+  // `Config` is a singleton, so reuse it if a prior describe block in this
+  // file already created it.
+  before(async () => {
+    try {
+      const config = await program.account.config.fetch(configPda);
+      voteMint = config.voteMint;
+      return;
+    } catch {
+      // Config not initialized yet — fall through and initialize it.
+    }
+
+    voteMint = await createMint(
+      provider.connection,
+      (provider.wallet as any).payer,
+      provider.wallet.publicKey,
+      null,
+      6,
+    );
+    const [programDataPda] = PublicKey.findProgramAddressSync(
+      [program.programId.toBuffer()],
+      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+    );
+    await program.methods
+      .initialize(1000)
+      .accounts({
+        config: configPda,
+        authority: provider.wallet.publicKey,
+        voteMint,
+        programData: programDataPda,
+      })
+      .rpc();
+  });
+
+  function derivePdas(appId: string) {
+    const [app] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app"), Buffer.from(appId)],
+      program.programId,
+    );
+    const [voteVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [voteRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tags_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    return { app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  function deriveTagPdas(app: PublicKey, tagId: string) {
+    const [appTag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+      program.programId,
+    );
+    const [principalVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag_vault"), appTag.toBuffer()],
+      program.programId,
+    );
+    return { appTag, principalVault };
+  }
+
+  function derivePositionPda(appTag: PublicKey, user: PublicKey) {
+    const [position] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stake_pos"), appTag.toBuffer(), user.toBuffer()],
+      program.programId,
+    );
+    return position;
+  }
+
+  // Registers a fresh app and suggests a fresh tag on it — the common
+  // fixture every `stake_tag` test below builds on.
+  async function registerAppAndTag() {
+    const appId = `cid${randomBytes(11).toString("hex")}`;
+    const { app, voteVault, voteRewardVault, tagsRewardVault } =
+      derivePdas(appId);
+    await program.methods
+      .initApp(appId)
+      .accounts({
+        app,
+        config: configPda,
+        voteVault,
+        voteRewardVault,
+        tagsRewardVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const tagId = "defi";
+    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    await program.methods
+      .suggestTag(appId, tagId)
+      .accounts({
+        app,
+        appTag,
+        config: configPda,
+        principalVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    return {
+      appId,
+      app,
+      voteVault,
+      voteRewardVault,
+      tagsRewardVault,
+      appTag,
+      principalVault,
+    };
+  }
+
+  it("locks principal, creates a StakePosition, and updates both stake_amount and total_tag_stake", async () => {
+    const { app, appTag, principalVault, tagsRewardVault } =
+      await registerAppAndTag();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      userTokenAccount.address,
+      provider.wallet.publicKey,
+      10_000,
+    );
+
+    const position = derivePositionPda(appTag, user.publicKey);
+    const amount = 4_000;
+
+    await program.methods
+      .stakeTag(new BN(amount))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount: userTokenAccount.address,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const positionAccount = await program.account.stakePosition.fetch(
+      position,
+    );
+    assert.equal(positionAccount.owner.toBase58(), user.publicKey.toBase58());
+    assert.equal(positionAccount.amount.toString(), amount.toString());
+    assert.equal(positionAccount.rewardDebt.toString(), "0");
+
+    // Both counters moved in lockstep.
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(appTagAccount.stakeAmount.toString(), amount.toString());
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(appAccount.totalTagStake.toString(), amount.toString());
+
+    const vaultAfter = await getAccount(provider.connection, principalVault);
+    assert.equal(vaultAfter.amount.toString(), amount.toString());
+
+    const userTokenAfter = await getAccount(
+      provider.connection,
+      userTokenAccount.address,
+    );
+    assert.equal(userTokenAfter.amount.toString(), (10_000 - amount).toString());
+  });
+
+  it("rejects a zero-amount stake", async () => {
+    const { app, appTag, principalVault, tagsRewardVault } =
+      await registerAppAndTag();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+
+    const position = derivePositionPda(appTag, user.publicKey);
+
+    let threw = false;
+    try {
+      await program.methods
+        .stakeTag(new BN(0))
+        .accounts({
+          app,
+          appTag,
+          position,
+          principalVault,
+          tagsRewardVault,
+          userTokenAccount: userTokenAccount.address,
+          user: user.publicKey,
+        })
+        .signers([user])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(threw, "expected stake_tag to reject a zero amount");
+  });
+
+  // Regression test for a critical fund-drain vulnerability: without the
+  // `constraint = app_tag.app == app.key()` check on `StakeTag::app_tag`,
+  // each of `app`/`app_tag`'s seeds/bump constraints only proves internal
+  // self-consistency — neither proves the two accounts belong together. An
+  // attacker could permissionlessly create their OWN (app, app_tag) pair,
+  // then call `stake_tag` passing THEIR `app_tag` alongside a victim's
+  // well-funded `app`: `principalVault` still address-checks against the
+  // attacker's own vault (their principal stays safe), but
+  // `tagsRewardVault` address-checks against the VICTIM's real vault,
+  // silently crediting the attacker's position against the victim's
+  // `totalTagStake`/`tagsAccRewardPerShare` — a permissionless path to
+  // draining every app's real reward vault. This test builds exactly that
+  // mismatched pair and asserts the call is rejected with
+  // `TagAppMismatch` specifically, not merely "some error".
+  it("rejects a mismatched (app, appTag) pair", async () => {
+    const victim = await registerAppAndTag();
+    const attacker = await registerAppAndTag();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      userTokenAccount.address,
+      provider.wallet.publicKey,
+      10_000,
+    );
+
+    // Position PDA derived off the attacker's own appTag (matching what
+    // `stake_tag`'s `position` seeds constraint expects), but the
+    // instruction passes the VICTIM's `app`.
+    const position = derivePositionPda(attacker.appTag, user.publicKey);
+
+    let errorMessage = "";
+    try {
+      await program.methods
+        .stakeTag(new BN(1_000))
+        .accounts({
+          app: victim.app,
+          appTag: attacker.appTag,
+          position,
+          principalVault: attacker.principalVault,
+          tagsRewardVault: victim.tagsRewardVault,
+          userTokenAccount: userTokenAccount.address,
+          user: user.publicKey,
+        })
+        .signers([user])
+        .rpc();
+    } catch (err) {
+      errorMessage = String(err);
+    }
+    assert.include(
+      errorMessage,
+      "TagAppMismatch",
+      "expected stake_tag to reject a mismatched (app, appTag) pair with TagAppMismatch",
+    );
+
+    // Nothing moved on the victim's side.
+    const victimAppAccount = await program.account.appAccount.fetch(
+      victim.app,
+    );
+    assert.equal(victimAppAccount.totalTagStake.toString(), "0");
+  });
+
+  // Exercises the reward-payout CPI leg of `stake_tag()` end-to-end via the
+  // REAL `fund_app_rewards` instruction (Tags pool) rather than manually
+  // poking account state — the highest-risk path (the `app` PDA, not
+  // `app_tag`, signing a transfer out of the SHARED `tags_reward_vault`).
+  it("pays out the pending reward from a real fund_app_rewards(Tags) call on a second stake", async () => {
+    const { app, appTag, principalVault, tagsRewardVault } =
+      await registerAppAndTag();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+    const walletAmount = 10_000;
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      userTokenAccount.address,
+      provider.wallet.publicKey,
+      walletAmount,
+    );
+
+    const position = derivePositionPda(appTag, user.publicKey);
+    const firstAmount = 1_000;
+    await program.methods
+      .stakeTag(new BN(firstAmount))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount: userTokenAccount.address,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    // Fund the SHARED Tags pool with real tokens via `fund_app_rewards`.
+    const { voteVault, voteRewardVault } = derivePdas(
+      (await program.account.appAccount.fetch(app)).appId,
+    );
+    const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      provider.wallet.publicKey,
+    );
+    const fundAmount = 2_000;
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      funderTokenAccount.address,
+      provider.wallet.publicKey,
+      fundAmount,
+    );
+    await program.methods
+      .fundAppRewards({ tags: {} }, new BN(fundAmount))
+      .accounts({
+        app,
+        config: configPda,
+        voteRewardVault,
+        tagsRewardVault,
+        funderTokenAccount: funderTokenAccount.address,
+        authority: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    // acc = 2_000 * PRECISION / 1_000 = 2 * PRECISION.
+    // pending = settle_pending(1_000, 0, 2*PRECISION) = 2_000 (this user
+    // holds 100% of the tag's stake).
+    const expectedPending = fundAmount;
+
+    const secondAmount = 500;
+    await program.methods
+      .stakeTag(new BN(secondAmount))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount: userTokenAccount.address,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const positionAccount = await program.account.stakePosition.fetch(
+      position,
+    );
+    assert.equal(
+      positionAccount.amount.toString(),
+      (firstAmount + secondAmount).toString(),
+    );
+
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(
+      appTagAccount.stakeAmount.toString(),
+      (firstAmount + secondAmount).toString(),
+    );
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(
+      appAccount.totalTagStake.toString(),
+      (firstAmount + secondAmount).toString(),
+    );
+
+    const userTokenAfter = await getAccount(
+      provider.connection,
+      userTokenAccount.address,
+    );
+    assert.equal(
+      userTokenAfter.amount.toString(),
+      (
+        walletAmount -
+        firstAmount -
+        secondAmount +
+        expectedPending
+      ).toString(),
+    );
+
+    const rewardVaultAfter = await getAccount(
+      provider.connection,
+      tagsRewardVault,
+    );
+    assert.equal(
+      rewardVaultAfter.amount.toString(),
+      (fundAmount - expectedPending).toString(),
+    );
+  });
+});
+
+describe("appmap: withdraw_tag_stake", () => {
+  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  const program = anchor.workspace.Appmap as Program<Appmap>;
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId,
+  );
+
+  let voteMint: PublicKey;
+
+  before(async () => {
+    try {
+      const config = await program.account.config.fetch(configPda);
+      voteMint = config.voteMint;
+      return;
+    } catch {
+      // Config not initialized yet — fall through and initialize it.
+    }
+
+    voteMint = await createMint(
+      provider.connection,
+      (provider.wallet as any).payer,
+      provider.wallet.publicKey,
+      null,
+      6,
+    );
+    const [programDataPda] = PublicKey.findProgramAddressSync(
+      [program.programId.toBuffer()],
+      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+    );
+    await program.methods
+      .initialize(1000)
+      .accounts({
+        config: configPda,
+        authority: provider.wallet.publicKey,
+        voteMint,
+        programData: programDataPda,
+      })
+      .rpc();
+  });
+
+  function derivePdas(appId: string) {
+    const [app] = PublicKey.findProgramAddressSync(
+      [Buffer.from("app"), Buffer.from(appId)],
+      program.programId,
+    );
+    const [voteVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [voteRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    const [tagsRewardVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tags_reward_vault"), app.toBuffer()],
+      program.programId,
+    );
+    return { app, voteVault, voteRewardVault, tagsRewardVault };
+  }
+
+  function deriveTagPdas(app: PublicKey, tagId: string) {
+    const [appTag] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag"), app.toBuffer(), Buffer.from(tagId)],
+      program.programId,
+    );
+    const [principalVault] = PublicKey.findProgramAddressSync(
+      [Buffer.from("tag_vault"), appTag.toBuffer()],
+      program.programId,
+    );
+    return { appTag, principalVault };
+  }
+
+  function derivePositionPda(appTag: PublicKey, user: PublicKey) {
+    const [position] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stake_pos"), appTag.toBuffer(), user.toBuffer()],
+      program.programId,
+    );
+    return position;
+  }
+
+  async function registerAppAndTag() {
+    const appId = `cid${randomBytes(11).toString("hex")}`;
+    const { app, voteVault, voteRewardVault, tagsRewardVault } =
+      derivePdas(appId);
+    await program.methods
+      .initApp(appId)
+      .accounts({
+        app,
+        config: configPda,
+        voteVault,
+        voteRewardVault,
+        tagsRewardVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const tagId = "gaming";
+    const { appTag, principalVault } = deriveTagPdas(app, tagId);
+    await program.methods
+      .suggestTag(appId, tagId)
+      .accounts({
+        app,
+        appTag,
+        config: configPda,
+        principalVault,
+        voteMint,
+        payer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    return {
+      appId,
+      app,
+      voteVault,
+      voteRewardVault,
+      tagsRewardVault,
+      appTag,
+      principalVault,
+    };
+  }
+
+  // Registers an app + tag, funds a fresh user's wallet, and stakes
+  // `initialStake` in to create a `StakePosition` — the common fixture every
+  // `withdraw_tag_stake` test below builds on.
+  async function setupWithPosition(initialStake: number, walletAmount: number) {
+    const { app, appTag, principalVault, tagsRewardVault } =
+      await registerAppAndTag();
+
+    const user = Keypair.generate();
+    await provider.connection.confirmTransaction(
+      await provider.connection.requestAirdrop(user.publicKey, 1_000_000_000),
+    );
+    const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      user.publicKey,
+    );
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      userTokenAccount.address,
+      provider.wallet.publicKey,
+      walletAmount,
+    );
+
+    const position = derivePositionPda(appTag, user.publicKey);
+
+    await program.methods
+      .stakeTag(new BN(initialStake))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount: userTokenAccount.address,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    return {
+      app,
+      appTag,
+      principalVault,
+      tagsRewardVault,
+      user,
+      userTokenAccount: userTokenAccount.address,
+      position,
+    };
+  }
+
+  it("returns principal and zeroes the position on a full withdrawal", async () => {
+    const initialStake = 4_000;
+    const walletAmount = 10_000;
+    const {
+      app,
+      appTag,
+      principalVault,
+      tagsRewardVault,
+      user,
+      userTokenAccount,
+      position,
+    } = await setupWithPosition(initialStake, walletAmount);
+
+    await program.methods
+      .withdrawTagStake(new BN(initialStake))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const positionAccount = await program.account.stakePosition.fetch(
+      position,
+    );
+    assert.equal(positionAccount.amount.toString(), "0");
+    assert.equal(positionAccount.rewardDebt.toString(), "0");
+
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(appTagAccount.stakeAmount.toString(), "0");
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(appAccount.totalTagStake.toString(), "0");
+
+    const vaultAfter = await getAccount(provider.connection, principalVault);
+    assert.equal(vaultAfter.amount.toString(), "0");
+
+    const userTokenAfter = await getAccount(
+      provider.connection,
+      userTokenAccount,
+    );
+    assert.equal(userTokenAfter.amount.toString(), walletAmount.toString());
+  });
+
+  it("leaves remaining stake on a partial withdrawal, keeping stake_amount and total_tag_stake in sync", async () => {
+    const initialStake = 4_000;
+    const walletAmount = 10_000;
+    const {
+      app,
+      appTag,
+      principalVault,
+      tagsRewardVault,
+      user,
+      userTokenAccount,
+      position,
+    } = await setupWithPosition(initialStake, walletAmount);
+
+    const withdrawAmount = 1_500;
+    await program.methods
+      .withdrawTagStake(new BN(withdrawAmount))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const remaining = initialStake - withdrawAmount;
+    const positionAccount = await program.account.stakePosition.fetch(
+      position,
+    );
+    assert.equal(positionAccount.amount.toString(), remaining.toString());
+
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(appTagAccount.stakeAmount.toString(), remaining.toString());
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(appAccount.totalTagStake.toString(), remaining.toString());
+
+    const vaultAfter = await getAccount(provider.connection, principalVault);
+    assert.equal(vaultAfter.amount.toString(), remaining.toString());
+
+    const userTokenAfter = await getAccount(
+      provider.connection,
+      userTokenAccount,
+    );
+    assert.equal(
+      userTokenAfter.amount.toString(),
+      (walletAmount - initialStake + withdrawAmount).toString(),
+    );
+  });
+
+  it("rejects a zero-amount withdrawal", async () => {
+    const { app, appTag, principalVault, tagsRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(4_000, 10_000);
+
+    let threw = false;
+    try {
+      await program.methods
+        .withdrawTagStake(new BN(0))
+        .accounts({
+          app,
+          appTag,
+          position,
+          principalVault,
+          tagsRewardVault,
+          userTokenAccount,
+          user: user.publicKey,
+        })
+        .signers([user])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(threw, "expected withdraw_tag_stake to reject a zero amount");
+  });
+
+  it("rejects a withdrawal exceeding the position's staked amount", async () => {
+    const initialStake = 4_000;
+    const { app, appTag, principalVault, tagsRewardVault, user, userTokenAccount, position } =
+      await setupWithPosition(initialStake, 10_000);
+
+    let threw = false;
+    try {
+      await program.methods
+        .withdrawTagStake(new BN(initialStake + 1))
+        .accounts({
+          app,
+          appTag,
+          position,
+          principalVault,
+          tagsRewardVault,
+          userTokenAccount,
+          user: user.publicKey,
+        })
+        .signers([user])
+        .rpc();
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(
+      threw,
+      "expected withdraw_tag_stake to reject an over-withdrawal",
+    );
+
+    // Nothing moved.
+    const positionAccount = await program.account.stakePosition.fetch(
+      position,
+    );
+    assert.equal(positionAccount.amount.toString(), initialStake.toString());
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(
+      appTagAccount.stakeAmount.toString(),
+      initialStake.toString(),
+    );
+  });
+
+  // Regression test for a critical fund-drain vulnerability (see the
+  // matching test in the "appmap: stake_tag" block for the full exploit
+  // writeup): without the `constraint = app_tag.app == app.key()` check on
+  // `WithdrawTagStake::app_tag`, an attacker with their OWN legitimate
+  // (app, appTag, position) could call `withdraw_tag_stake` passing their
+  // own `appTag`/`position` alongside a victim's well-funded `app`. The
+  // pending-reward leg would then settle against the VICTIM's real
+  // `tagsAccRewardPerShare` and pay out of the VICTIM's real
+  // `tagsRewardVault` — while `principalVault` still address-checks against
+  // the attacker's own vault, so the attacker's principal is never at risk.
+  // Asserts the call is rejected with `TagAppMismatch` specifically.
+  it("rejects a mismatched (app, appTag) pair", async () => {
+    const victim = await registerAppAndTag();
+
+    // The attacker's own, entirely independent app + tag, with a
+    // legitimate stake already in place under the correctly-matched pair.
+    const stakeAmount = 1_000;
+    const attacker = await setupWithPosition(stakeAmount, 10_000);
+
+    let errorMessage = "";
+    try {
+      await program.methods
+        .withdrawTagStake(new BN(stakeAmount))
+        .accounts({
+          app: victim.app,
+          appTag: attacker.appTag,
+          position: attacker.position,
+          principalVault: attacker.principalVault,
+          tagsRewardVault: victim.tagsRewardVault,
+          userTokenAccount: attacker.userTokenAccount,
+          user: attacker.user.publicKey,
+        })
+        .signers([attacker.user])
+        .rpc();
+    } catch (err) {
+      errorMessage = String(err);
+    }
+    assert.include(
+      errorMessage,
+      "TagAppMismatch",
+      "expected withdraw_tag_stake to reject a mismatched (app, appTag) pair with TagAppMismatch",
+    );
+
+    // Nothing moved: the victim's pool and the attacker's own position are
+    // both untouched.
+    const victimAppAccount = await program.account.appAccount.fetch(
+      victim.app,
+    );
+    assert.equal(victimAppAccount.totalTagStake.toString(), "0");
+    const positionAccount = await program.account.stakePosition.fetch(
+      attacker.position,
+    );
+    assert.equal(positionAccount.amount.toString(), stakeAmount.toString());
+  });
+
+  // Exercises the reward-payout CPI leg of `withdraw_tag_stake()` end-to-end
+  // via a REAL `fund_app_rewards` (Tags pool) call — the highest-risk path
+  // in this whole task: two different PDAs (`app` and `app_tag`) each
+  // signing a transfer out of a different vault in the SAME instruction. If
+  // either signer's seeds were wrong, this transaction would fail signature
+  // verification outright rather than merely producing a wrong balance.
+  it("pays out the pending reward from a real fund_app_rewards(Tags) call on a partial withdrawal", async () => {
+    const initialStake = 1_000;
+    const walletAmount = 10_000;
+    const {
+      app,
+      appTag,
+      principalVault,
+      tagsRewardVault,
+      user,
+      userTokenAccount,
+      position,
+    } = await setupWithPosition(initialStake, walletAmount);
+
+    const { voteVault, voteRewardVault } = derivePdas(
+      (await program.account.appAccount.fetch(app)).appId,
+    );
+    const funderTokenAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      provider.wallet.publicKey,
+    );
+    const fundAmount = 2_000;
+    await mintTo(
+      provider.connection,
+      (provider.wallet as any).payer,
+      voteMint,
+      funderTokenAccount.address,
+      provider.wallet.publicKey,
+      fundAmount,
+    );
+    await program.methods
+      .fundAppRewards({ tags: {} }, new BN(fundAmount))
+      .accounts({
+        app,
+        config: configPda,
+        voteRewardVault,
+        tagsRewardVault,
+        funderTokenAccount: funderTokenAccount.address,
+        authority: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    // acc = 2_000 * PRECISION / 1_000 = 2 * PRECISION.
+    // pending = settle_pending(1_000, 0, 2*PRECISION) = 2_000 (this user
+    // holds 100% of the tag's stake, which is also 100% of the shared pool
+    // since no other tag/app has staked in this test run's isolated apps).
+    const expectedPending = fundAmount;
+
+    const withdrawAmount = 400;
+    await program.methods
+      .withdrawTagStake(new BN(withdrawAmount))
+      .accounts({
+        app,
+        appTag,
+        position,
+        principalVault,
+        tagsRewardVault,
+        userTokenAccount,
+        user: user.publicKey,
+      })
+      .signers([user])
+      .rpc();
+
+    const remaining = initialStake - withdrawAmount;
+    const positionAccount = await program.account.stakePosition.fetch(
+      position,
+    );
+    assert.equal(positionAccount.amount.toString(), remaining.toString());
+    // reward_debt_for(remaining, 2*PRECISION) = remaining * 2.
+    assert.equal(
+      positionAccount.rewardDebt.toString(),
+      (remaining * 2).toString(),
+    );
+
+    const appTagAccount = await program.account.appTagAccount.fetch(appTag);
+    assert.equal(appTagAccount.stakeAmount.toString(), remaining.toString());
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(appAccount.totalTagStake.toString(), remaining.toString());
+
+    // User received both the withdrawn principal (returned by `app_tag`)
+    // and the pending reward (paid by `app`).
+    const userTokenAfter = await getAccount(
+      provider.connection,
+      userTokenAccount,
+    );
+    assert.equal(
+      userTokenAfter.amount.toString(),
+      (
+        walletAmount -
+        initialStake +
+        withdrawAmount +
+        expectedPending
+      ).toString(),
+    );
+
+    // The shared reward vault paid out exactly `expectedPending`, signed by
+    // `app`.
+    const rewardVaultAfter = await getAccount(
+      provider.connection,
+      tagsRewardVault,
+    );
+    assert.equal(
+      rewardVaultAfter.amount.toString(),
+      (fundAmount - expectedPending).toString(),
+    );
+
+    // The tag's own principal vault only lost `withdrawAmount`, signed by
+    // `app_tag`.
+    const vaultAfter = await getAccount(provider.connection, principalVault);
+    assert.equal(vaultAfter.amount.toString(), remaining.toString());
+  });
+});

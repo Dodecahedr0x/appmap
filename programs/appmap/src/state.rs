@@ -119,6 +119,32 @@ impl AppTagAccount {
     pub const SPACE: usize = 32 + (4 + 32) + 32 + 8 + 1;
 }
 
+/// One `StakePosition` per (app_tag, user) pair, tracking a user's locked
+/// tag-stake principal in `AppTagAccount::principal_vault` and the
+/// accumulator checkpoint needed to compute rewards owed from
+/// `AppAccount::tags_reward_vault` — the tag-staking mirror of
+/// `VotePosition`. Seeds: `[STAKE_POSITION_SEED, app_tag.key(), user.key()]`.
+/// Like `VotePosition`, this PDA never needs to sign a CPI, so keying off
+/// `app_tag.key()` (rather than `app_tag.app`/`app_tag.tag_id`) carries none
+/// of the CPI-signing footgun documented on `AppTagAccount::bump` — it's
+/// simply a uniqueness key per user-per-tag.
+///
+/// The checkpoint here is against `AppAccount::tags_acc_reward_per_share`
+/// (the shared accumulator across all of an app's tags), NOT a per-tag
+/// accumulator, even though the principal this position represents sits in
+/// a per-tag `principal_vault` — see the design note on `AppTagAccount`.
+#[account]
+pub struct StakePosition {
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub reward_debt: u128,
+    pub bump: u8,
+}
+
+impl StakePosition {
+    pub const SPACE: usize = 32 + 8 + 16 + 1;
+}
+
 /// Selects which of `AppAccount`'s two reward pools an instruction operates
 /// on. Introduced by `fund_app_rewards` (Task 15), which needs to fund
 /// either pool through one instruction rather than two near-duplicate ones.
