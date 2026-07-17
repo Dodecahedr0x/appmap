@@ -17,9 +17,7 @@ export default function Image() {
           justifyContent: "center",
           alignItems: "center",
           gap: 24,
-          background: "#0b0f1a",
-          backgroundImage:
-            "radial-gradient(circle at 25% 15%, rgba(153,69,255,0.35), transparent 55%), radial-gradient(circle at 80% 85%, rgba(20,241,149,0.25), transparent 55%)",
+          backgroundImage: "linear-gradient(180deg, #faf9f7 0%, #d5ecff 100%)",
           padding: 80,
         }}
       >
@@ -29,7 +27,7 @@ export default function Image() {
             fontSize: 96,
             fontWeight: 800,
             letterSpacing: -2,
-            backgroundImage: "linear-gradient(135deg, #9945FF 0%, #14F195 100%)",
+            backgroundImage: "linear-gradient(135deg, #6736eb 0%, #0068f9 100%)",
             backgroundClip: "text",
             color: "transparent",
           }}
@@ -41,7 +39,7 @@ export default function Image() {
             display: "flex",
             textAlign: "center",
             fontSize: 32,
-            color: "#94a3b8",
+            color: "#777c86",
             maxWidth: 900,
           }}
         >

@@ -7,12 +7,15 @@ export const alt = "App preview";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const bg = "#0b0f1a";
-const border = "#232b3d";
-const overlay = "#1a2234";
-const green = "#14F195";
-const purple = "#9945FF";
-const slate = "#94a3b8";
+const bg = "linear-gradient(180deg, #faf9f7 0%, #d5ecff 100%)";
+const hairline = "#efefef";
+const ivory = "#fbfaf7";
+const mist = "#f4f0ff";
+const ink = "#121722";
+const slate = "#777c86";
+const violet = "#6736eb";
+const cobalt = "#0068f9";
+const forest = "#046645";
 
 export default async function Image({
   params,
@@ -32,8 +35,8 @@ export default async function Image({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: bg,
-            color: "white",
+            backgroundImage: bg,
+            color: ink,
             fontSize: 56,
             fontWeight: 700,
           }}
@@ -56,9 +59,7 @@ export default async function Image({
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: bg,
-          backgroundImage:
-            "radial-gradient(circle at 15% 0%, rgba(153,69,255,0.3), transparent 50%), radial-gradient(circle at 100% 100%, rgba(20,241,149,0.2), transparent 50%)",
+          backgroundImage: bg,
           padding: 72,
         }}
       >
@@ -79,19 +80,19 @@ export default async function Image({
                 width: 144,
                 height: 144,
                 borderRadius: 32,
-                background: overlay,
+                background: mist,
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 64,
                 fontWeight: 800,
-                color: green,
+                color: violet,
               }}
             >
               {app.name.charAt(0).toUpperCase()}
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", fontSize: 60, fontWeight: 800, color: "white" }}>
+            <div style={{ display: "flex", fontSize: 60, fontWeight: 800, color: ink }}>
               {app.name}
             </div>
             <div style={{ display: "flex", gap: 12 }}>
@@ -100,8 +101,8 @@ export default async function Image({
                   display: "flex",
                   padding: "6px 18px",
                   borderRadius: 999,
-                  border: `1px solid ${border}`,
-                  background: overlay,
+                  border: `1px solid ${hairline}`,
+                  background: ivory,
                   fontSize: 24,
                   color: slate,
                   textTransform: "capitalize",
@@ -114,8 +115,8 @@ export default async function Image({
                   display: "flex",
                   padding: "6px 18px",
                   borderRadius: 999,
-                  border: `1px solid ${border}`,
-                  background: overlay,
+                  border: `1px solid ${hairline}`,
+                  background: ivory,
                   fontSize: 24,
                   color: slate,
                   textTransform: "capitalize",
@@ -138,28 +139,28 @@ export default async function Image({
           {app.tagline || app.description}
         </div>
 
-        <div style={{ display: "flex", gap: 48, borderTop: `1px solid ${border}`, paddingTop: 32 }}>
+        <div style={{ display: "flex", gap: 48, borderTop: `1px solid ${hairline}`, paddingTop: 32 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", fontSize: 22, color: slate }}>Rank score</div>
-            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: green }}>
+            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: forest }}>
               {app.rankScore.toFixed(2)}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", fontSize: 22, color: slate }}>Votes</div>
-            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: "white" }}>
+            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: ink }}>
               {formatToken(app.voteWeight, "")}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", fontSize: 22, color: slate }}>Staked</div>
-            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: "white" }}>
+            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: ink }}>
               {formatToken(app.stakeTotal, "")}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", fontSize: 22, color: slate }}>Views</div>
-            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: "white" }}>
+            <div style={{ display: "flex", fontSize: 36, fontWeight: 700, color: ink }}>
               {formatNumber(app.viewCount)}
             </div>
           </div>
@@ -170,7 +171,7 @@ export default async function Image({
               alignItems: "center",
               fontSize: 28,
               fontWeight: 700,
-              backgroundImage: `linear-gradient(135deg, ${purple} 0%, ${green} 100%)`,
+              backgroundImage: `linear-gradient(135deg, ${violet} 0%, ${cobalt} 100%)`,
               backgroundClip: "text",
               color: "transparent",
             }}
