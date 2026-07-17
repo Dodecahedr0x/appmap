@@ -58,12 +58,20 @@ interface ForceMapProps<RawNode, RawLink> {
   emptyMessage?: string;
 }
 
-const NODE_FILL = "#0068f9";
-const NODE_FILL_DIM = "#a5a5a5";
-const EDGE_STROKE = "#0068f9";
-const LABEL_INK = "#121722";
-const LABEL_DIM = "#a5a5a5";
-const SELECTED_RING = "#6736eb";
+// Tuned for the dark "nebula" backdrop (see NebulaField) the map now sits
+// on, rather than the light cream/ivory used elsewhere in the app.
+const NODE_FILL = "#7db4ff";
+const NODE_FILL_DIM = "#4b5563";
+const EDGE_STROKE = "#8fb8ff";
+const LABEL_INK = "#f2f4fa";
+const LABEL_DIM = "#6b7280";
+const SELECTED_RING = "#c4b5fd";
+// Local dark-glass chip styling for this component's own metric pickers —
+// deliberately not the shared `.chip`/`.chip-active` classes, which are
+// tuned for the light theme used everywhere else (e.g. Discover's facets).
+const DARK_CHIP =
+  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-colors hover:bg-white/10";
+const DARK_CHIP_ACTIVE = "border-[#9dc6ff]/60 bg-[#9dc6ff]/15 text-white";
 // A pointer that moved less than this while a node was grabbed (or the
 // background was pressed) still counts as a click/tap, not a drag/pan —
 // real pointers rarely stay perfectly still.
@@ -384,12 +392,17 @@ export function ForceMap<RawNode, RawLink>({
           const isSelected = selectedNode?.id === n.id;
 
           ctx.globalAlpha = dim ? 0.35 : 1;
-          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2);
-          grad.addColorStop(0, dim ? "rgba(165, 165, 165, 0.35)" : "rgba(0, 104, 249, 0.28)");
-          grad.addColorStop(1, "rgba(103, 54, 235, 0)");
+          // A soft outward pulse on the selected node's glow — a slow
+          // breathing beacon, not a distraction, and skipped entirely under
+          // prefers-reduced-motion (reduceMotion freezes the sim too).
+          const pulse =
+            isSelected && !reduceMotion ? 1 + 0.12 * Math.sin(performance.now() * 0.003) : 1;
+          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2 * pulse);
+          grad.addColorStop(0, dim ? "rgba(148, 163, 184, 0.25)" : "rgba(125, 180, 255, 0.55)");
+          grad.addColorStop(1, "rgba(140, 100, 255, 0)");
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, r * 2, 0, Math.PI * 2);
+          ctx.arc(n.x, n.y, r * 2 * pulse, 0, Math.PI * 2);
           ctx.fill();
 
           ctx.fillStyle = dim ? NODE_FILL_DIM : NODE_FILL;
@@ -400,7 +413,7 @@ export function ForceMap<RawNode, RawLink>({
             ctx.strokeStyle = SELECTED_RING;
             ctx.lineWidth = 2.5 / view.k;
             ctx.beginPath();
-            ctx.arc(n.x, n.y, r * 0.4 + 4 / view.k, 0, Math.PI * 2);
+            ctx.arc(n.x, n.y, (r * 0.4 + 4) * pulse / view.k, 0, Math.PI * 2);
             ctx.stroke();
           } else if (isHovered) {
             ctx.strokeStyle = "#ffffff";
@@ -611,54 +624,54 @@ export function ForceMap<RawNode, RawLink>({
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className="block h-[24rem] w-full touch-none rounded-card border border-hairline bg-ivory sm:h-[30rem]"
+          className="block h-[24rem] w-full touch-none rounded-card border border-white/10 sm:h-[30rem]"
           role="img"
           aria-label={ariaLabel}
         />
         {isEmpty && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
-            <p className="text-sm text-slate-steel">{emptyMessage ?? "Nothing to show."}</p>
+            <p className="text-sm text-white/50">{emptyMessage ?? "Nothing to show."}</p>
           </div>
         )}
         {loading && !isEmpty && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <p className="text-sm text-slate-steel">Loading…</p>
+            <p className="text-sm text-white/50">Loading…</p>
           </div>
         )}
         {hovered && (
-          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-hairline bg-white px-3 py-2 shadow-subtle">
-            <div className="text-sm font-semibold text-ink">{hovered.label}</div>
+          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-white/10 bg-black/70 px-3 py-2 shadow-lg backdrop-blur-sm">
+            <div className="text-sm font-semibold text-white">{hovered.label}</div>
             {sizeMetrics.map((m) => (
-              <div key={m.key} className="text-caption text-slate">
+              <div key={m.key} className="text-caption text-white/60">
                 {(m.format ?? String)(hovered.metrics[m.key] ?? 0)}
               </div>
             ))}
           </div>
         )}
-        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-hairline bg-white shadow-subtle">
+        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-white/10 bg-black/50 shadow-lg backdrop-blur-sm">
           <button
             type="button"
             onClick={() => zoomActionsRef.current?.zoomIn()}
             aria-label="Zoom in"
-            className="grid h-8 w-8 place-items-center text-ink hover:bg-ivory"
+            className="grid h-8 w-8 place-items-center text-white/80 hover:bg-white/10"
           >
             +
           </button>
-          <div className="h-px bg-hairline" />
+          <div className="h-px bg-white/10" />
           <button
             type="button"
             onClick={() => zoomActionsRef.current?.zoomOut()}
             aria-label="Zoom out"
-            className="grid h-8 w-8 place-items-center text-ink hover:bg-ivory"
+            className="grid h-8 w-8 place-items-center text-white/80 hover:bg-white/10"
           >
             −
           </button>
-          <div className="h-px bg-hairline" />
+          <div className="h-px bg-white/10" />
           <button
             type="button"
             onClick={() => zoomActionsRef.current?.reset()}
             aria-label="Reset zoom and pan"
-            className="grid h-8 w-8 place-items-center text-sm text-ink hover:bg-ivory"
+            className="grid h-8 w-8 place-items-center text-sm text-white/80 hover:bg-white/10"
           >
             ⟲
           </button>
@@ -680,7 +693,7 @@ export function ForceMap<RawNode, RawLink>({
           );
         })}
       </ul>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-caption text-slate">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-caption text-white/50">
         <span>
           {source === "live" ? `Live ${sourceLabel}.` : `Sample ${sourceLabel}.`}{" "}
           {onSelect
@@ -689,7 +702,7 @@ export function ForceMap<RawNode, RawLink>({
         </span>
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full bg-cobalt" aria-hidden="true" />
+            <span className="inline-block h-2 w-2 rounded-full bg-[#7db4ff]" aria-hidden="true" />
             size = {activeSizeMetric.label.toLowerCase()}
           </span>
           {hasOptions && (
@@ -698,7 +711,7 @@ export function ForceMap<RawNode, RawLink>({
               onClick={() => setShowCustomize((v) => !v)}
               aria-expanded={showCustomize}
               aria-controls={customizePanelId}
-              className="font-medium text-cobalt hover:underline"
+              className="font-medium text-sky-300 hover:text-sky-200 hover:underline"
             >
               {showCustomize ? "Hide options" : "Customize"}
             </button>
@@ -706,10 +719,10 @@ export function ForceMap<RawNode, RawLink>({
         </span>
       </div>
       {hasOptions && showCustomize && (
-        <div id={customizePanelId} className="mt-3 flex flex-wrap gap-4 rounded-card border border-hairline bg-ivory p-3">
+        <div id={customizePanelId} className="mt-3 flex flex-wrap gap-4 rounded-card border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
           {linkMetrics.length > 1 && (
             <div>
-              <div className="text-caption font-semibold uppercase tracking-wide text-slate">Connect by</div>
+              <div className="text-caption font-semibold uppercase tracking-wide text-white/50">Connect by</div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {linkMetrics.map((m) => (
                   <button
@@ -717,7 +730,7 @@ export function ForceMap<RawNode, RawLink>({
                     type="button"
                     onClick={() => handleLinkChange(m.key)}
                     aria-pressed={linkKey === m.key}
-                    className={cn("chip", linkKey === m.key && "chip-active")}
+                    className={cn(DARK_CHIP, linkKey === m.key && DARK_CHIP_ACTIVE)}
                   >
                     {m.label}
                   </button>
@@ -727,7 +740,7 @@ export function ForceMap<RawNode, RawLink>({
           )}
           {sizeMetrics.length > 1 && (
             <div>
-              <div className="text-caption font-semibold uppercase tracking-wide text-slate">Size by</div>
+              <div className="text-caption font-semibold uppercase tracking-wide text-white/50">Size by</div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {sizeMetrics.map((m) => (
                   <button
@@ -735,7 +748,7 @@ export function ForceMap<RawNode, RawLink>({
                     type="button"
                     onClick={() => handleSizeChange(m.key)}
                     aria-pressed={sizeKey === m.key}
-                    className={cn("chip", sizeKey === m.key && "chip-active")}
+                    className={cn(DARK_CHIP, sizeKey === m.key && DARK_CHIP_ACTIVE)}
                   >
                     {m.label}
                   </button>
