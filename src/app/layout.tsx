@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SolanaProvider } from "@/components/providers/SolanaProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
-import { Navbar } from "@/components/Navbar";
+import { AppShell } from "@/components/AppShell";
 import { Toaster } from "@/components/ui/Toaster";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "@/lib/constants";
 
@@ -45,16 +45,7 @@ export default function RootLayout({
         <SolanaProvider>
           <AuthProvider>
             <Toaster>
-              <div className="flex min-h-screen flex-col">
-                <Navbar />
-                <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
-                  {children}
-                </main>
-                <footer className="border-t border-hairline bg-white py-6 text-center text-caption text-slate-steel">
-                  AppMap · crowd-sourced app discovery on Solana · built for
-                  transparent, stake-aligned rankings
-                </footer>
-              </div>
+              <AppShell>{children}</AppShell>
             </Toaster>
           </AuthProvider>
         </SolanaProvider>

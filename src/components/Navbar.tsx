@@ -11,6 +11,7 @@ const NAV = [
   { href: "/submit", label: "Submit app" },
   { href: "/analytics", label: "Analytics" },
   { href: "/rewards", label: "Rewards" },
+  { href: "/future", label: "The Future" },
 ];
 
 export function Navbar() {
