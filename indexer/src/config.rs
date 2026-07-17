@@ -1,0 +1,116 @@
+use anyhow::{Context, Result};
+use solana_pubkey::Pubkey;
+use std::str::FromStr;
+
+/// The program's real, canonical id — `declare_id!` in
+/// programs/nebulous_world/src/lib.rs, same value as
+/// NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID in render.yaml. Used as the
+/// default so a bare `cargo run` against this repo's own deployment works
+/// without any env var; PROGRAM_ID can still override it (e.g. to index a
+/// different cluster's deployment).
+const DEFAULT_PROGRAM_ID: &str = "EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx";
+
+pub struct Config {
+    pub database_url: String,
+    /// HTTP RPC endpoint, used for the one-shot getProgramAccounts backfill.
+    pub rpc_http_url: String,
+    /// WebSocket RPC endpoint, used for the ongoing `programSubscribe`
+    /// stream. Most public RPC providers expose this on the same host as
+    /// the HTTP endpoint with an `http(s)` -> `ws(s)` scheme swap, which
+    /// `default_ws_url` below assumes if RPC_WS_URL is unset.
+    pub rpc_ws_url: String,
+    pub program_id: Pubkey,
+    /// How often the visualization rollup task recomputes, in seconds.
+    pub rollup_interval_secs: u64,
+    /// How often the instruction crawler polls getSignaturesForAddress, in
+    /// seconds — see src/crawler.rs for why this is polled rather than
+    /// streamed.
+    pub crawler_poll_interval_secs: u64,
+}
+
+impl Config {
+    pub fn from_env() -> Result<Self> {
+        // Best-effort — Render/production sets real env vars directly, this
+        // is only for local `cargo run`. `indexer/` is a sibling of `app/`
+        // (the Next.js app) at the repo root, and shares the same DATABASE_URL
+        // and Solana config, so it's convenient to reuse app/.env directly
+        // rather than requiring a second local env file.
+        let _ = dotenvy::from_filename("../app/.env")
+            .or_else(|_| dotenvy::from_filename("../.env"))
+            .or_else(|_| dotenvy::dotenv());
+
+        let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+        let rpc_http_url = env_non_empty("NEXT_PUBLIC_SOLANA_RPC")
+            .unwrap_or_else(|| "http://127.0.0.1:8899".to_string());
+        // render.yaml declares RPC_WS_URL with `sync: false` and no value —
+        // if Render ever materializes an unset-but-declared var as an empty
+        // string rather than omitting it entirely, treating "" the same as
+        // "absent" here means the derived default still kicks in instead of
+        // the pipeline silently getting an empty WS URL.
+        let rpc_ws_url =
+            env_non_empty("RPC_WS_URL").unwrap_or_else(|| default_ws_url(&rpc_http_url));
+        let program_id_str = env_non_empty("NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID")
+            .unwrap_or_else(|| DEFAULT_PROGRAM_ID.to_string());
+        let program_id = Pubkey::from_str(&program_id_str)
+            .with_context(|| format!("invalid program id: {program_id_str}"))?;
+        let rollup_interval_secs = std::env::var("ROLLUP_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60);
+        let crawler_poll_interval_secs = std::env::var("CRAWLER_POLL_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(15);
+
+        Ok(Self {
+            database_url,
+            rpc_http_url,
+            rpc_ws_url,
+            program_id,
+            rollup_interval_secs,
+            crawler_poll_interval_secs,
+        })
+    }
+}
+
+/// Reads an env var, treating an empty (or whitespace-only) value the same
+/// as absent — several of this service's optional vars are declared with
+/// `sync: false` in render.yaml, and a blank string materializing instead
+/// of a genuinely missing key should still fall through to the default.
+fn env_non_empty(key: &str) -> Option<String> {
+    std::env::var(key).ok().filter(|v| !v.trim().is_empty())
+}
+
+/// Derives a websocket URL from an HTTP one by swapping the scheme —
+/// correct for every hosted Solana RPC provider (devnet/mainnet public RPC,
+/// Helius, etc.), which all serve both protocols off the same host and
+/// port. `solana-test-validator` is the one common exception: its default
+/// RPC pubsub port is 8900, one above its default RPC HTTP port (8899), so
+/// that specific, well-known port also gets bumped.
+fn default_ws_url(http_url: &str) -> String {
+    http_url
+        .replacen("https://", "wss://", 1)
+        .replacen("http://", "ws://", 1)
+        .replacen(":8899", ":8900", 1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_ws_url_swaps_https_to_wss() {
+        assert_eq!(
+            default_ws_url("https://api.devnet.solana.com"),
+            "wss://api.devnet.solana.com"
+        );
+    }
+
+    #[test]
+    fn default_ws_url_swaps_http_to_ws_and_bumps_the_local_validator_port() {
+        assert_eq!(
+            default_ws_url("http://127.0.0.1:8899"),
+            "ws://127.0.0.1:8900"
+        );
+    }
+}

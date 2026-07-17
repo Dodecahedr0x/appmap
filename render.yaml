@@ -64,6 +64,42 @@ services:
           name: nebulous-world-db
           property: connectionString
 
+  # Carbon (https://github.com/sevenlabs-hq/carbon) indexer: watches every
+  # account owned by the nebulous_world program and every instruction sent
+  # to it, and runs periodic processing tasks that turn that raw on-chain
+  # data into visualization-ready rows (see indexer/README.md). Private —
+  # no public HTTP surface, only reachable on Render's internal network,
+  # since nothing outside this deployment ever calls it directly.
+  - type: pserv
+    name: nebulous-world-indexer
+    runtime: docker
+    repo: https://github.com/Dodecahedr0x/appmap
+    dockerContext: indexer
+    dockerfilePath: indexer/Dockerfile
+    plan: starter
+    region: oregon
+    branch: main
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nebulous-world-db
+          property: connectionString
+      - key: NEXT_PUBLIC_SOLANA_RPC
+        value: https://api.devnet.solana.com
+      - key: NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID
+        value: EkQRRgRFd2FUedJnPVs2Xs6N7U2Jef5GrfwJ62UJZUXx
+      # devnet's public RPC serves WS on the same host/port as HTTP — see
+      # default_ws_url in indexer/src/config.rs — so this only needs
+      # setting for providers that don't (e.g. a paid RPC on a different
+      # WS port).
+      - key: RPC_WS_URL
+        sync: false
+      - key: ROLLUP_INTERVAL_SECS
+        value: "60"
+      - key: CRAWLER_POLL_INTERVAL_SECS
+        value: "15"
+
 databases:
   - name: nebulous-world-db
     databaseName: nebulous_world
