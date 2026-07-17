@@ -5,8 +5,16 @@ import { cn } from "@/lib/utils";
 import type { TagGraphNode } from "@/lib/tagGraph";
 import { AppMap } from "./AppMap";
 import { TagMap } from "./TagMap";
+import { NebulaField } from "./NebulaField";
 import { RelatedApps, type MapSelection } from "./RelatedApps";
 import type { MapNode } from "./ForceMap";
+
+// Local dark-glass chip styling for the tag-combination filter — this panel
+// sits on the animated nebula backdrop, not the light cream background the
+// shared `.chip`/`.chip-active` classes are tuned for (e.g. Discover).
+const DARK_CHIP =
+  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-colors hover:bg-white/10";
+const DARK_CHIP_ACTIVE = "border-[#9dc6ff]/60 bg-[#9dc6ff]/15 text-white";
 
 type TabKey = "apps" | "tags";
 
@@ -88,70 +96,80 @@ export function ExploreMaps() {
   const active = TABS.find((t) => t.key === tab)!;
 
   return (
-    <section className="card space-y-4 p-4 sm:p-6">
-      <div
-        role="tablist"
-        aria-label="Explore maps"
-        className="inline-flex gap-1 rounded-navitem border border-hairline bg-ivory p-1"
-      >
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => switchTab(t.key)}
-            className={cn(
-              "rounded-navitem px-4 py-2 text-sm font-medium transition-colors",
-              tab === t.key ? "bg-white text-ink shadow-subtle" : "text-slate hover:text-ink",
-            )}
+    <div>
+      <section className="relative isolate overflow-hidden rounded-card border border-white/10 bg-gradient-to-b from-[#0b0d1a] to-[#141225] p-4 shadow-lg sm:p-6">
+        {/* WebGL2 nebula/starfield — a purely decorative enhancement. If
+            WebGL2 is unavailable or the shader fails, NebulaField renders
+            nothing and this gradient (set on the section itself, not
+            layered separately) carries the look and the text contrast on
+            its own. */}
+        <NebulaField className="absolute inset-0 -z-10 h-full w-full" />
+        <div className="relative space-y-4">
+          <div
+            role="tablist"
+            aria-label="Explore maps"
+            className="inline-flex gap-1 rounded-navitem border border-white/10 bg-white/5 p-1 backdrop-blur-sm"
           >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <p className="max-w-2xl text-sm text-slate">{active.description}</p>
-
-      {tab === "apps" && availableTags.length > 0 && (
-        <div>
-          <div className="text-caption font-semibold uppercase tracking-wide text-slate">
-            Filter by tag{selectedTags.length > 0 ? ` (${selectedTags.length} selected)` : ""}
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {availableTags.map((t) => (
+            {TABS.map((t) => (
               <button
-                key={t.id}
+                key={t.key}
                 type="button"
-                onClick={() => toggleTagFilter(t.id)}
-                aria-pressed={selectedTags.includes(t.id)}
-                className={cn("chip", selectedTags.includes(t.id) && "chip-active")}
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => switchTab(t.key)}
+                className={cn(
+                  "rounded-navitem px-4 py-2 text-sm font-medium transition-colors",
+                  tab === t.key ? "bg-white/15 text-white shadow-subtle" : "text-white/50 hover:text-white/80",
+                )}
               >
-                #{t.name}
+                {t.label}
               </button>
             ))}
-            {selectedTags.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedTags([])}
-                className="chip text-slate hover:text-ink"
-              >
-                Clear filters
-              </button>
+          </div>
+
+          <p className="max-w-2xl text-sm text-white/60">{active.description}</p>
+
+          {tab === "apps" && availableTags.length > 0 && (
+            <div>
+              <div className="text-caption font-semibold uppercase tracking-wide text-white/40">
+                Filter by tag{selectedTags.length > 0 ? ` (${selectedTags.length} selected)` : ""}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {availableTags.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => toggleTagFilter(t.id)}
+                    aria-pressed={selectedTags.includes(t.id)}
+                    className={cn(DARK_CHIP, selectedTags.includes(t.id) && DARK_CHIP_ACTIVE)}
+                  >
+                    #{t.name}
+                  </button>
+                ))}
+                {selectedTags.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTags([])}
+                    className={cn(DARK_CHIP, "text-white/50 hover:text-white/80")}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            {tab === "apps" ? (
+              <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} />
+            ) : (
+              <TagMap onSelect={handleTagSelect} />
             )}
           </div>
         </div>
-      )}
-
-      <div>
-        {tab === "apps" ? (
-          <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} />
-        ) : (
-          <TagMap onSelect={handleTagSelect} />
-        )}
-      </div>
+      </section>
 
       {selection && <RelatedApps selection={selection} onClear={() => setSelection(null)} />}
-    </section>
+    </div>
   );
 }
