@@ -43,6 +43,7 @@ export const trackViewSchema = z.object({
   appId: z.string().min(1),
   path: z.string().max(300).optional().default("/"),
   referrer: z.string().max(300).optional(),
+  turnstileToken: z.string().nullable().optional(),
 });
 
 export const authVerifySchema = z.object({
