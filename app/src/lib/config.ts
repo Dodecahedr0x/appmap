@@ -14,6 +14,12 @@ export const config = {
     ),
     programId: process.env.NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID || "",
     treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS || "",
+    // NEB/USDC Meteora DLMM pool address — created by scripts/launch-neb/ at
+    // deployment time (see that script's README for how NEB's full supply
+    // gets minted and seeded into this pool). Buying NEB is a direct swap
+    // against this pool, not an instruction on our own program.
+    nebDlmmPool: process.env.NEXT_PUBLIC_NEB_DLMM_POOL || "",
+    usdcMint: process.env.NEXT_PUBLIC_USDC_MINT || "",
   },
   ads: {
     // Default CPM (revenue in token units per 1000 impressions).

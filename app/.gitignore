@@ -38,3 +38,8 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# NEB launch config — real values (keypair paths, mainnet mints) shouldn't
+# be committed; scripts/launch-neb/launch-neb.config.example.jsonc is the
+# tracked template.
+/scripts/launch-neb/launch-neb.config.json

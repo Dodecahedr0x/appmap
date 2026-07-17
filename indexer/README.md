@@ -14,8 +14,8 @@ same Postgres database the Next.js app reads from.
                     ┌─ getProgramAccounts (once, at startup) ─┐
                     │                                          ▼
 solana RPC ─────────┤                                indexed_account (JSONB, one row per pubkey)
-                    │                                          │
-                    └─ programSubscribe (live) ────────────────┴─→ neb_pool_snapshot (append-only, NebPool updates only)
+                    │
+                    └─ programSubscribe (live) ───────────────┘
 
 solana RPC ── getSignaturesForAddress + getTransaction (polled) ──→ indexed_instruction (append-only)
                                                                             │

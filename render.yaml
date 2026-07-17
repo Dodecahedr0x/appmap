@@ -33,6 +33,13 @@ services:
         sync: false
       - key: NEXT_PUBLIC_TREASURY_ADDRESS
         sync: false
+      # NEB/USDC Meteora DLMM pool address — created by
+      # app/scripts/launch-neb/ at deployment time. Buying NEB is a direct
+      # swap against this pool. Leave unset until that script has been run.
+      - key: NEXT_PUBLIC_NEB_DLMM_POOL
+        sync: false
+      - key: NEXT_PUBLIC_USDC_MINT
+        sync: false
 
       # --- App config ---
       - key: TRACKING_SECRET

@@ -2,10 +2,11 @@
 use crate::NebulousWorldDecoder;
 use crate::PROGRAM_ID;
 
+
+
 pub mod app_account;
 pub mod app_tag_account;
 pub mod config;
-pub mod neb_pool;
 pub mod stake_position;
 pub mod vote_position;
 
@@ -16,14 +17,13 @@ pub enum NebulousWorldAccount {
     AppAccount(Box<app_account::AppAccount>),
     AppTagAccount(Box<app_tag_account::AppTagAccount>),
     Config(Box<config::Config>),
-    NebPool(Box<neb_pool::NebPool>),
     StakePosition(Box<stake_position::StakePosition>),
     VotePosition(Box<vote_position::VotePosition>),
 }
 
 impl<'a> carbon_core::account::AccountDecoder<'a> for NebulousWorldDecoder {
     type AccountType = NebulousWorldAccount;
-
+    
     fn decode_account(
         &self,
         account: &'a solana_account::Account,
@@ -31,9 +31,9 @@ impl<'a> carbon_core::account::AccountDecoder<'a> for NebulousWorldDecoder {
         if account.owner != PROGRAM_ID {
             return None;
         }
-
+        
         let data = account.data.as_slice();
-
+        
         {
             if let Some(decoded) = app_account::AppAccount::decode(data) {
                 return Some(carbon_core::account::DecodedAccount {
@@ -68,17 +68,6 @@ impl<'a> carbon_core::account::AccountDecoder<'a> for NebulousWorldDecoder {
             }
         }
         {
-            if let Some(decoded) = neb_pool::NebPool::decode(data) {
-                return Some(carbon_core::account::DecodedAccount {
-                    lamports: account.lamports,
-                    data: NebulousWorldAccount::NebPool(Box::new(decoded)),
-                    owner: account.owner,
-                    executable: account.executable,
-                    rent_epoch: account.rent_epoch,
-                });
-            }
-        }
-        {
             if let Some(decoded) = stake_position::StakePosition::decode(data) {
                 return Some(carbon_core::account::DecodedAccount {
                     lamports: account.lamports,
@@ -100,7 +89,8 @@ impl<'a> carbon_core::account::AccountDecoder<'a> for NebulousWorldDecoder {
                 });
             }
         }
-
+        
         None
     }
 }
+

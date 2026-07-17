@@ -1,15 +1,6 @@
-"use client";
-
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
-import type { PoolStatus } from "@/lib/pool";
-
-export interface PoolHistoryPoint {
-  t: string; // ISO timestamp
-  cumulativeNeb: number;
-  cumulativeSol: number;
-}
+import type { NebPoolStatus } from "@/lib/dlmm";
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
@@ -21,27 +12,20 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Pool-wide dynamic indicators (spot price, % sold, SOL raised, supply left)
- * plus a history chart of cumulative NEB sold, reconstructed from raw
- * NebPurchase rows — there's no precomputed pool snapshot table (unlike
- * AppStatsSnapshot for apps), so this is exact, not sampled.
+ * Live NEB/USDC Meteora DLMM pool indicators (price, reserves) — read
+ * directly from chain (see lib/dlmm.ts), not a DB cache. Unlike the old
+ * native bonding-curve pool, swaps against this pool don't go through our
+ * API, so there's no local purchase ledger left to chart a history from —
+ * this is a snapshot, not a time series.
  */
-export function PoolAnalytics({
-  pool,
-  history,
-}: {
-  pool: PoolStatus | null;
-  history: PoolHistoryPoint[];
-}) {
+export function PoolAnalytics({ pool }: { pool: NebPoolStatus | null }) {
   if (!pool) {
     return (
       <section className="card p-6 text-sm text-slate">
-        The {TOKEN_SYMBOL} pool hasn&apos;t been seeded yet.
+        {TOKEN_SYMBOL} isn&apos;t tradable yet — the launch pool hasn&apos;t been created.
       </section>
     );
   }
-
-  const pct = Math.round(pool.soldFraction * 100);
 
   return (
     <section className="card space-y-4 p-6">
@@ -50,47 +34,15 @@ export function PoolAnalytics({
           Pool analytics
         </h2>
         <p className="mt-1 text-xs text-slate-steel">
-          Live indicators from the bonding-curve sale — price rises as supply depletes.
+          Live indicators from the public NEB/USDC Meteora DLMM pool.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Spot price" value={`${pool.spotPrice.toFixed(6)} SOL`} />
-        <StatTile label="Sold" value={`${pct}%`} />
-        <StatTile label="SOL raised" value={pool.solRaised.toFixed(2)} />
-        <StatTile label="Remaining" value={formatToken(pool.remainingSupply, TOKEN_SYMBOL)} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StatTile label="Price" value={`${pool.price.toFixed(6)} USDC`} />
+        <StatTile label={`${TOKEN_SYMBOL} in pool`} value={formatToken(pool.nebReserve, TOKEN_SYMBOL)} />
+        <StatTile label="USDC in pool" value={pool.usdcReserve.toFixed(2)} />
       </div>
-
-      {history.length < 2 ? (
-        <p className="text-sm text-slate-steel">Not enough purchase history yet for a chart.</p>
-      ) : (
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={history}>
-            <XAxis
-              dataKey="t"
-              stroke="#a5a5a5"
-              fontSize={11}
-              tickFormatter={(t) =>
-                new Date(t as string).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-              }
-            />
-            <YAxis stroke="#a5a5a5" fontSize={11} />
-            <Tooltip
-              contentStyle={{ background: "#ffffff", border: "1px solid #efefef", borderRadius: 12 }}
-              labelFormatter={(t) => new Date(t as string).toLocaleDateString("en-US")}
-              formatter={(value: number) => formatToken(value, TOKEN_SYMBOL)}
-            />
-            <Area
-              type="monotone"
-              dataKey="cumulativeNeb"
-              stroke="#0068f9"
-              fill="#0068f9"
-              fillOpacity={0.12}
-              name={`${TOKEN_SYMBOL} sold`}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      )}
     </section>
   );
 }

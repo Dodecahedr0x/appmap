@@ -1,14 +1,16 @@
+import { Connection } from "@solana/web3.js";
 import { handler, ok } from "@/lib/api";
-import { prisma } from "@/lib/prisma";
-import { serializePoolStatus } from "@/lib/pool";
+import { config } from "@/lib/config";
+import { fetchNebPoolStatus } from "@/lib/dlmm";
 
-// GET /api/pool — public read of the NEB single-sided sale pool's status.
-// The DB row is the canonical source of truth in both simulation and
-// on-chain mode (same "DB caches, chain settles" pattern as App's cached
-// vote/stake aggregates) — see NebPool's doc comment in schema.prisma.
+export const dynamic = "force-dynamic";
+
+// GET /api/pool — live NEB/USDC Meteora DLMM pool status. The pool itself is
+// the source of truth (unlike the old native bonding-curve pool, which was
+// our own program's account) — this just proxies a read of it server-side
+// so the client doesn't need its own RPC connection for the token page.
 export const GET = handler(async () => {
-  const pool = await prisma.nebPool.findFirst();
-  if (!pool) return ok({ pool: null });
-
-  return ok({ pool: serializePoolStatus(pool) });
+  const connection = new Connection(config.solana.rpc, "confirmed");
+  const pool = await fetchNebPoolStatus(connection);
+  return ok({ pool });
 });

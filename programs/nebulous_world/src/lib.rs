@@ -1,7 +1,6 @@
 pub mod constants;
 pub mod error;
 pub mod instructions;
-pub mod pool_math;
 pub mod reward_math;
 pub mod state;
 
@@ -59,21 +58,5 @@ pub mod nebulous_world {
 
     pub fn claim_tag_reward(ctx: Context<ClaimTagReward>) -> Result<()> {
         claim_tag_reward::handler(ctx)
-    }
-
-    pub fn init_neb_pool(
-        ctx: Context<InitNebPool>,
-        total_supply: u64,
-        virtual_sol_reserves: u64,
-    ) -> Result<()> {
-        init_neb_pool::handler(ctx, total_supply, virtual_sol_reserves)
-    }
-
-    pub fn buy_neb(ctx: Context<BuyNeb>, sol_amount: u64) -> Result<()> {
-        buy_neb::handler(ctx, sol_amount)
-    }
-
-    pub fn withdraw_pool_sol(ctx: Context<WithdrawPoolSol>, amount: u64) -> Result<()> {
-        withdraw_pool_sol::handler(ctx, amount)
     }
 }

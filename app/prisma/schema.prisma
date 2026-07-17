@@ -26,7 +26,6 @@ model User {
   stakes        Stake[]
   suggestedTags AppTag[]       @relation("TagSuggester")
   revenueClaims RevenueClaim[]
-  nebPurchases  NebPurchase[]
 
   @@index([wallet])
 }
@@ -272,40 +271,3 @@ model AppStatsSnapshot {
   @@index([appId])
 }
 
-/// Singleton row (there is only ever one, created by prisma/seed.ts or
-/// init_neb_pool locally) tracking the NEB single-sided sale pool — a
-/// bonding-curve pool that sold the initial supply for SOL, in the style of
-/// Meteora's Dynamic Bonding Curve. This row is the DB-canonical source of
-/// truth for remaining supply / price shown in the UI in BOTH simulation and
-/// on-chain mode — same "DB caches, chain settles" pattern as App's cached
-/// vote/stake aggregates. See src/lib/pool.ts for the pricing formula (kept
-/// in lockstep with programs/appmap/src/pool_math.rs).
-model NebPool {
-  id                 String   @id @default(cuid())
-  totalSupply        Float // fixed at creation, never mutated afterward
-  remainingSupply    Float
-  solRaised          Float    @default(0)
-  virtualSolReserves Float // fixed at creation — see NebPool (Rust) doc comment
-  createdAt          DateTime @default(now())
-
-  purchases NebPurchase[]
-}
-
-/// One row per NEB purchase off the bonding curve. `txSig` is set in
-/// on-chain mode (a confirmed buy_neb transaction) and null in simulation
-/// mode, same nullable-unique pattern as Vote/Stake's txSig.
-model NebPurchase {
-  id     String  @id @default(cuid())
-  poolId String
-  userId String
-  pool   NebPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  nebAmount Float
-  solAmount Float
-  txSig     String?  @unique
-  createdAt DateTime @default(now())
-
-  @@index([poolId])
-  @@index([userId])
-}

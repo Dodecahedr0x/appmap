@@ -27,14 +27,6 @@ pub const TAG_SEED: &[u8] = b"tag";
 #[constant]
 pub const TAG_VAULT_SEED: &[u8] = b"tag_vault";
 
-/// Singleton PDA seed for the NEB single-sided bonding-curve sale pool (see
-/// `NebPool` in state.rs) — one per deployment, like `Config`.
-#[constant]
-pub const NEB_POOL_SEED: &[u8] = b"neb_pool";
-
-#[constant]
-pub const NEB_POOL_VAULT_SEED: &[u8] = b"neb_pool_vault";
-
 /// Solana PDA seeds are capped at 32 bytes each. `app_id` (a Prisma cuid,
 /// ~25 bytes) is used directly as a seed for the `AppAccount` PDA, so it
 /// must never exceed this.
