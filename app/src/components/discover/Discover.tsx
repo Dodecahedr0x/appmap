@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppCard } from "@/components/AppCard";
+import { AdCard } from "@/components/ads/AdCard";
 import {
   EMPTY_RANGE_FILTERS,
   FilterPanel,
@@ -11,6 +12,7 @@ import {
 import { CreateAppForm } from "@/components/discover/CreateAppForm";
 import { Modal } from "@/components/ui/Modal";
 import { SORT_OPTIONS } from "@/lib/constants";
+import { interleaveAds } from "@/lib/adPlacement";
 import type { SearchResult } from "@/lib/types";
 
 interface Props {
@@ -252,13 +254,17 @@ export function Discover({ initial }: Props) {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {result.apps.map((app, i) => (
-              <AppCard
-                key={app.id}
-                app={app}
-                rank={sort === "rank" ? startRank + i + 1 : undefined}
-              />
-            ))}
+            {interleaveAds(result.apps).map((entry) =>
+              entry.kind === "ad" ? (
+                <AdCard key={entry.key} appId={entry.appId} />
+              ) : (
+                <AppCard
+                  key={entry.app.id}
+                  app={entry.app}
+                  rank={sort === "rank" ? startRank + entry.index + 1 : undefined}
+                />
+              ),
+            )}
           </div>
         )}
 
