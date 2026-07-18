@@ -60,8 +60,8 @@ interface ForceMapProps<RawNode, RawLink> {
 
 // DESIGN.md tokens (see globals.css/tailwind.config.ts): plasma blue for
 // nodes/edges, ultraviolet for the selection ring, gunmetal/steel for
-// dimmed/muted states — the map already sat on a dark nebula backdrop
-// (see NebulaField) before Astro formalized these as the app-wide palette.
+// dimmed/muted states — the map already sat on a dark backdrop before
+// Astro formalized these as the app-wide palette.
 const NODE_FILL = "#54b9ff";
 const NODE_FILL_DIM = "#545864";
 const EDGE_STROKE = "#3245ff";

@@ -7,7 +7,6 @@ type TagGraphNode = TagGraph["nodes"][number];
 import { AppMap } from "./AppMap";
 import { TagMap } from "./TagMap";
 import { GroupMap } from "./GroupMap";
-import { NebulaField } from "./NebulaField";
 import { RelatedApps, type MapSelection } from "./RelatedApps";
 import type { MapNode } from "./ForceMap";
 
@@ -113,12 +112,6 @@ export function ExploreMaps() {
   return (
     <div>
       <section className="relative isolate overflow-hidden rounded-card border border-white/10 bg-gradient-to-b from-[#0c0f19] to-[#060913] p-4 sm:p-6">
-        {/* WebGL2 nebula/starfield — a purely decorative enhancement. If
-            WebGL2 is unavailable or the shader fails, NebulaField renders
-            nothing and this gradient (set on the section itself, not
-            layered separately) carries the look and the text contrast on
-            its own. */}
-        <NebulaField className="absolute inset-0 -z-10 h-full w-full" />
         <div className="relative space-y-4">
           <div
             role="tablist"
