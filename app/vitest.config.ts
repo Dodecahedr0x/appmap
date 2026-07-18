@@ -1,6 +1,16 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Mirrors tsconfig.json's "@/*" -> "./src/*" path mapping. Vite doesn't
+  // read tsconfig `paths` on its own (that needs the vite-tsconfig-paths
+  // plugin, not installed here) — this went unnoticed until now because no
+  // test file had transitively imported an "@/..."-aliased module before.
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   test: {
     env: {
       DATABASE_URL:

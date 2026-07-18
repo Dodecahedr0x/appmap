@@ -20,3 +20,4 @@ pub mod tags;
 pub mod track;
 pub mod users;
 pub mod votes;
+pub mod x402;
