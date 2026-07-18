@@ -30,7 +30,7 @@ pub struct FundAppRewards<'info> {
         address = get_associated_token_address(&config.key(), &config.vote_mint),
     )]
     pub vault: Account<'info, TokenAccount>,
-    #[account(mut)]
+    #[account(mut, token::mint = config.vote_mint)]
     pub funder_token_account: Account<'info, TokenAccount>,
     pub authority: Signer<'info>,
     pub token_program: Program<'info, Token>,

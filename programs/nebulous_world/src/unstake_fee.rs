@@ -41,11 +41,18 @@ pub fn linear_decay_fee_bps(elapsed_secs: i64) -> u16 {
 /// — `fee_bps <= UNSTAKE_FEE_START_BPS` (100) in practice, so this can never
 /// legitimately overflow `u64`, but `u64::try_from` still guards against a
 /// silent wraparound rather than trusting the caller's invariant blindly.
+///
+/// Rounds the fee UP (`div_ceil`), not down: `settle_pending`/
+/// `bump_accumulator` in `reward_math.rs` both round in the protocol's favor
+/// (a staker never accrues more than what was actually funded) — this
+/// matches that direction rather than rounding the withdrawer's fee down,
+/// which would let every withdrawal shave off up to one raw unit at the
+/// protocol's expense instead of the withdrawer's.
 pub fn unstake_fee(amount: u64, fee_bps: u16) -> Result<u64> {
     let fee = (amount as u128)
         .checked_mul(fee_bps as u128)
         .ok_or(ErrorCode::MathOverflow)?
-        / 10_000;
+        .div_ceil(10_000);
     u64::try_from(fee).map_err(|_| ErrorCode::MathOverflow.into())
 }
 
@@ -145,12 +152,18 @@ mod tests {
     }
 
     #[test]
-    fn unstake_fee_rounds_down() {
-        // 999 * 100 / 10_000 = 9.99 -> floors to 9, never rounds up in the
-        // withdrawer's favor... nor the fee's — integer division always
-        // truncates toward the smaller fee, same rounding direction
-        // `bump_accumulator`/`settle_pending` already use elsewhere.
-        assert_eq!(unstake_fee(999, 100).unwrap(), 9);
+    fn unstake_fee_rounds_up() {
+        // 999 * 100 / 10_000 = 9.99 -> ceils to 10, in the protocol's favor
+        // (never the withdrawer's) — the withdrawer's net payout rounds
+        // down by the same fraction of a raw unit instead.
+        assert_eq!(unstake_fee(999, 100).unwrap(), 10);
+    }
+
+    #[test]
+    fn unstake_fee_is_exact_when_evenly_divisible() {
+        // No rounding at all needed here — div_ceil must not add a spurious
+        // extra unit when the division is already exact.
+        assert_eq!(unstake_fee(1_000_000, 100).unwrap(), 10_000);
     }
 
     #[test]
