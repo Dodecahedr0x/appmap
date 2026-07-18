@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { SolanaProvider } from "@/components/providers/SolanaProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { AppShell } from "@/components/AppShell";
 import { Toaster } from "@/components/ui/Toaster";
+import { JsonLd } from "@/components/JsonLd";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "@/lib/constants";
 
 const title = `${SITE_NAME} — discover the best apps, ranked by the crowd`;
@@ -43,6 +44,36 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#1f232e",
+};
+
+// Site-level structured data — lets Google offer a sitelinks search box for
+// the site straight from search results, pointing at the home page's own
+// `?q=` search (see components/discover/Discover.tsx).
+const siteLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: SITE_NAME,
+  url: SITE_URL,
+  potentialAction: {
+    "@type": "SearchAction",
+    target: `${SITE_URL}/?q={search_term_string}`,
+    "query-input": "required name=search_term_string",
+  },
+};
+
+// Brand entity — feeds Google's knowledge panel eligibility. `logo` needs
+// to be at least 112x112 per Google's guidance; apple-icon.png (180x180,
+// see app/apple-icon.png) clears that, icon.png (32x32) wouldn't.
+const orgLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: `${SITE_URL}/apple-icon.png`,
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -51,6 +82,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${bodySans.variable} ${displaySans.variable}`}>
       <body className="bg-cream font-sans text-ink antialiased">
+        <JsonLd data={siteLd} />
+        <JsonLd data={orgLd} />
         <SolanaProvider>
           <AuthProvider>
             <Toaster>

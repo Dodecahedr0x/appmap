@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { fetchPlatformStats, fetchPlatformViewsTrend } from "@/lib/indexerClient";
 import { fetchPlatformMetricsHistory } from "@/lib/indexerClient";
 import { formatToken, formatNumber } from "@/lib/utils";
-import { TOKEN_SYMBOL } from "@/lib/constants";
+import { TOKEN_SYMBOL, SITE_URL } from "@/lib/constants";
 import { config } from "@/lib/config";
 import { ExploreMaps } from "@/components/explore/ExploreMaps";
 import { MetricTrendCard, type TrendPoint } from "@/components/explore/MetricTrendCard";
@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Explore",
   description: "See what's happening across nebulous.world — top apps, tag trends, and how apps and tags relate to each other.",
+  alternates: { canonical: `${SITE_URL}/explore` },
 };
 
 export default async function ExplorePage() {

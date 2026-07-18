@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useAdServe } from "@/hooks/useAdServe";
 
 /**
@@ -33,8 +34,15 @@ export function AdSlot({ appId }: { appId: string }) {
         </span>
       </div>
       {ad.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={ad.imageUrl} alt="" className="h-28 w-full object-cover ring-1 ring-inset ring-white/10" />
+        <div className="relative h-28 w-full">
+          <Image
+            src={ad.imageUrl}
+            alt=""
+            fill
+            sizes="340px"
+            className="object-cover ring-1 ring-inset ring-white/10"
+          />
+        </div>
       )}
       <div className="p-3">
         <div className="font-semibold text-ink group-hover:text-cobalt">

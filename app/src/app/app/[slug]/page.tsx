@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchAppBySlug } from "@/lib/indexerClient";
@@ -9,6 +10,7 @@ import { TagStakePanel } from "@/components/app/TagStakePanel";
 import { TrafficBeacon } from "@/components/app/TrafficBeacon";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppMetricsPanel } from "@/components/app/AppMetricsPanel";
+import { JsonLd } from "@/components/JsonLd";
 
 export const dynamic = "force-dynamic";
 
@@ -53,8 +55,50 @@ export default async function AppDetailPage({ params }: Props) {
   const { app, recentVotes, topStakers, snapshots } = detail;
   const topTag = topStakedTag(app.tags);
 
+  // Structured data for search engines — the crowd-sourced stats behind the
+  // OpenGraph card (vote/view counts) expressed via schema.org's
+  // InteractionCounter rather than aggregateRating: these are engagement
+  // tallies, not a 1-5 star review system, and misrepresenting one as the
+  // other risks a Google structured-data manual action.
+  const appLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: app.name,
+    description: app.tagline || app.description,
+    url: `${SITE_URL}/app/${app.slug}`,
+    ...(app.iconUrl ? { image: app.iconUrl } : {}),
+    applicationCategory: app.category,
+    operatingSystem: "Web",
+    interactionStatistic: [
+      {
+        "@type": "InteractionCounter",
+        interactionType: "https://schema.org/LikeAction",
+        userInteractionCount: app.voteCount,
+      },
+      {
+        "@type": "InteractionCounter",
+        interactionType: "https://schema.org/ViewAction",
+        userInteractionCount: app.viewCount,
+      },
+    ],
+  };
+
+  // Lets Google render "nebulous.world > App Name" as the SERP breadcrumb
+  // instead of the raw URL — small CTR bump, no visual change on the page
+  // itself (there's no on-page breadcrumb UI to keep in sync).
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: app.name, item: `${SITE_URL}/app/${app.slug}` },
+    ],
+  };
+
   return (
     <div className="space-y-6">
+      <JsonLd data={appLd} />
+      <JsonLd data={breadcrumbLd} />
       {/* Records a page view for traffic analytics & revenue attribution. */}
       <TrafficBeacon appId={app.id} path={`/app/${app.slug}`} />
 
@@ -69,11 +113,13 @@ export default async function AppDetailPage({ params }: Props) {
       <div className="card overflow-hidden p-0">
         <div className="relative aspect-[3/1] w-full shrink-0 overflow-hidden bg-mist">
           {app.iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={app.iconUrl}
               alt=""
-              className="h-full w-full object-cover ring-1 ring-inset ring-black/10"
+              fill
+              sizes="(min-width: 1024px) 800px, 100vw"
+              priority
+              className="object-cover ring-1 ring-inset ring-black/10"
             />
           ) : (
             <div className="grid h-full w-full place-items-center text-5xl font-bold text-violet">
@@ -82,9 +128,12 @@ export default async function AppDetailPage({ params }: Props) {
           )}
           <div className="absolute right-3 top-3 flex gap-2">
             {topTag && (
-              <span className="chip border-none bg-white/90 shadow-subtle">
+              <Link
+                href={`/tags/${topTag.slug}`}
+                className="chip border-none bg-white/90 shadow-subtle hover:bg-white"
+              >
                 #{topTag.name}
-              </span>
+              </Link>
             )}
             <span className="chip border-none bg-white/90 capitalize shadow-subtle">
               {app.chain}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { fetchPoolStatus } from "@/lib/indexerClient";
-import { TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
+import { TOKEN_NAME, TOKEN_SYMBOL, SITE_URL } from "@/lib/constants";
 import { BuyPanel } from "@/components/token/BuyPanel";
 import { PoolAnalytics } from "@/components/rewards/PoolAnalytics";
 import { ClaimRewards } from "@/components/rewards/ClaimRewards";
@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Rewards",
   description: `Buy ${TOKEN_SYMBOL}, track the pool, and claim your vote/stake rewards — everything ${TOKEN_SYMBOL}-related on nebulous.world, in one place.`,
+  alternates: { canonical: `${SITE_URL}/rewards` },
 };
 
 export default async function RewardsPage() {
