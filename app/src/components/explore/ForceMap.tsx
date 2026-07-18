@@ -90,12 +90,62 @@ const RADIUS_RANGE = 33;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 4;
 const ZOOM_BUTTON_FACTOR = 1.4;
+// Edges render as a tapered spindle — thick near each endpoint node, thin at
+// the midpoint — rather than a uniform-width line, so a glance can follow a
+// link back to the node it belongs to. EDGE_TAPER_SEGMENTS is the polygon
+// resolution along the spindle; higher reads smoother but costs more fill
+// work per edge per frame.
+const EDGE_TAPER_SEGMENTS = 8;
+const EDGE_MIN_WIDTH_FACTOR = 0.3;
 // Gravity: a soft per-node spring toward the origin (weak relative to the
 // -150 charge/0.5 link forces, so it shapes the resting layout without
 // fighting clustering) plus a hard position clamp as an absolute backstop —
 // see the simulation setup below for why both exist.
 const GRAVITY_STRENGTH = 0.03;
 const MAX_RADIUS_FROM_CENTER = 600;
+
+// Half-width of the edge spindle at parameter t along its length (0 = start
+// node, 0.5 = midpoint, 1 = end node) — widest approaching either endpoint,
+// narrowest at the midpoint.
+function edgeHalfWidth(t: number, maxHalf: number) {
+  const towardNode = Math.abs(2 * t - 1);
+  return maxHalf * (EDGE_MIN_WIDTH_FACTOR + (1 - EDGE_MIN_WIDTH_FACTOR) * towardNode);
+}
+
+// Fills a tapered polygon between (sx, sy) and (tx, ty) instead of stroking
+// a uniform-width line — Canvas 2D has no built-in variable-width stroke, so
+// the spindle is built as a strip of quads along the segment's perpendicular.
+function drawTaperedLink(
+  ctx: CanvasRenderingContext2D,
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  maxWidth: number,
+) {
+  const dx = tx - sx;
+  const dy = ty - sy;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const maxHalf = maxWidth / 2;
+  const top: Array<[number, number]> = [];
+  const bottom: Array<[number, number]> = [];
+  for (let i = 0; i <= EDGE_TAPER_SEGMENTS; i++) {
+    const t = i / EDGE_TAPER_SEGMENTS;
+    const x = sx + dx * t;
+    const y = sy + dy * t;
+    const half = edgeHalfWidth(t, maxHalf);
+    top.push([x + nx * half, y + ny * half]);
+    bottom.push([x - nx * half, y - ny * half]);
+  }
+  ctx.beginPath();
+  ctx.moveTo(top[0][0], top[0][1]);
+  for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+  for (let i = bottom.length - 1; i >= 0; i--) ctx.lineTo(bottom[i][0], bottom[i][1]);
+  ctx.closePath();
+  ctx.fill();
+}
 
 /**
  * Generic force-directed map: nodes sized by a chosen metric, linked by a
@@ -400,7 +450,6 @@ export function ForceMap<RawNode, RawLink>({
         ctx.translate(view.x, view.y);
         ctx.scale(view.k, view.k);
 
-        ctx.lineCap = "round";
         for (const l of links) {
           const s = l.source as MapNode;
           const t = l.target as MapNode;
@@ -409,13 +458,10 @@ export function ForceMap<RawNode, RawLink>({
           const focus = hoveredNode ?? selectedNode;
           const highlighted = focus != null && (s.id === focus.id || t.id === focus.id);
           const w = (l.metrics[activeLinkKey] ?? 0) / maxLink;
-          ctx.strokeStyle = EDGE_STROKE;
+          ctx.fillStyle = EDGE_STROKE;
           ctx.globalAlpha = dim ? 0.05 : highlighted ? 0.5 : 0.15 + Math.min(0.25, w * 0.4);
-          ctx.lineWidth = (highlighted ? 2 : 1) / view.k;
-          ctx.beginPath();
-          ctx.moveTo(s.x, s.y ?? 0);
-          ctx.lineTo(t.x, t.y ?? 0);
-          ctx.stroke();
+          const maxWidth = (highlighted ? 3.2 : 1.8) / view.k;
+          drawTaperedLink(ctx, s.x, s.y ?? 0, t.x, t.y ?? 0, maxWidth);
         }
         ctx.globalAlpha = 1;
 

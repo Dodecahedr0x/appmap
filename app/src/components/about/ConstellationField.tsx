@@ -3,9 +3,9 @@
 import { useRef } from "react";
 import { useShaderBackground } from "@/lib/useShaderBackground";
 
-// The About hero's signature visual: the same nebula/starfield language as
-// NebulaField (deep space wash + domain-warped fbm nebula in DESIGN.md's
-// gradient colors), plus a GPU-driven "constellation" layer — a small set of
+// The About hero's signature visual: the same deep-space/nebula wash as
+// NebulaField (domain-warped fbm nebula in DESIGN.md's gradient colors, no
+// star grid), plus a GPU-driven "constellation" layer — a small set of
 // nodes that drift and connect to their nearest neighbors, redrawing every
 // frame. Purely procedural (no per-node JS state, no data), but it's the
 // clearest one-shader illustration of what the product actually is: a
@@ -48,18 +48,6 @@ float fbm(vec2 p) {
   return v;
 }
 
-float starLayer(vec2 fragPx, float cellSize, float density, float twinkleSpeed, float t) {
-  vec2 cell = floor(fragPx / cellSize);
-  float present = step(1.0 - density, hash21(cell));
-  vec2 jitter = vec2(hash21(cell + 11.0), hash21(cell + 37.0));
-  vec2 starPos = (cell + jitter) * cellSize;
-  float d = length(fragPx - starPos);
-  float size = mix(0.6, 1.4, hash21(cell + 71.0));
-  float twinkle = 0.5 + 0.5 * sin(t * twinkleSpeed + hash21(cell) * 6.2831);
-  float glow = smoothstep(size, 0.0, d) * mix(0.35, 1.0, twinkle);
-  return present * glow;
-}
-
 // Each node wanders on its own slow, looping orbit around a per-node home
 // point — deterministic from its index (via hash21), so nothing needs to be
 // passed in from JS and every reload starts from the same, still-organic
@@ -73,13 +61,23 @@ vec2 nodePos(int i, float t) {
   return home + orbit;
 }
 
-// Distance from point p to the segment a-b — used to draw a thin glowing
-// line between two connected nodes.
-float segDist(vec2 p, vec2 a, vec2 b) {
+// Distance from point p to the segment a-b, plus how far along the segment
+// (0 at a, 1 at b) the closest point sits — used to draw a glowing line
+// between two connected nodes whose width tapers with edgeWidth() below, so
+// it reads as thickest right at each node and thinnest at the midpoint.
+vec2 segDistT(vec2 p, vec2 a, vec2 b) {
   vec2 pa = p - a;
   vec2 ba = b - a;
   float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-  return length(pa - ba * h);
+  return vec2(length(pa - ba * h), h);
+}
+
+// Edge glow half-width at parameter t along the segment (0 = midpoint, 1 =
+// at a node) — tapers the line so it's visibly thicker approaching either
+// endpoint instead of a uniform pixel width end to end.
+float edgeWidth(float t) {
+  float towardNode = abs(2.0 * t - 1.0);
+  return mix(0.0022, 0.0078, towardNode);
 }
 
 void main() {
@@ -96,11 +94,6 @@ void main() {
   vec3 nebula = mix(nebA, nebB, clamp(n * 1.3 - 0.15, 0.0, 1.0));
   col += nebula * smoothstep(0.42, 0.88, n) * 0.3;
 
-  float s = 0.0;
-  s += starLayer(fragPx, 34.0, 0.10, 1.0, u_time);
-  s += starLayer(fragPx + 500.0, 16.0, 0.05, 1.5, u_time) * 0.6;
-  col += vec3(0.9, 0.95, 1.0) * s;
-
   vec2 nodes[${NODE_COUNT}];
   for (int i = 0; i < ${NODE_COUNT}; i++) nodes[i] = nodePos(i, u_time);
 
@@ -111,8 +104,8 @@ void main() {
       float d = distance(nodes[i], nodes[j]);
       float within = smoothstep(0.55, 0.0, d);
       if (within > 0.0) {
-        float sd = segDist(p, nodes[i], nodes[j]);
-        edgeGlow += within * smoothstep(0.005, 0.0, sd) * 0.7;
+        vec2 sdt = segDistT(p, nodes[i], nodes[j]);
+        edgeGlow += within * smoothstep(edgeWidth(sdt.y), 0.0, sdt.x) * 0.7;
       }
     }
   }

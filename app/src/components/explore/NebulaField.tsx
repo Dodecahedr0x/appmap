@@ -5,9 +5,9 @@ import { useShaderBackground } from "@/lib/useShaderBackground";
 
 // Procedural deep-space backdrop: a slow domain-warped fbm "nebula" tinted
 // toward DESIGN.md's nebula gradient (#3245ff -> #b845ed) over the void
-// canvas/abyss surfaces, plus two layered star grids (one hashed point per
-// grid cell, so cost stays O(1) per pixel regardless of star count) with a
-// gentle per-star twinkle.
+// canvas/abyss surfaces. No star grid — it sits directly behind the
+// force-directed map's own nodes/edges, and a twinkling starfield there
+// competed with the real data for attention.
 const FRAGMENT_SRC = `#version 300 es
 precision highp float;
 
@@ -44,18 +44,6 @@ float fbm(vec2 p) {
   return v;
 }
 
-float starLayer(vec2 fragPx, float cellSize, float density, float twinkleSpeed, float t) {
-  vec2 cell = floor(fragPx / cellSize);
-  float present = step(1.0 - density, hash21(cell));
-  vec2 jitter = vec2(hash21(cell + 11.0), hash21(cell + 37.0));
-  vec2 starPos = (cell + jitter) * cellSize;
-  float d = length(fragPx - starPos);
-  float size = mix(0.6, 1.6, hash21(cell + 71.0));
-  float twinkle = 0.5 + 0.5 * sin(t * twinkleSpeed + hash21(cell) * 6.2831);
-  float glow = smoothstep(size, 0.0, d) * mix(0.35, 1.0, twinkle);
-  return present * glow;
-}
-
 void main() {
   vec2 fragPx = gl_FragCoord.xy;
   vec2 uv = fragPx / u_resolution.xy;
@@ -70,11 +58,6 @@ void main() {
   vec3 nebula = mix(nebA, nebB, clamp(n * 1.3 - 0.15, 0.0, 1.0));
   col += nebula * smoothstep(0.32, 0.82, n) * 0.5;
 
-  float s = 0.0;
-  s += starLayer(fragPx, 30.0, 0.12, 1.1, u_time);
-  s += starLayer(fragPx + 500.0, 14.0, 0.06, 1.6, u_time) * 0.7;
-  col += vec3(0.9, 0.95, 1.0) * s;
-
   float vignette = smoothstep(1.05, 0.35, length(p));
   col *= mix(0.7, 1.0, vignette);
 
@@ -82,10 +65,10 @@ void main() {
 }`;
 
 /**
- * Decorative animated nebula/starfield background for the Explore maps
- * panel — a single fullscreen-triangle WebGL2 fragment shader, procedural
- * (no image assets). Purely visual chrome behind the actual data canvas, so
- * it's aria-hidden; if WebGL2 is unavailable or the shader fails to
+ * Decorative animated nebula background for the Explore maps panel — a
+ * single fullscreen-triangle WebGL2 fragment shader, procedural (no image
+ * assets). Purely visual chrome behind the actual data canvas, so it's
+ * aria-hidden; if WebGL2 is unavailable or the shader fails to
  * compile/link, it silently renders nothing and the panel's own CSS gradient
  * background carries the look on its own instead of throwing. See
  * `useShaderBackground` for the compile/resize/lifecycle plumbing shared
