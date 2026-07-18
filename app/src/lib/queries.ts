@@ -14,13 +14,12 @@ export interface AppDetail {
     txSig: string | null;
   }[];
   topStakers: { wallet: string; amount: number }[];
-  viewsLast7d: number;
-  dailyViews: { date: string; views: number }[];
   snapshots: {
     date: string;
     voteWeight: number;
     stakeTotal: number;
     viewCount: number;
+    rankScore: number;
   }[];
 }
 
@@ -32,8 +31,7 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
   });
   if (!app) return null;
 
-  const since = new Date(Date.now() - 7 * 86400_000);
-  const [recentVotes, topStakers, views, snapshots] = await Promise.all([
+  const [recentVotes, topStakers, snapshots] = await Promise.all([
     prisma.vote.findMany({
       where: { appId: app.id },
       orderBy: { createdAt: "desc" },
@@ -47,14 +45,13 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
       orderBy: { _sum: { amount: "desc" } },
       take: 8,
     }),
-    prisma.pageView.findMany({
-      where: { appId: app.id, createdAt: { gte: since } },
-      select: { createdAt: true },
-    }),
+    // Full history, not just a fixed recent window — every metric card gets
+    // its own configurable interval (7d/30d/90d/all) client-side, sliced
+    // from this same array, rather than each needing its own query.
     prisma.appStatsSnapshot.findMany({
       where: { appId: app.id },
       orderBy: { date: "asc" },
-      select: { date: true, voteWeight: true, stakeTotal: true, viewCount: true },
+      select: { date: true, voteWeight: true, stakeTotal: true, viewCount: true, rankScore: true },
     }),
   ]);
 
@@ -63,17 +60,6 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
     select: { id: true, wallet: true, handle: true },
   });
   const stakerMap = new Map(stakerUsers.map((u) => [u.id, u]));
-
-  // Bucket views by day for the last 7 days.
-  const dailyMap = new Map<string, number>();
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400_000);
-    dailyMap.set(d.toISOString().slice(0, 10), 0);
-  }
-  for (const v of views) {
-    const key = v.createdAt.toISOString().slice(0, 10);
-    if (dailyMap.has(key)) dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1);
-  }
 
   return {
     app: serializeApp(app),
@@ -91,16 +77,12 @@ export async function getAppDetail(slug: string): Promise<AppDetail | null> {
         s.userId,
       amount: s._sum.amount ?? 0,
     })),
-    viewsLast7d: views.length,
-    dailyViews: [...dailyMap.entries()].map(([date, v]) => ({
-      date,
-      views: v,
-    })),
     snapshots: snapshots.map((s) => ({
       date: s.date.toISOString(),
       voteWeight: s.voteWeight,
       stakeTotal: s.stakeTotal,
       viewCount: s.viewCount,
+      rankScore: s.rankScore,
     })),
   };
 }
