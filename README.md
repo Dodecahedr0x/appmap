@@ -16,6 +16,10 @@ sharing**.
   tags — proportional to their stake.
 - 📊 **Explore** — platform stats, a similar-apps map, and a tag map, both
   clustered live by shared tags/stake.
+- 💳 **Data API** — a separate, [x402](https://www.x402.org)-priced API
+  (`/api/data/*`) for third-party/agent consumers: pay per request in NEB,
+  no signup. See the About page's "Data API" section or
+  [`app/src/lib/x402.ts`](app/src/lib/x402.ts).
 
 ## Tech stack
 
@@ -200,6 +204,21 @@ App/tag creation is the one flow that's always real, in both modes: `init_app`/
 signs, and submits a genuine on-chain transaction — there's no off-chain
 fallback (see "Database ownership" below).
 
+## Data API (x402)
+
+`/api/data/*` is a separate, [x402](https://www.x402.org)-priced HTTP API
+for third-party/agent consumers — distinct from the free `/api/*` routes
+the product's own UI calls directly. Pricing lives in one place,
+`app/src/lib/x402.ts`'s `X402_ENDPOINTS`, which both the routes and the
+About page's pricing table read from. Same simulation/on-chain duality as
+above: with no `NEXT_PUBLIC_VOTE_TOKEN_MINT`/`NEXT_PUBLIC_TREASURY_ADDRESS`
+configured, these endpoints serve data for free with a simulated receipt
+instead of returning `402 Payment Required`. When configured, settlement
+is handled by the indexer's own `POST /x402/settle`
+(`indexer/src/handlers/x402.rs`) rather than a third-party facilitator — no
+public facilitator knows about this project's token or, in local dev, its
+Surfpool cluster.
+
 ## Database ownership
 
 The indexer (`indexer/`), not the app, owns the Postgres schema and is the
@@ -217,8 +236,9 @@ has run at least once (it applies the schema itself on startup, see
 - `app/src/lib/engine.ts` — bridges the pure math to the database (aggregate
   refresh, epoch settlement).
 - `app/src/app/api/**` — REST API (apps, tags, votes, stakes, tracking, ads, auth).
+- `app/src/app/api/data/**` + `app/src/lib/x402.ts` — the x402-priced data
+  API, settled by `indexer/src/handlers/x402.rs`. See "Data API (x402)"
+  above.
 - `indexer/src/processors/product.rs` — populates `App`/`Tag`/`AppTag` from
   confirmed on-chain `init_app`/`suggest_tag` instructions.
 - `programs/nebulous_world` — the on-chain Anchor program.
-
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.

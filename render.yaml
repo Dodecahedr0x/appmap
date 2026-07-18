@@ -35,7 +35,10 @@ services:
       # Leave unset to run in off-chain "simulation" mode. Fill in once a
       # real SPL vote-token mint / treasury address exist for this deploy —
       # and set the same mint on nebulous-world-indexer below, which needs
-      # it to build vote/stake/claim transactions.
+      # it to build vote/stake/claim transactions. The treasury address
+      # doubles as the x402 payTo for the priced /api/data/* endpoints (see
+      # app/src/lib/x402.ts) — those also stay in free/simulated mode until
+      # both of these are set.
       - key: NEXT_PUBLIC_VOTE_TOKEN_MINT
         sync: false
       - key: NEXT_PUBLIC_TREASURY_ADDRESS
