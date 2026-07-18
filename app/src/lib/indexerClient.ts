@@ -203,3 +203,17 @@ export interface SubmitResult {
 export async function submitSignedTx(signedTransaction: string): Promise<SubmitResult> {
   return (await post("/tx/submit", { signedTransaction })) as SubmitResult;
 }
+
+export interface PlatformMetricsPoint {
+  capturedAt: string;
+  appCount: number;
+  tagCount: number;
+  /** Raw on-chain u64 amounts, decimal strings — scale by voteTokenDecimals. */
+  totalVoteStake: string;
+  totalTagStake: string;
+}
+
+/** Ascending time series written by indexer/src/platform_metrics.rs — the on-chain-derived half of the Explore page's metric trend charts. */
+export async function fetchPlatformMetricsHistory(): Promise<PlatformMetricsPoint[]> {
+  return (await get("/metrics/platform-history")) as PlatformMetricsPoint[];
+}

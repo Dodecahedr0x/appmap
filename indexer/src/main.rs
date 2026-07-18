@@ -4,6 +4,7 @@ mod config;
 mod crawler;
 mod db;
 mod dlmm_bridge;
+mod platform_metrics;
 mod processors;
 mod rollup;
 
@@ -46,6 +47,10 @@ async fn main() -> Result<()> {
         config.program_id,
         pool.clone(),
         config.crawler_poll_interval_secs,
+    ));
+    tokio::spawn(platform_metrics::run(
+        pool.clone(),
+        config.platform_metrics_interval_secs,
     ));
 
     // The dlmm-bridge sidecar (see src/dlmm_bridge.rs) — spawned as a child
