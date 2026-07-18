@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchPlatformStats } from "@/lib/indexerClient";
 import { formatNumber, formatToken, splitValueUnit } from "@/lib/utils";
-import { SITE_NAME, TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
+import { SITE_NAME, SITE_URL, TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 import { ConstellationField } from "@/components/about/ConstellationField";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: "About",
   description:
     "nebulous.world is crowd-sourced app discovery on Solana: transparent, token-weighted ranking, tag staking, and ad revenue shared with the people backing what's good.",
+  alternates: { canonical: `${SITE_URL}/about` },
 };
 
 const FEATURES = [
