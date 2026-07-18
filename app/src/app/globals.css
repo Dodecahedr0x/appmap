@@ -3,51 +3,57 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html,
 body {
-  background-color: #faf9f7;
-  color: #121722;
+  background-color: #1f232e;
+  color: #f2f6fa;
 }
 
 body {
   min-height: 100vh;
 }
 
-/* Thin custom scrollbars to match the light theme. */
+/* Thin custom scrollbars to match the dark theme. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #d6e4f1 transparent;
+  scrollbar-color: #545864 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #d6e4f1;
+  background: #545864;
   border-radius: 8px;
 }
 
 @layer components {
+  /* No drop shadows for elevation (see DESIGN.md's Don'ts) — depth comes
+     from a 1px hairline border and a surface one step lighter than canvas. */
   .card {
-    @apply rounded-card border border-hairline bg-white shadow-subtle;
+    @apply rounded-card border border-hairline bg-ivory;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-button px-6 py-3 text-sm font-medium transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
+  /* The signature Astro CTA pattern: inverted white pill, dark text — see
+     DESIGN.md's "Primary Pill Button" component and Do's list. Not a
+     colored fill; the nebula gradient is reserved for atmospheric
+     backdrops, never buttons. */
   .btn-primary {
-    @apply btn bg-cobalt text-white hover:bg-cobalt-deep;
+    @apply btn bg-ink text-cream hover:bg-faint;
   }
   .btn-secondary {
-    @apply btn border border-hairline bg-white text-ink hover:border-powder;
+    @apply btn border border-hairline bg-mist text-ink hover:border-powder;
   }
   .btn-ghost {
     @apply btn text-slate hover:bg-ivory hover:text-ink;
   }
   .input {
-    @apply w-full rounded-card border border-hairline bg-white px-3 py-2 text-sm text-ink placeholder:text-slate-steel focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
+    @apply w-full rounded-card border border-hairline bg-mist px-3 py-2 text-sm text-ink placeholder:text-slate-steel focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.96];
@@ -61,7 +67,7 @@ body {
    (the sticky navbar) falls back to a solid bar with the blur dropped. */
 @media (prefers-reduced-transparency: reduce) {
   .navbar-chrome {
-    background-color: #ffffff;
+    background-color: #1f232e;
     backdrop-filter: none;
   }
 }
@@ -127,32 +133,32 @@ body {
   }
 }
 
-/* Wallet-adapter modal restyle to fit the light theme. */
+/* Wallet-adapter modal restyle to fit the dark theme. */
 .wallet-adapter-button {
   height: auto !important;
   font-family: inherit !important;
 }
 .wallet-adapter-button-trigger {
-  background-color: #0068f9 !important;
-  border-radius: 48px !important;
+  background-color: #54b9ff !important;
+  border-radius: 9999px !important;
 }
 .wallet-adapter-button-trigger:hover {
-  background-color: #024bb1 !important;
+  background-color: #acafff !important;
 }
 .wallet-adapter-modal-wrapper {
-  background: #ffffff !important;
-  color: #121722 !important;
+  background: #17191e !important;
+  color: #f2f6fa !important;
 }
 .wallet-adapter-modal-button-close {
-  background: #fbfaf7 !important;
+  background: #0c0f19 !important;
 }
 .wallet-adapter-modal-title {
-  color: #121722 !important;
+  color: #f2f6fa !important;
 }
 .wallet-adapter-modal-list .wallet-adapter-button {
-  background-color: #fbfaf7 !important;
-  color: #121722 !important;
+  background-color: #0c0f19 !important;
+  color: #f2f6fa !important;
 }
 .wallet-adapter-modal-list .wallet-adapter-button:hover {
-  background-color: #f4f0ff !important;
+  background-color: #17191e !important;
 }

@@ -81,7 +81,7 @@ export function RelatedApps({
             {apps.map((app) => (
               <div key={app.id} className="relative">
                 {app.slug === selection.selectedSlug && (
-                  <span className="absolute -left-2 -top-2 z-10 rounded-full bg-violet px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-subtle">
+                  <span className="absolute -left-2 -top-2 z-10 rounded-full bg-violet px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cream">
                     Selected
                   </span>
                 )}

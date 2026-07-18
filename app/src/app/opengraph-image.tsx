@@ -17,7 +17,9 @@ export default function Image() {
           justifyContent: "center",
           alignItems: "center",
           gap: 24,
-          backgroundImage: "linear-gradient(180deg, #faf9f7 0%, #d5ecff 100%)",
+          backgroundColor: "#1f232e",
+          backgroundImage:
+            "radial-gradient(circle at 50% 0%, rgba(50, 69, 255, 0.35) 0%, rgba(31, 35, 46, 0) 60%)",
           padding: 80,
         }}
       >
@@ -25,11 +27,9 @@ export default function Image() {
           style={{
             display: "flex",
             fontSize: 96,
-            fontWeight: 800,
+            fontWeight: 700,
             letterSpacing: -2,
-            backgroundImage: "linear-gradient(135deg, #6736eb 0%, #0068f9 100%)",
-            backgroundClip: "text",
-            color: "transparent",
+            color: "#f2f6fa",
           }}
         >
           {SITE_NAME}
@@ -39,7 +39,7 @@ export default function Image() {
             display: "flex",
             textAlign: "center",
             fontSize: 32,
-            color: "#777c86",
+            color: "#858b98",
             maxWidth: 900,
           }}
         >

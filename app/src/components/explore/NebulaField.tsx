@@ -11,9 +11,10 @@ void main() {
 }`;
 
 // Procedural deep-space backdrop: a slow domain-warped fbm "nebula" tinted
-// toward the brand's cobalt/violet, plus two layered star grids (one hashed
-// point per grid cell, so cost stays O(1) per pixel regardless of star
-// count) with a gentle per-star twinkle.
+// toward DESIGN.md's nebula gradient (#3245ff -> #b845ed) over the void
+// canvas/abyss surfaces, plus two layered star grids (one hashed point per
+// grid cell, so cost stays O(1) per pixel regardless of star count) with a
+// gentle per-star twinkle.
 const FRAGMENT_SRC = `#version 300 es
 precision highp float;
 
@@ -67,12 +68,12 @@ void main() {
   vec2 uv = fragPx / u_resolution.xy;
   vec2 p = (fragPx - 0.5 * u_resolution.xy) / u_resolution.y;
 
-  vec3 col = mix(vec3(0.033, 0.035, 0.07), vec3(0.05, 0.04, 0.11), uv.y);
+  vec3 col = mix(vec3(0.047, 0.059, 0.098), vec3(0.122, 0.137, 0.180), uv.y);
 
   vec2 warp = p * 1.6 + vec2(u_time * 0.012, -u_time * 0.008);
   float n = fbm(warp + fbm(warp * 1.3 + 4.0));
-  vec3 nebA = vec3(0.09, 0.19, 0.5);
-  vec3 nebB = vec3(0.32, 0.14, 0.55);
+  vec3 nebA = vec3(0.196, 0.271, 1.0);
+  vec3 nebB = vec3(0.722, 0.271, 0.929);
   vec3 nebula = mix(nebA, nebB, clamp(n * 1.3 - 0.15, 0.0, 1.0));
   col += nebula * smoothstep(0.32, 0.82, n) * 0.5;
 

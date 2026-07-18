@@ -73,7 +73,7 @@ export function AdSlot({ appId }: { appId: string }) {
       </div>
       {ad.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={ad.imageUrl} alt="" className="h-28 w-full object-cover ring-1 ring-inset ring-black/10" />
+        <img src={ad.imageUrl} alt="" className="h-28 w-full object-cover ring-1 ring-inset ring-white/10" />
       )}
       <div className="p-3">
         <div className="font-semibold text-ink group-hover:text-cobalt">

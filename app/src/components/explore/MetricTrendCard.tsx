@@ -48,15 +48,16 @@ export function MetricTrendCard({
               <YAxis hide domain={["auto", "auto"]} />
               <Tooltip
                 contentStyle={{
-                  background: "#ffffff",
-                  border: "1px solid #efefef",
+                  background: "#17191e",
+                  border: "1px solid #545864",
                   borderRadius: 12,
                   fontSize: 12,
+                  color: "#f2f6fa",
                 }}
                 labelFormatter={(x) => new Date(x as string).toLocaleString()}
                 formatter={(y: number) => [y.toLocaleString(), label]}
               />
-              <Line type="monotone" dataKey="y" stroke="#0068f9" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="y" stroke="#54b9ff" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         )}
