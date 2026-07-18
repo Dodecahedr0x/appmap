@@ -36,6 +36,8 @@ import { appPda, tagPda, appTagStakePda } from "../src/lib/anchorClient";
 import { slugify } from "../src/lib/utils";
 import { CATEGORIES, CHAINS } from "../src/lib/constants";
 import { config } from "../src/lib/config";
+import { mapWithConcurrency } from "./lib/concurrency";
+import { parseFlags } from "./lib/parseFlags";
 import idl from "../../target/idl/nebulous_world.json";
 import type { NebulousWorld } from "../../target/types/nebulous_world";
 
@@ -81,33 +83,13 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { file: "scripts/appData/apps.json", limit: Infinity, concurrency: 3, dryRun: false };
-  for (const arg of argv) {
-    const [key, value] = arg.replace(/^--/, "").split("=");
-    if (key === "file" && value) args.file = value;
-    else if (key === "limit" && value) args.limit = Number(value);
-    else if (key === "concurrency" && value) args.concurrency = Number(value);
-    else if (key === "dry-run") args.dryRun = true;
-  }
-  return args;
-}
-
-/** Run `fn` over `items` with at most `limit` in flight at once. */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]!, i);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
+  const f = parseFlags(argv);
+  return {
+    file: typeof f.file === "string" ? f.file : "scripts/appData/apps.json",
+    limit: typeof f.limit === "string" ? Number(f.limit) : Infinity,
+    concurrency: typeof f.concurrency === "string" ? Number(f.concurrency) : 3,
+    dryRun: Boolean(f["dry-run"]),
+  };
 }
 
 /** Deterministic so re-running this script targets the exact same on-chain PDA for a given URL. */

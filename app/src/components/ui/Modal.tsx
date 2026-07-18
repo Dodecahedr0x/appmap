@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { useMountTransition } from "@/hooks/useMountTransition";
 
 // Kept in sync with the `duration-200` exit transition below — the card
 // stays mounted this long after `open` goes false so the fade/scale-out can
@@ -37,21 +38,7 @@ export function Modal({
       that needs more than the default single-column form width. */
   maxWidthClassName?: string;
 }) {
-  const [rendered, setRendered] = useState(open);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setRendered(true);
-      // Mount closed first, then flip to visible on the next frame so the
-      // enter transition actually has a "from" state to animate out of.
-      const raf = requestAnimationFrame(() => setVisible(true));
-      return () => cancelAnimationFrame(raf);
-    }
-    setVisible(false);
-    const t = setTimeout(() => setRendered(false), EXIT_MS);
-    return () => clearTimeout(t);
-  }, [open]);
+  const { rendered, visible } = useMountTransition(open, EXIT_MS);
 
   useEffect(() => {
     if (!open) return;

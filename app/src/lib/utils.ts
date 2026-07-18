@@ -39,6 +39,12 @@ export function formatNumber(n: number): string {
   return new Intl.NumberFormat("en-US").format(n);
 }
 
+/** Split a formatted value like "1.23M NEB" into its figure and unit: ["1.23M", "NEB"]. */
+export function splitValueUnit(value: string): [amount: string, unit: string] {
+  const [amount, ...unitParts] = value.split(" ");
+  return [amount, unitParts.join(" ")];
+}
+
 /** Extract a display-friendly hostname from a URL: "https://www.jup.ag/x" -> "jup.ag". */
 export function hostname(url: string): string {
   try {
@@ -54,15 +60,6 @@ export function hostname(url: string): string {
 export function topStakedTag(tags: TagDTO[]): TagDTO | null {
   if (tags.length === 0) return null;
   return tags.reduce((top, t) => (t.stakeTotal > top.stakeTotal ? t : top));
-}
-
-export function formatDate(d: Date | string): string {
-  const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export function timeAgo(d: Date | string): string {

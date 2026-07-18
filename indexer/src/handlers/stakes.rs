@@ -72,7 +72,7 @@ async fn create(State(state): State<Arc<ApiState>>, Json(req): Json<CreateReq>) 
             .await
             .map_err(crate::api::internal)?;
         if existing {
-            return Err(ApiError(axum::http::StatusCode::CONFLICT, "This transaction was already recorded".into()));
+            return Err(crate::api::conflict("This transaction was already recorded"));
         }
     }
 
@@ -118,10 +118,10 @@ async fn withdraw(
         return Err(not_found("Stake not found"));
     };
     if user_id != req.user_id {
-        return Err(ApiError(axum::http::StatusCode::FORBIDDEN, "Not your stake".into()));
+        return Err(crate::api::forbidden("Not your stake"));
     }
     if !active {
-        return Err(ApiError(axum::http::StatusCode::CONFLICT, "Stake already withdrawn".into()));
+        return Err(crate::api::conflict("Stake already withdrawn"));
     }
 
     let app_tag_id: String = sqlx::query_scalar(

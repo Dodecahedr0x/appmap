@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { CATEGORIES, CHAINS } from "../src/lib/constants";
+import { parseFlags } from "./lib/parseFlags";
 import type { AppEntry } from "./createAppsOnchain";
 
 const execFileAsync = promisify(execFile);
@@ -35,24 +36,15 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = {
-    tag: "",
-    count: 8,
-    file: "scripts/appData/apps.json",
-    model: "sonnet",
-    effort: "medium",
-    dryRun: false,
+  const f = parseFlags(argv);
+  return {
+    tag: typeof f.tag === "string" ? f.tag : "",
+    count: typeof f.count === "string" ? Number(f.count) : 8,
+    file: typeof f.file === "string" ? f.file : "scripts/appData/apps.json",
+    model: typeof f.model === "string" ? f.model : "sonnet",
+    effort: typeof f.effort === "string" ? f.effort : "medium",
+    dryRun: Boolean(f["dry-run"]),
   };
-  for (const arg of argv) {
-    const [key, value] = arg.replace(/^--/, "").split("=");
-    if (key === "tag" && value) args.tag = value;
-    else if (key === "count" && value) args.count = Number(value);
-    else if (key === "file" && value) args.file = value;
-    else if (key === "model" && value) args.model = value;
-    else if (key === "effort" && value) args.effort = value;
-    else if (key === "dry-run") args.dryRun = true;
-  }
-  return args;
 }
 
 /** Strips a leading `https://`/`http://`/`www.` and any trailing slash, so

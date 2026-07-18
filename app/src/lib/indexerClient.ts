@@ -37,40 +37,23 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
   }
 }
 
-async function get(path: string): Promise<unknown> {
-  const res = await fetch(`${INDEXER_API_URL}${path}`, { cache: "no-store" });
-  if (res.status === 404) throw new IndexerNotFoundError(path);
+async function request(method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<unknown> {
+  const res = await fetch(`${INDEXER_API_URL}${path}`, {
+    method,
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  if (method === "GET" && res.status === 404) throw new IndexerNotFoundError(path);
   if (!res.ok) {
-    throw new Error(await errorMessage(res, `indexer GET ${path} failed (${res.status})`));
+    throw new Error(await errorMessage(res, `indexer ${method} ${path} failed (${res.status})`));
   }
   return res.json();
 }
 
-async function post(path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(`${INDEXER_API_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(await errorMessage(res, `indexer POST ${path} failed (${res.status})`));
-  }
-  return res.json();
-}
-
-async function patch(path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(`${INDEXER_API_URL}${path}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(await errorMessage(res, `indexer PATCH ${path} failed (${res.status})`));
-  }
-  return res.json();
-}
+const get = (path: string) => request("GET", path);
+const post = (path: string, body: unknown) => request("POST", path, body);
+const patch = (path: string, body: unknown) => request("PATCH", path, body);
 
 /** `null` on a 404 (the account genuinely doesn't exist yet), throws on any other failure. */
 async function getOrNull(path: string): Promise<unknown | null> {
@@ -466,14 +449,6 @@ export async function trackPageView(
     reason?: string;
     revenueEligible?: boolean;
   };
-}
-
-export async function settleRevenueEpoch(epochId: string): Promise<{ gross: number; claims: number }> {
-  return (await post(`/revenue/epochs/${encodeURIComponent(epochId)}/settle`, {})) as { gross: number; claims: number };
-}
-
-export async function refreshRankScores(): Promise<{ refreshed: number }> {
-  return (await post("/rank-scores/refresh", {})) as { refreshed: number };
 }
 
 export async function writeDailySnapshot(): Promise<{ written: number }> {

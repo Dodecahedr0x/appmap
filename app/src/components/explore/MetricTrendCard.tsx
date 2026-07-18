@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { splitValueUnit } from "@/lib/utils";
 
 // DESIGN.md tokens (see tailwind.config.ts): ivory=carbon, hairline=gunmetal,
 // slate=steel, ink=lunar white, forest=aurora mint — same values this card
@@ -44,8 +45,7 @@ export function MetricTrendCard({
   // muted next to the bolded figure, matching the reference's "123 Mil"
   // treatment. Values with no unit (plain formatNumber output) just render
   // as the one bolded span.
-  const [amount, ...unitParts] = value.split(" ");
-  const unit = unitParts.join(" ");
+  const [amount, unit] = splitValueUnit(value);
 
   return (
     <div className="card flex flex-col">

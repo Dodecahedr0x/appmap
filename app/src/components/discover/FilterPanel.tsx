@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { SearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useMountTransition } from "@/hooks/useMountTransition";
 
 // Kept in sync with the panel's `duration-150` exit transition — it stays
 // mounted this long after closing so the fade/scale-out can play instead of
@@ -114,24 +115,8 @@ export function FilterPanel({
   onClear,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
-  // Mirrors `isOpen` but stays true a beat longer on close, and `panelVisible`
-  // a beat shorter, so the panel gets an actual "from" state to transition
-  // out of instead of vanishing the instant it's toggled (see Modal.tsx for
-  // the same pattern).
-  const [panelRendered, setPanelRendered] = useState(false);
-  const [panelVisible, setPanelVisible] = useState(false);
+  const { rendered: panelRendered, visible: panelVisible } = useMountTransition(isOpen, EXIT_MS);
   const [tagSearch, setTagSearch] = useState("");
-
-  useEffect(() => {
-    if (isOpen) {
-      setPanelRendered(true);
-      const raf = requestAnimationFrame(() => setPanelVisible(true));
-      return () => cancelAnimationFrame(raf);
-    }
-    setPanelVisible(false);
-    const t = setTimeout(() => setPanelRendered(false), EXIT_MS);
-    return () => clearTimeout(t);
-  }, [isOpen]);
 
   const activeCount = countActiveFilters(selectedTags, ranges, fuzzy);
   const hasFilters = activeCount > 0;

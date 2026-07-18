@@ -41,13 +41,6 @@ export interface SearchResult {
   };
 }
 
-export interface ApiEnvelope<T> {
-  ok: boolean;
-  data?: T;
-  error?: string;
-  details?: unknown;
-}
-
 /** Full detail for a single app's page — see indexer/src/handlers/apps.rs's `AppDetailDto`. */
 export interface AppDetail {
   app: AppDTO;

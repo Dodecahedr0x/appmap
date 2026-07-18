@@ -1,14 +1,6 @@
 // Shared enumerations and option lists used across the app. Kept as plain
 // string constants because SQLite (dev) does not support native enums.
 
-export const AppStatus = {
-  PENDING: "pending",
-  APPROVED: "approved",
-  REJECTED: "rejected",
-  FLAGGED: "flagged",
-} as const;
-export type AppStatus = (typeof AppStatus)[keyof typeof AppStatus];
-
 export const CATEGORIES = [
   "defi",
   "nft",

@@ -53,7 +53,7 @@ itself. What's left here is genuinely DB-free:
 
 | File | What |
 | --- | --- |
-| [`config.ts`](config.ts) | Runtime config/env — `isSimulationMode()`, indexer base URL, ad CPM, etc. |
-| [`constants.ts`](constants.ts) | Shared enums: `AppStatus`, `CATEGORIES`, `CHAINS`, `SORT_OPTIONS`, `TOKEN_SYMBOL`/`TOKEN_NAME`, `SITE_*`. |
-| [`types.ts`](types.ts) | Shared DTOs: `AppDTO`, `TagDTO`, `SearchResult`, `ApiEnvelope`. |
-| [`utils.ts`](utils.ts) | `cn`, `slugify`, `shortAddress`, `formatToken`, `formatNumber`, `hostname`, `formatDate`, `timeAgo`. |
+| [`config.ts`](config.ts) | Runtime config/env — `isSimulationMode()`, indexer base URL, etc. |
+| [`constants.ts`](constants.ts) | Shared enums: `CATEGORIES`, `CHAINS`, `SORT_OPTIONS`, `TOKEN_SYMBOL`/`TOKEN_NAME`, `SITE_*`. |
+| [`types.ts`](types.ts) | Shared DTOs: `AppDTO`, `TagDTO`, `SearchResult`. |
+| [`utils.ts`](utils.ts) | `cn`, `slugify`, `shortAddress`, `formatToken`, `formatNumber`, `hostname`, `timeAgo`. |

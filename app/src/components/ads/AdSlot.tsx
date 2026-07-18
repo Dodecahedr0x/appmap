@@ -1,14 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-interface ServedAd {
-  id: string;
-  title: string;
-  body: string;
-  imageUrl: string | null;
-  targetUrl: string;
-}
+import { useAdServe } from "@/hooks/useAdServe";
 
 /**
  * An ad slot rendered on an app page. On mount it requests an ad from the
@@ -17,27 +9,7 @@ interface ServedAd {
  * stakers when the epoch settles.
  */
 export function AdSlot({ appId }: { appId: string }) {
-  const [ad, setAd] = useState<ServedAd | null>(null);
-  const [impressionId, setImpressionId] = useState<string | null>(null);
-  const requested = useRef(false);
-
-  useEffect(() => {
-    if (requested.current) return;
-    requested.current = true;
-    fetch("/api/ads/serve", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ appId, path: window.location.pathname }),
-    })
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.ok && json.data.ad) {
-          setAd(json.data.ad);
-          setImpressionId(json.data.impressionId ?? null);
-        }
-      })
-      .catch(() => {});
-  }, [appId]);
+  const { ad, onClick } = useAdServe(appId);
 
   if (!ad) {
     return (
@@ -46,17 +18,6 @@ export function AdSlot({ appId }: { appId: string }) {
       </div>
     );
   }
-
-  const onClick = () => {
-    if (impressionId) {
-      fetch("/api/ads/click", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ impressionId }),
-        keepalive: true,
-      }).catch(() => {});
-    }
-  };
 
   return (
     <a

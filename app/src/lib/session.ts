@@ -83,5 +83,3 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!token) return null;
   return verifySessionToken(token);
 }
-
-export const SESSION_COOKIE_NAME = SESSION_COOKIE;
