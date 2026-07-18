@@ -195,16 +195,19 @@ log "Building the indexer"
 (cd "$INDEXER_DIR" && cargo build)
 
 # The indexer connects to Postgres eagerly at startup (indexer/src/db.rs)
-# and exits immediately if that fails — it doesn't retry/wait. Postgres
-# itself is normally provisioned by `db:reset` below via
-# scripts/ensure-postgres.sh, but that runs AFTER the indexer starts, so on
-# a machine where Postgres isn't already running (e.g. right after
+# and exits immediately if that fails — it doesn't retry/wait, so on a
+# machine where Postgres isn't already running (e.g. right after
 # teardown-dev.sh's `brew services stop postgresql@15`, which every prior
-# `dev:all` session's Ctrl-C triggers) the indexer's PgPool times out
-# connecting, the process exits before ever binding its HTTP port, and the
-# "did not come up in time" check below fails. Call the same idempotent
-# provisioning script here, first, so Postgres is guaranteed reachable
-# before the indexer ever tries to connect.
+# `dev:all` session's Ctrl-C triggers) the indexer's PgPool would time out
+# connecting, the process would exit before ever binding its HTTP port, and
+# the "did not come up in time" check below would fail. Provision Postgres
+# here, first, so it's guaranteed reachable before the indexer ever tries to
+# connect — the indexer then owns the schema itself from there (the same
+# `sqlx::migrate!()` call that connects also applies every migration under
+# indexer/migrations/, including the product schema mirrored from
+# prisma/schema.prisma — see that directory's 005_app_schema.sql). There is
+# no separate schema-push/seed step any more: nothing populates the database
+# but the indexer itself, reading and listening for on-chain accounts.
 log "Ensuring local Postgres is up (the indexer needs it at startup)"
 bash scripts/ensure-postgres.sh
 
@@ -233,9 +236,6 @@ else
   echo "$INDEXER_PID" > "$INDEXER_PID_FILE"
 fi
 
-log "Resetting and seeding the database"
-npm run db:reset
-
 log "Done"
 cat <<EOF
 
@@ -246,12 +246,12 @@ Local dev environment is ready:
   - NEB minted and its DLMM pool created (or reused — see .env)
   - indexer running on 127.0.0.1:$INDEXER_API_PORT (logs: $INDEXER_LOG) — the
     app talks to this instead of Solana RPC directly, see indexer/README.md
-  - database reset and seeded
+  - database schema applied by the indexer itself; empty until real on-chain
+    activity happens (there is no seed script — see AGENTS.md)
 
 Next steps:
-  - Run 'npm run dev' to start the app (http://localhost:3000)
-  - Run 'npm run db:seed:onchain' to buy real NEB from the pool and place
-    real on-chain votes/stakes across the seeded apps/tags (prisma/seed.ts's
-    votes/stakes are fake DB rows only, not real transactions)
+  - Run 'npm run dev' to start the app (http://localhost:3000), then use the
+    "Create app" flow in the UI (or place votes/stakes) to generate real
+    on-chain activity for the indexer to pick up
   - Run 'npm run teardown:dev' to stop surfpool, the indexer, and local Postgres
 EOF

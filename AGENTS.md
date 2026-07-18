@@ -20,10 +20,26 @@ app nested inside it:
 | [`docs/plans/`](docs/plans/) | Point-in-time design/implementation planning docs (historical, not living docs) | — |
 | [`DESIGN.md`](DESIGN.md) | Visual design tokens (colors, type scale, spacing, shadows) backing `app/tailwind.config.ts` | — |
 
-`app/prisma/schema.prisma` is the one Postgres schema for the whole
-product — the indexer has its own separate Postgres schema/migrations under
-`indexer/migrations/` for on-chain data, kept intentionally distinct from
-the app's DB.
+**The database is owned by the indexer, not the app.** `indexer/migrations/`
+is the one source of DDL for the whole product's Postgres schema (the
+on-chain-derived tables it always had, plus — as of `005_app_schema.sql` —
+the product schema that used to be pushed from `app/prisma/schema.prisma`),
+applied automatically at indexer startup (`sqlx::migrate!()`, see
+`indexer/src/db.rs`). `app/prisma/schema.prisma` still exists as the typed
+Prisma Client codegen input the app's API routes read/write through
+(`prisma generate`, run as part of `npm run build`), but the app never runs
+`prisma db push`/`migrate` — its shape must be kept in sync with
+`indexer/migrations/`'s CREATE TABLE statements by hand.
+
+There is no seed script anywhere in this repo. `App`/`Tag`/`AppTag` rows are
+created exclusively by the indexer's account/instruction pipeline
+(`indexer/src/processors/product.rs`) when it observes confirmed
+`init_app`/`suggest_tag` transactions on-chain — backfilled at startup by
+replaying program history, kept current by the live crawler/subscription
+after that. App creation itself is on-chain-first: the client builds and
+signs an `init_app` (+ `suggest_tag`) transaction directly (see
+`components/discover/CreateAppForm.tsx`, `POST /api/tx/create-app`) rather
+than the app writing a Prisma row.
 
 ## Running things
 

@@ -51,6 +51,7 @@ fn init_app_ix(program_id: &Pubkey, payer: &Pubkey, app_id: &str, app: &Pubkey) 
         *program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
+            url: "example.com".to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {

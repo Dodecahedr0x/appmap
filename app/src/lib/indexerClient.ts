@@ -144,6 +144,33 @@ export interface BuiltTx {
   transaction: string;
 }
 
+export interface CreateAppInput {
+  appId: string;
+  url: string;
+  user: string;
+  tags?: string[];
+  name?: string;
+  tagline?: string;
+  description?: string;
+  iconUrl?: string;
+  category?: string;
+  chain?: string;
+}
+
+/** Builds "create app (+ initial tags)" as one atomic transaction — see indexer/src/api.rs's build_create_app. */
+export async function buildCreateAppTx(input: CreateAppInput): Promise<BuiltTx> {
+  return (await post("/tx/create-app", input)) as BuiltTx;
+}
+
+/** Adds a tag to an app that already exists (unlike buildCreateAppTx's bundled initial tags). */
+export async function buildSuggestTagTx(
+  appId: string,
+  tagSlug: string,
+  user: string,
+): Promise<BuiltTx> {
+  return (await post("/tx/suggest-tag", { appId, tagSlug, user })) as BuiltTx;
+}
+
 /** `amount` is a raw, already-decimals-scaled u64 as a decimal string (see lib/anchorClient.ts's toRawAmount). */
 export async function buildVoteTx(appId: string, amount: string, user: string): Promise<BuiltTx> {
   return (await post("/tx/vote", { appId, amount, user })) as BuiltTx;

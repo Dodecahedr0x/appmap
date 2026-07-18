@@ -90,6 +90,8 @@ pub fn router(state: Arc<ApiState>) -> Router {
         .route("/balances/:owner/:mint", get(get_balance))
         .route("/pool", get(get_pool))
         .route("/metrics/platform-history", get(get_platform_metrics_history))
+        .route("/tx/create-app", post(build_create_app))
+        .route("/tx/suggest-tag", post(build_suggest_tag))
         .route("/tx/vote", post(build_vote))
         .route("/tx/withdraw-vote", post(build_withdraw_vote))
         .route("/tx/stake-tag", post(build_stake_tag))
@@ -238,19 +240,42 @@ fn push_borsh_string(data: &mut Vec<u8>, s: &str) {
     data.extend_from_slice(s.as_bytes());
 }
 
+/// Strips a leading `https://`/`http://` so the on-chain `AppAccount.url`
+/// never pays rent for a prefix every app has anyway (see `MAX_URL_LEN`'s
+/// doc comment) — the indexer's account processor prepends `https://` back
+/// on when mirroring this into Postgres.
+fn trim_url_protocol(url: &str) -> &str {
+    url.trim_start_matches("https://").trim_start_matches("http://")
+}
+
 /// Builds a permissionless `init_app` instruction — see
 /// programs/nebulous_world/src/instructions/init_app.rs's `InitApp` accounts
 /// struct for the exact order/mutability this mirrors: `{ app, payer,
 /// system_program }`.
-fn init_app_ix(program_id: &Pubkey, app_id: &str, app: &Pubkey, payer: &Pubkey) -> Instruction {
+fn init_app_ix(program_id: &Pubkey, app_id: &str, url: &str, app: &Pubkey, payer: &Pubkey) -> Instruction {
     let mut data = INIT_APP_DISC.to_vec();
     push_borsh_string(&mut data, app_id);
+    push_borsh_string(&mut data, trim_url_protocol(url));
     let accounts = vec![
         AccountMeta::new(*app, false),
         AccountMeta::new(*payer, true),
         AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
     ];
     Instruction::new_with_bytes(*program_id, &data, accounts)
+}
+
+/// SPL Memo v2 program id — see `indexer/src/processors/product.rs`'s doc
+/// comment for why a memo instruction carries the crowd-submitted app
+/// metadata (name/tagline/description/...) that has no on-chain
+/// `AppAccount` field of its own.
+const MEMO_PROGRAM_ID: Pubkey = Pubkey::from_str_const("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+fn memo_ix(text: &str, signer: &Pubkey) -> Instruction {
+    Instruction {
+        program_id: MEMO_PROGRAM_ID,
+        accounts: vec![AccountMeta::new_readonly(*signer, true)],
+        data: text.as_bytes().to_vec(),
+    }
 }
 
 /// Builds a permissionless `suggest_tag` instruction — mirrors
@@ -584,6 +609,161 @@ async fn unsigned_tx_base64(
     Ok(BASE64.encode(bytes))
 }
 
+/// Metadata with no on-chain `AppAccount` field of its own (see
+/// `programs/nebulous_world/src/state/app.rs`'s doc comment) — attached to
+/// the creation transaction as an SPL Memo instruction, whose JSON shape
+/// exactly matches `indexer/src/processors/product.rs`'s private `AppMemo`
+/// (the two are independently defined, one per side of the wire, rather
+/// than shared, since one is this crate's outbound DTO and the other is
+/// that module's inbound parse target — keep them in sync by hand).
+#[derive(Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+struct CreateAppMemo {
+    name: Option<String>,
+    tagline: Option<String>,
+    description: Option<String>,
+    icon_url: Option<String>,
+    category: Option<String>,
+    chain: Option<String>,
+}
+
+impl CreateAppMemo {
+    fn is_empty(&self) -> bool {
+        self.name.is_none()
+            && self.tagline.is_none()
+            && self.description.is_none()
+            && self.icon_url.is_none()
+            && self.category.is_none()
+            && self.chain.is_none()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateAppReq {
+    app_id: String,
+    url: String,
+    user: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    tagline: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    icon_url: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    chain: Option<String>,
+}
+
+/// Builds "create app (+ optional initial tags)" as ONE atomic,
+/// one-signature transaction — the on-chain-first replacement for the old
+/// `POST /api/apps` Prisma write (see AGENTS.md and processors/product.rs):
+/// `init_app` (with an optional leading Memo carrying metadata that has no
+/// on-chain field), then one `suggest_tag` per initial tag. The `App`/`Tag`/
+/// `AppTag` Postgres rows don't exist yet when this returns — they show up
+/// once the indexer's crawler observes the confirmed transaction, same as
+/// every other on-chain action in this app.
+async fn build_create_app(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<CreateAppReq>,
+) -> Result<Json<BuiltTxDto>, ApiError> {
+    validate_seed_len("app_id", &req.app_id, MAX_APP_ID_LEN)?;
+    if req.url.trim().is_empty() {
+        return Err(bad_request("url must not be empty"));
+    }
+    if req.tags.len() > 10 {
+        return Err(bad_request("at most 10 initial tags are allowed"));
+    }
+    for tag_slug in &req.tags {
+        validate_seed_len("tag_slug", tag_slug, MAX_TAG_ID_LEN)?;
+    }
+    let user = parse_pubkey("user", &req.user)?;
+    let app = app_pda(&state.program_id, &req.app_id);
+
+    if account_exists(&state.rpc, &app).await {
+        return Err(bad_request(format!(
+            "an app with id \"{}\" already exists on-chain",
+            req.app_id
+        )));
+    }
+
+    let mut instructions = Vec::new();
+
+    let memo = CreateAppMemo {
+        name: req.name.clone(),
+        tagline: req.tagline.clone(),
+        description: req.description.clone(),
+        icon_url: req.icon_url.clone(),
+        category: req.category.clone(),
+        chain: req.chain.clone(),
+    };
+    if !memo.is_empty() {
+        let memo_json = serde_json::to_string(&memo).map_err(internal)?;
+        instructions.push(memo_ix(&memo_json, &user));
+    }
+
+    instructions.push(init_app_ix(&state.program_id, &req.app_id, &req.url, &app, &user));
+
+    for tag_slug in &req.tags {
+        let tag = tag_pda(&state.program_id, tag_slug);
+        let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+        instructions.push(suggest_tag_ix(
+            &state.program_id,
+            &req.app_id,
+            tag_slug,
+            &app,
+            &tag,
+            &app_tag_stake,
+            &user,
+        ));
+    }
+
+    let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
+    Ok(Json(BuiltTxDto { transaction: tx }))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuggestTagReq {
+    app_id: String,
+    tag_slug: String,
+    user: String,
+}
+
+/// Adds a tag to an app that already exists (unlike `build_create_app`,
+/// which bundles this alongside `init_app` for an app's INITIAL tags) — the
+/// on-chain-first replacement for the old `POST /api/tags/suggest` Prisma
+/// write. `app` must already exist; `suggest_tag` only reads it, so there's
+/// no lazy `init_app` fallback here (same reasoning as `build_vote`).
+async fn build_suggest_tag(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<SuggestTagReq>,
+) -> Result<Json<BuiltTxDto>, ApiError> {
+    validate_seed_len("app_id", &req.app_id, MAX_APP_ID_LEN)?;
+    validate_seed_len("tag_slug", &req.tag_slug, MAX_TAG_ID_LEN)?;
+    let user = parse_pubkey("user", &req.user)?;
+    let app = app_pda(&state.program_id, &req.app_id);
+    let tag = tag_pda(&state.program_id, &req.tag_slug);
+    let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+
+    let instructions = vec![suggest_tag_ix(
+        &state.program_id,
+        &req.app_id,
+        &req.tag_slug,
+        &app,
+        &tag,
+        &app_tag_stake,
+        &user,
+    )];
+    let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
+    Ok(Json(BuiltTxDto { transaction: tx }))
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VoteReq {
@@ -605,15 +785,15 @@ async fn build_vote(
     let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
-    // `vote` requires `AppAccount` to already exist, but nothing in the
-    // app's own submission flow ever calls `init_app` on-chain (apps are
-    // created purely in Postgres) — lazily create it here, in the same
-    // transaction as the vote itself, paid for by the voter. Permissionless
-    // on-chain, same as if the voter had called it directly.
+    // `vote` requires `AppAccount` to already exist. Unlike before, there's
+    // no lazy `init_app` prepend here any more: app creation is now an
+    // on-chain-first flow of its own (POST /tx/create-app, built by
+    // `build_create_app`) that always runs before any app can be voted on,
+    // and (unlike the old Postgres-first design) this endpoint has no `url`
+    // to construct `init_app` with even if it wanted to lazily create one.
+    // A vote against a nonexistent `app` now simply fails on-chain with the
+    // ordinary "account not found" error, which is the correct behavior.
     let mut instructions = Vec::new();
-    if !account_exists(&state.rpc, &app).await {
-        instructions.push(init_app_ix(&state.program_id, &req.app_id, &app, &user));
-    }
 
     let mut data = VOTE_DISC.to_vec();
     data.extend_from_slice(&amount.to_le_bytes());
@@ -699,18 +879,15 @@ async fn build_stake_tag(
     let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
 
-    // Same "nothing in the app's flow ever registers this on-chain" gap as
-    // `vote` (see the comment there) — apps AND tags are both created
-    // purely in Postgres today (POST /api/apps, /api/tags/suggest), so both
-    // `AppAccount` and `AppTagStake` routinely don't exist on-chain yet by
-    // the time a user tries to stake behind one. Lazily create whichever is
-    // missing, in order, ahead of the real `stake_tag` instruction:
-    // `suggest_tag` itself reads `app.bump` off the account, so if BOTH are
-    // missing, `init_app` must land first in this same transaction.
+    // `app` must already exist (see the comment on `build_vote` — app
+    // creation is its own on-chain-first flow now, `POST /tx/create-app`,
+    // with no lazy `init_app` fallback here any more). `tag`/`app_tag_stake`
+    // are different: `suggest_tag` is permissionless and legitimately gets
+    // called again later, against an already-existing app, for tags that
+    // weren't part of the original creation transaction — lazily create
+    // whichever of those two is still missing ahead of the real
+    // `stake_tag` instruction.
     let mut instructions = Vec::new();
-    if !account_exists(&state.rpc, &app).await {
-        instructions.push(init_app_ix(&state.program_id, &req.app_id, &app, &user));
-    }
     if !account_exists(&state.rpc, &app_tag_stake).await {
         instructions.push(suggest_tag_ix(
             &state.program_id,

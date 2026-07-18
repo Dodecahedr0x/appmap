@@ -157,6 +157,7 @@ fn setup() -> (LiteSVM, Keypair, Env, Pubkey, TagPdas) {
         program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.clone(),
+            url: "example.com".to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {
@@ -227,6 +228,7 @@ fn register_second_app_and_tag(
         env.program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
+            url: "example.com".to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {

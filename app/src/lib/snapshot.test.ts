@@ -11,7 +11,7 @@ describe("writeDailySnapshot", () => {
   it("writes one snapshot row per app for today", async () => {
     const app = await prisma.app.create({
       data: {
-        slug: "snap-app",
+        id: "snap-app", slug: "snap-app",
         name: "Snap App",
         url: "https://example.com",
         voteWeight: 10,
@@ -30,7 +30,7 @@ describe("writeDailySnapshot", () => {
 
   it("is idempotent for the same day (upserts rather than duplicating)", async () => {
     await prisma.app.create({
-      data: { slug: "snap-app-2", name: "Snap App 2", url: "https://example.com" },
+      data: { id: "snap-app-2", slug: "snap-app-2", name: "Snap App 2", url: "https://example.com" },
     });
     await writeDailySnapshot();
     await writeDailySnapshot();

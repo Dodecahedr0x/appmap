@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
-import { cn, formatToken } from "@/lib/utils";
+import { useCreateAppProgram } from "@/hooks/useCreateAppProgram";
+import { cn, formatToken, slugify } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import type { TagDTO } from "@/lib/types";
 
@@ -25,6 +26,7 @@ export function TagStakePanel({
   const router = useRouter();
   const toast = useToast();
   const { stakeTag, withdrawTagStake } = useTagStakeProgram();
+  const { suggestTag } = useCreateAppProgram();
 
   const [stakingId, setStakingId] = useState<string | null>(null);
   // Mirrors `stakingId` but stays mounted a beat longer on close so the
@@ -126,19 +128,19 @@ export function TagStakePanel({
     }
   }
 
+  // Adding a tag is an on-chain `suggest_tag` transaction now (see
+  // useCreateAppProgram) — the `Tag`/`AppTag` Postgres rows only show up
+  // once the indexer observes it confirmed, same as app creation. There's
+  // no synchronous DB write to await here, so `router.refresh()` may not
+  // show the new tag immediately; the toast says so rather than implying
+  // it's already visible.
   async function suggest() {
-    const tag = newTag.trim();
-    if (!tag) return;
+    const tagSlug = slugify(newTag);
+    if (!tagSlug) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/tags/suggest", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ appId, tag }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Could not add tag");
-      toast.success(`Added #${tag}`);
+      const txSig = await suggestTag(appId, tagSlug);
+      toast.success(`Added #${tagSlug} — indexing…`, { txSig });
       setNewTag("");
       router.refresh();
     } catch (err) {

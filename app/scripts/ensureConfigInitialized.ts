@@ -7,8 +7,7 @@
 // "staking gives an error" (voting hit the exact same wall, just less
 // visibly since it was usually tried second). setup-dev.sh calls this
 // script right after `anchor deploy`; safe to re-run (no-ops if already
-// initialized), so it's also called from seedOnchainStakes.ts as a
-// belt-and-braces guard.
+// initialized).
 //
 // Usage: tsx scripts/ensureConfigInitialized.ts
 
@@ -86,8 +85,7 @@ async function main() {
 }
 
 // Only run as a standalone script when invoked directly (`tsx
-// scripts/ensureConfigInitialized.ts`) — not when imported by
-// seedOnchainStakes.ts for its own belt-and-braces call.
+// scripts/ensureConfigInitialized.ts`), not when imported elsewhere.
 if (require.main === module) {
   main().catch((e) => {
     console.error(e);

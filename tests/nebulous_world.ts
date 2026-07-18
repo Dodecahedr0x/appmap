@@ -147,7 +147,7 @@ describe("nebulous_world: init_app", () => {
     // global vault documented on `Config` — so registering a new app costs
     // no token-account rent at all.
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -175,7 +175,7 @@ describe("nebulous_world: init_app", () => {
     const app = derivePda(appId);
 
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: strangerPayer.publicKey,
@@ -200,7 +200,7 @@ describe("nebulous_world: init_app", () => {
     try {
       const app = derivePda(appId);
       await program.methods
-        .initApp(appId)
+        .initApp(appId, "example.com/app")
         .accounts({
           app,
           payer: provider.wallet.publicKey,
@@ -298,7 +298,7 @@ describe("nebulous_world: suggest_tag", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = deriveAppPda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -562,7 +562,7 @@ describe("nebulous_world: vote", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = derivePda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -746,7 +746,7 @@ describe("nebulous_world: withdraw_vote", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = derivePda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -1016,7 +1016,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = derivePda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -1466,7 +1466,7 @@ describe("nebulous_world: stake_tag", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = deriveAppPda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -1896,7 +1896,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = deriveAppPda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,
@@ -2384,7 +2384,7 @@ describe("nebulous_world: claim_tag_reward", () => {
     const appId = `cid${randomBytes(11).toString("hex")}`;
     const app = deriveAppPda(appId);
     await program.methods
-      .initApp(appId)
+      .initApp(appId, "example.com/app")
       .accounts({
         app,
         payer: provider.wallet.publicKey,

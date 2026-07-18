@@ -122,6 +122,7 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, Pdas) {
         program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.clone(),
+            url: "example.com".to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {
