@@ -13,6 +13,10 @@ export const CATEGORIES = [
   "analytics",
   "developer-tools",
   "marketplace",
+  "productivity",
+  "design",
+  "ai",
+  "entertainment",
   "other",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];

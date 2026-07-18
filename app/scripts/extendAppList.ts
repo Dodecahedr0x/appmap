@@ -31,7 +31,11 @@ const CATEGORY_TAGS: Record<Category, string[]> = {
   analytics: ["analytics", "dashboards", "on-chain-data"],
   "developer-tools": ["developer-tools", "sdk", "testing"],
   marketplace: ["marketplace", "commerce", "auctions"],
-  other: ["productivity", "ai-tools", "utilities"],
+  productivity: ["productivity", "task-management", "note-taking"],
+  design: ["design", "ui-design", "prototyping"],
+  ai: ["ai", "generative-ai", "ai-agents"],
+  entertainment: ["entertainment", "streaming", "media"],
+  other: ["utilities", "trending", "misc"],
 };
 
 interface Args {
