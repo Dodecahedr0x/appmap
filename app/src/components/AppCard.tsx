@@ -74,7 +74,7 @@ export function AppCard({
       </div>
 
       {app.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+        <div className="flex flex-wrap gap-1.5 px-4 py-2">
           {app.tags.slice(0, 5).map((t) => (
             <span
               key={t.id}
