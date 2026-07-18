@@ -16,6 +16,11 @@ use anchor_lang::prelude::*;
 pub struct StakePosition {
     pub app_tag_stake: Pubkey,
     pub owner: Pubkey,
+    /// Who paid this account's rent at creation — the tag-staking mirror of
+    /// `VotePosition::payer`; see that field's doc comment for why
+    /// `close_tag_stake_position` refunds here instead of trusting whoever
+    /// submits the close transaction.
+    pub payer: Pubkey,
     pub amount: u64,
     pub reward_debt: u128,
     /// Size-weighted-average deposit timestamp (Unix seconds) — see
@@ -27,5 +32,5 @@ pub struct StakePosition {
 }
 
 impl StakePosition {
-    pub const SPACE: usize = 32 + 32 + 8 + 16 + 8 + 1;
+    pub const SPACE: usize = 32 + 32 + 32 + 8 + 16 + 8 + 1;
 }

@@ -1,5 +1,7 @@
 pub mod claim_tag_reward;
 pub mod claim_vote_reward;
+pub mod close_tag_stake_position;
+pub mod close_vote_position;
 pub mod fund_app_rewards;
 pub mod init_app;
 pub mod initialize;
@@ -20,6 +22,8 @@ pub mod withdraw_vote;
 mod reexports {
     pub use super::claim_tag_reward::*;
     pub use super::claim_vote_reward::*;
+    pub use super::close_tag_stake_position::*;
+    pub use super::close_vote_position::*;
     pub use super::fund_app_rewards::*;
     pub use super::init_app::*;
     pub use super::initialize::*;

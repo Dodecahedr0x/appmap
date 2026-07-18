@@ -7,6 +7,8 @@ fn instruction_name(instruction: &NebulousWorldInstruction) -> &'static str {
     match instruction {
         NebulousWorldInstruction::ClaimTagReward(_) => "claim_tag_reward",
         NebulousWorldInstruction::ClaimVoteReward(_) => "claim_vote_reward",
+        NebulousWorldInstruction::CloseTagStakePosition(_) => "close_tag_stake_position",
+        NebulousWorldInstruction::CloseVotePosition(_) => "close_vote_position",
         NebulousWorldInstruction::FundAppRewards(_) => "fund_app_rewards",
         NebulousWorldInstruction::InitApp(_) => "init_app",
         NebulousWorldInstruction::Initialize(_) => "initialize",

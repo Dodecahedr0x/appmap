@@ -87,6 +87,16 @@ export const buildClaimTagRewardTxSchema = z.object({
   user: pubkeyString,
 });
 
+// Closing a zero-stake VotePosition/StakePosition — the position's own
+// pubkey is enough (see indexer/src/api.rs's build_close_vote_position doc
+// comment): the on-chain instruction re-derives its seeds from the
+// position's own stored `app`/`app_tag_stake` field, so no appId/tagSlug is
+// needed here the way the other tx-building schemas above require.
+export const buildClosePositionTxSchema = z.object({
+  position: pubkeyString,
+  user: pubkeyString,
+});
+
 export const buildBuyNebTxSchema = z.object({
   usdcAmount: z.number().positive().max(1_000_000_000),
   user: pubkeyString,

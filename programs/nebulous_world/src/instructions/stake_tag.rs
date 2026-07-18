@@ -126,9 +126,11 @@ pub fn handler(ctx: Context<StakeTag>, amount: u64) -> Result<()> {
         .ok_or(ErrorCode::MathOverflow)?;
     // Idempotent: `app_tag_stake`/`owner` are exactly the seeds that derived
     // this PDA, so re-writing them on a top-up of an existing position is a
-    // no-op.
+    // no-op. `payer` isn't a seed, but is idempotent here too — see the
+    // matching comment in vote.rs.
     position.app_tag_stake = app_tag_stake_key;
     position.owner = ctx.accounts.user.key();
+    position.payer = ctx.accounts.user.key();
     position.bump = ctx.bumps.position;
     app_tag_stake.stake_amount = app_tag_stake
         .stake_amount

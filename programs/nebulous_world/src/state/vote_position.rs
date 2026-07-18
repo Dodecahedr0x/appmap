@@ -10,6 +10,13 @@ use anchor_lang::prelude::*;
 pub struct VotePosition {
     pub app: Pubkey,
     pub owner: Pubkey,
+    /// Who paid this account's rent at creation (set once in `vote::handler`,
+    /// re-derived as a no-op on every top-up since it's always the same
+    /// signer as `owner` today) — `close_vote_position` refunds rent here
+    /// rather than to whoever happens to submit the close transaction, so a
+    /// permissionless cleanup call can never redirect somebody else's SOL to
+    /// itself.
+    pub payer: Pubkey,
     pub amount: u64,
     pub reward_debt: u128,
     /// Size-weighted-average deposit timestamp (Unix seconds) — see
@@ -23,5 +30,5 @@ pub struct VotePosition {
 }
 
 impl VotePosition {
-    pub const SPACE: usize = 32 + 32 + 8 + 16 + 8 + 1;
+    pub const SPACE: usize = 32 + 32 + 32 + 8 + 16 + 8 + 1;
 }

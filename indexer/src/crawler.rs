@@ -1,9 +1,13 @@
+use crate::processors::account::delete_account;
 use crate::processors::instruction::index_instruction;
 use crate::processors::product;
 use anyhow::Result;
+use carbon_core::deserialize::ArrangeAccounts;
 use carbon_core::instruction::{InstructionDecoder, InstructionMetadata};
 use carbon_core::transaction::TransactionMetadata;
-use carbon_nebulous_world_decoder::instructions::NebulousWorldInstruction;
+use carbon_nebulous_world_decoder::instructions::{
+    CloseTagStakePosition, CloseVotePosition, NebulousWorldInstruction,
+};
 use carbon_nebulous_world_decoder::NebulousWorldDecoder;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
@@ -299,6 +303,44 @@ async fn crawl_transaction(
                     }
                     None => log::warn!(
                         "crawler: suggest_tag in {signature} has an unexpected account layout, skipping Tag sync"
+                    ),
+                }
+            }
+            // The one case the live account-update pipeline (src/processors/account.rs)
+            // can't observe on its own: a closed account stops being
+            // owned by this program, so it simply drops out of that
+            // subscription's filter instead of producing a final "gone"
+            // update — this decoded instruction is the only signal we get
+            // that the row must be removed rather than upserted.
+            NebulousWorldInstruction::CloseVotePosition(_) => {
+                match CloseVotePosition::arrange_accounts(&decoded.accounts) {
+                    Some(accounts) => {
+                        if let Err(e) =
+                            delete_account(pool, &accounts.position.to_string()).await
+                        {
+                            log::error!(
+                                "crawler: failed to delete closed VotePosition from {signature}: {e}"
+                            );
+                        }
+                    }
+                    None => log::warn!(
+                        "crawler: close_vote_position in {signature} has an unexpected account layout, skipping cleanup"
+                    ),
+                }
+            }
+            NebulousWorldInstruction::CloseTagStakePosition(_) => {
+                match CloseTagStakePosition::arrange_accounts(&decoded.accounts) {
+                    Some(accounts) => {
+                        if let Err(e) =
+                            delete_account(pool, &accounts.position.to_string()).await
+                        {
+                            log::error!(
+                                "crawler: failed to delete closed StakePosition from {signature}: {e}"
+                            );
+                        }
+                    }
+                    None => log::warn!(
+                        "crawler: close_tag_stake_position in {signature} has an unexpected account layout, skipping cleanup"
                     ),
                 }
             }

@@ -3,6 +3,8 @@ use crate::NebulousWorldDecoder;
 
 pub mod claim_tag_reward;
 pub mod claim_vote_reward;
+pub mod close_tag_stake_position;
+pub mod close_vote_position;
 pub mod fund_app_rewards;
 pub mod init_app;
 pub mod initialize;
@@ -14,6 +16,8 @@ pub mod withdraw_vote;
 
 pub use self::claim_tag_reward::*;
 pub use self::claim_vote_reward::*;
+pub use self::close_tag_stake_position::*;
+pub use self::close_vote_position::*;
 pub use self::fund_app_rewards::*;
 pub use self::init_app::*;
 pub use self::initialize::*;
@@ -29,6 +33,8 @@ pub use self::withdraw_vote::*;
 pub enum NebulousWorldInstruction {
     ClaimTagReward(ClaimTagReward),
     ClaimVoteReward(ClaimVoteReward),
+    CloseTagStakePosition(CloseTagStakePosition),
+    CloseVotePosition(CloseVotePosition),
     FundAppRewards(FundAppRewards),
     InitApp(InitApp),
     Initialize(Initialize),
@@ -70,6 +76,24 @@ impl carbon_core::instruction::InstructionDecoder<'_> for NebulousWorldDecoder {
                 return Some(carbon_core::instruction::DecodedInstruction {
                     program_id: instruction.program_id,
                     data: NebulousWorldInstruction::ClaimVoteReward(decoded),
+                    accounts: instruction.accounts.clone(),
+                });
+            }
+        }
+        {
+            if let Some(decoded) = close_tag_stake_position::CloseTagStakePosition::decode(data) {
+                return Some(carbon_core::instruction::DecodedInstruction {
+                    program_id: instruction.program_id,
+                    data: NebulousWorldInstruction::CloseTagStakePosition(decoded),
+                    accounts: instruction.accounts.clone(),
+                });
+            }
+        }
+        {
+            if let Some(decoded) = close_vote_position::CloseVotePosition::decode(data) {
+                return Some(carbon_core::instruction::DecodedInstruction {
+                    program_id: instruction.program_id,
+                    data: NebulousWorldInstruction::CloseVotePosition(decoded),
                     accounts: instruction.accounts.clone(),
                 });
             }
