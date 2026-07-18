@@ -36,7 +36,7 @@ export function AdCard({ appId }: { appId: string }) {
       target="_blank"
       rel="noopener noreferrer sponsored"
       onClick={onClick}
-      className="card group animate-fade-in flex flex-col overflow-hidden transition-colors hover:border-cobalt/40"
+      className="card-interactive group animate-fade-in flex flex-col overflow-hidden"
     >
       <div className="relative aspect-[1200/630] w-full shrink-0 overflow-hidden bg-mist">
         {ad.imageUrl ? (

@@ -213,7 +213,7 @@ export default async function AboutPage() {
           `transform`, and an animation's value wins outright for its whole
           duration — combining them here silently drops the horizontal
           centering the instant the reveal animation applies. */}
-      <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden border-y border-hairline bg-[#060913] py-16">
+      <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden border-y border-hairline bg-[#040509] py-16">
         <div className="reveal mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <span className="text-body-sm font-semibold uppercase tracking-wide text-violet">
             Right now

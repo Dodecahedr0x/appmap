@@ -62,19 +62,19 @@ interface ForceMapProps<RawNode, RawLink> {
 // nodes/edges, ultraviolet for the selection ring, gunmetal/steel for
 // dimmed/muted states — the map already sat on a dark backdrop before
 // Astro formalized these as the app-wide palette.
-const NODE_FILL = "#54b9ff";
-const NODE_FILL_DIM = "#545864";
-const EDGE_STROKE = "#3245ff";
+const NODE_FILL = "#3aa8ff";
+const NODE_FILL_DIM = "#666c7a";
+const EDGE_STROKE = "#2f3dff";
 const LABEL_INK = "#f2f6fa";
-const LABEL_DIM = "#858b98";
-const SELECTED_RING = "#acafff";
+const LABEL_DIM = "#9aa0ac";
+const SELECTED_RING = "#9a9dff";
 // Local dark-glass chip styling for this component's own metric pickers —
 // deliberately not the shared `.chip`/`.chip-active` classes, which read
 // current-theme tokens but assume an opaque card surface behind them,
 // unlike this canvas overlay's translucent glass panel.
 const DARK_CHIP =
   "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
-const DARK_CHIP_ACTIVE = "border-[#54b9ff]/60 bg-[#54b9ff]/15 text-white";
+const DARK_CHIP_ACTIVE = "border-[#3aa8ff]/60 bg-[#3aa8ff]/15 text-white";
 // A pointer that moved less than this while a node was grabbed (or the
 // background was pressed) still counts as a click/tap, not a drag/pan —
 // real pointers rarely stay perfectly still.
@@ -805,7 +805,7 @@ export function ForceMap<RawNode, RawLink>({
         </span>
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full bg-[#54b9ff]" aria-hidden="true" />
+            <span className="inline-block h-2 w-2 rounded-full bg-[#3aa8ff]" aria-hidden="true" />
             size = {activeSizeMetric.label.toLowerCase()}
           </span>
           {hasOptions && (
@@ -814,7 +814,7 @@ export function ForceMap<RawNode, RawLink>({
               onClick={() => setShowCustomize((v) => !v)}
               aria-expanded={showCustomize}
               aria-controls={customizePanelId}
-              className="font-medium text-[#54b9ff] hover:text-[#acafff] hover:underline"
+              className="font-medium text-[#3aa8ff] hover:text-[#9a9dff] hover:underline"
             >
               {showCustomize ? "Hide options" : "Customize"}
             </button>

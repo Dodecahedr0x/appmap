@@ -32,10 +32,10 @@ const FALLBACK_PACK: TagPack = {
 // plasma blue tokens) — tag circles tint from the nebula gradient's blue
 // stop toward its magenta stop as they nest deeper, app leaves get a solid
 // plasma-blue dot so they always read as distinct from their container.
-const TAG_FILL_SHALLOW: [number, number, number] = [50, 69, 255];
-const TAG_FILL_DEEP: [number, number, number] = [184, 69, 237];
-const APP_FILL = "#54b9ff";
-const SELECTED_RING = "#acafff";
+const TAG_FILL_SHALLOW: [number, number, number] = [47, 61, 255];
+const TAG_FILL_DEEP: [number, number, number] = [201, 63, 242];
+const APP_FILL = "#3aa8ff";
+const SELECTED_RING = "#9a9dff";
 const LABEL_INK = "#f2f6fa";
 const LABEL_DIM = "#c7cbd6";
 const MAX_SIBLINGS = 6;

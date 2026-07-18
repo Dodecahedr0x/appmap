@@ -21,7 +21,7 @@ export interface TrendPoint {
 // points — a flat baseline at 0 reads as "nothing here yet" on its own,
 // no caption needed, and every card keeps the same layout.
 const MIN_POINTS = 7;
-const TICK_STYLE = { fontSize: 9, fill: "#858b98" };
+const TICK_STYLE = { fontSize: 9, fill: "#9aa0ac" };
 
 function withZeroFloor(data: TrendPoint[]): TrendPoint[] {
   if (data.length >= 2) return data;
@@ -125,8 +125,8 @@ export function MetricTrendCard({
           <AreaChart data={chartData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#4bf3c8" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#4bf3c8" stopOpacity={0} />
+                <stop offset="0%" stopColor="#2ef7c6" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#2ef7c6" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
@@ -148,13 +148,13 @@ export function MetricTrendCard({
             />
             <Tooltip
               content={<ChartTooltip valueFormat={valueFormat} />}
-              cursor={{ stroke: "#4bf3c8", strokeOpacity: 0.3 }}
+              cursor={{ stroke: "#2ef7c6", strokeOpacity: 0.3 }}
               isAnimationActive={false}
             />
             <Area
               type="monotone"
               dataKey="y"
-              stroke="#4bf3c8"
+              stroke="#2ef7c6"
               strokeWidth={2}
               fill={`url(#${gradientId})`}
               isAnimationActive={false}

@@ -8,7 +8,7 @@
 
 html,
 body {
-  background-color: #1f232e;
+  background-color: #10121a;
   color: #f2f6fa;
 }
 
@@ -28,44 +28,56 @@ body {
 /* Thin custom scrollbars to match the dark theme. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #545864 transparent;
+  scrollbar-color: #666c7a transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #545864;
+  background: #666c7a;
   border-radius: 8px;
 }
 
 @layer components {
-  /* No drop shadows for elevation (see DESIGN.md's Don'ts) — depth comes
-     from a 1px hairline border and a surface one step lighter than canvas. */
+  /* No drop shadows for elevation AT REST (see DESIGN.md's Don'ts) — depth
+     comes from a 1px hairline border and a surface one step darker than
+     canvas. The `shadow-glow-*` utilities used below are interaction
+     feedback (hover/focus/active) only, never applied at rest. */
   .card {
     @apply rounded-card border border-hairline bg-ivory;
   }
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-button px-6 py-3 text-sm font-medium transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  /* Reactive hover feedback for CLICKABLE data cards (AppCard, AdCard — the
+     product's actual grid tiles) — a separate class from the bare `.card`
+     above, most of whose usages are static panels that shouldn't imply
+     clickability. A 2px lift + a brightened border + a tinted glow,
+     springing into place rather than a flat linear ease — see DESIGN.md's
+     "Data Card" component and Motion tokens. */
+  .card-interactive {
+    @apply card transition-[transform,box-shadow,border-color] duration-150 ease-spring hover:-translate-y-0.5 hover:border-cobalt/40 hover:shadow-glow-plasma;
   }
-  /* The signature Astro CTA pattern: inverted white pill, dark text — see
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-button px-6 py-3 text-sm font-medium transition-[color,background-color,border-color,transform,box-shadow] duration-150 ease-spring active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:hover:translate-y-0 disabled:hover:shadow-none;
+  }
+  /* The signature CTA pattern: inverted white pill, dark text — see
      DESIGN.md's "Primary Pill Button" component and Do's list. Not a
      colored fill; the nebula gradient is reserved for atmospheric
-     backdrops, never buttons. */
+     backdrops, never buttons. Reactive feedback: a 1px lift + a plasma glow
+     on hover, springing into place — see DESIGN.md's Motion tokens. */
   .btn-primary {
-    @apply btn bg-ink text-cream hover:bg-faint;
+    @apply btn bg-ink text-cream hover:-translate-y-px hover:bg-faint hover:shadow-glow-plasma;
   }
   .btn-secondary {
-    @apply btn border border-hairline bg-mist text-ink hover:border-powder;
+    @apply btn border border-hairline bg-mist text-ink hover:-translate-y-px hover:border-cobalt/50 hover:shadow-glow-plasma;
   }
   .btn-ghost {
     @apply btn text-slate hover:bg-ivory hover:text-ink;
   }
   .input {
-    @apply w-full rounded-card border border-hairline bg-mist px-3 py-2 text-sm text-ink placeholder:text-slate-steel focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
+    @apply w-full rounded-card border border-hairline bg-mist px-3 py-2 text-sm text-ink placeholder:text-slate-steel transition-[border-color,box-shadow] duration-150 focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.96];
+    @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate transition-[color,background-color,border-color,transform] duration-150 ease-spring active:scale-[0.96];
   }
   .chip-active {
     @apply border-cobalt/60 bg-cobalt/10 text-cobalt;
@@ -76,7 +88,7 @@ body {
    (the sticky navbar) falls back to a solid bar with the blur dropped. */
 @media (prefers-reduced-transparency: reduce) {
   .navbar-chrome {
-    background-color: #1f232e;
+    background-color: #10121a;
     backdrop-filter: none;
   }
 }
@@ -179,26 +191,27 @@ body {
   font-family: inherit !important;
 }
 .wallet-adapter-button-trigger {
-  background-color: #54b9ff !important;
+  background-color: #3aa8ff !important;
   border-radius: 9999px !important;
+  transition: background-color 150ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 .wallet-adapter-button-trigger:hover {
-  background-color: #acafff !important;
+  background-color: #9a9dff !important;
 }
 .wallet-adapter-modal-wrapper {
-  background: #17191e !important;
+  background: #0d0f16 !important;
   color: #f2f6fa !important;
 }
 .wallet-adapter-modal-button-close {
-  background: #0c0f19 !important;
+  background: #080911 !important;
 }
 .wallet-adapter-modal-title {
   color: #f2f6fa !important;
 }
 .wallet-adapter-modal-list .wallet-adapter-button {
-  background-color: #0c0f19 !important;
+  background-color: #080911 !important;
   color: #f2f6fa !important;
 }
 .wallet-adapter-modal-list .wallet-adapter-button:hover {
-  background-color: #17191e !important;
+  background-color: #0d0f16 !important;
 }
