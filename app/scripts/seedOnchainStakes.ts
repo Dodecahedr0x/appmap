@@ -18,8 +18,6 @@
 // Usage:
 //   tsx scripts/seedOnchainStakes.ts [--usdc=400] [--concurrency=6] [--sol=2]
 
-import { readFileSync } from "fs";
-import { homedir } from "os";
 import {
   Connection,
   Keypair,
@@ -29,12 +27,13 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { AnchorProvider, Program, Wallet, BN } from "@anchor-lang/core";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import DLMM from "@meteora-ag/dlmm";
 import { prisma } from "../src/lib/prisma";
 import { refreshApp, refreshAppTag } from "../src/lib/engine";
 import { config } from "../src/lib/config";
 import { configPda, appPda } from "../src/lib/anchorClient";
+import { ensureConfigInitialized } from "./ensureConfigInitialized";
 import idl from "../../target/idl/nebulous_world.json";
 import type { NebulousWorld } from "../../target/types/nebulous_world";
 
@@ -43,14 +42,6 @@ const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
 // setup-dev.sh airdrops to the dev keypair (see USDC_MINT there).
 const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const SLIPPAGE_BPS = new BN(100); // 1%, matches indexer/dlmm-bridge/src/swap.ts
-// Owns the BPF Upgradeable Loader's `ProgramData` PDA (seeds = [programId]),
-// needed to resolve `initialize`'s `program_data` account below.
-const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
-  "BPFLoaderUpgradeab1e11111111111111111111111",
-);
-// Matches setup-dev.sh's DEV_KEYPAIR — the wallet that deployed the program,
-// i.e. its upgrade authority, which is the only signer `initialize` accepts.
-const DEV_KEYPAIR_PATH = `${homedir()}/.config/solana/id.json`;
 
 function parseArgs(argv: string[]) {
   const get = (name: string, fallback: number) => {
@@ -149,41 +140,13 @@ async function main() {
   const cfgPda = configPda(programId);
   const vault = getAssociatedTokenAddressSync(mint, cfgPda, true);
 
-  // `Config` (the one global singleton every vote/stake instruction reads)
-  // only ever gets created by a single, one-time `initialize` call, signed
-  // by the program's upgrade authority — nothing in setup-dev.sh's deploy
-  // flow does this, so on a freshly deployed program it doesn't exist yet
-  // and every instruction below would fail with AccountNotInitialized.
-  const devKeypair = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(readFileSync(DEV_KEYPAIR_PATH, "utf-8"))),
-  );
-  const devProvider = new AnchorProvider(connection, new Wallet(devKeypair), { commitment: "confirmed" });
-  const devProgram = new Program<NebulousWorld>(idl as NebulousWorld, devProvider);
-  const configAccountInfo = await connection.getAccountInfo(cfgPda);
-  if (!configAccountInfo) {
-    console.log(`⚙️  Config isn't initialized yet — calling initialize() as the upgrade authority`);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    const sig = await devProgram.methods
-      .initialize(250) // 2.5% protocol fee — arbitrary for local dev, matches the Rust test default
-      .accountsPartial({
-        config: cfgPda,
-        vault,
-        authority: devKeypair.publicKey,
-        voteMint: mint,
-        program: programId,
-        programData: programDataPda,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-    console.log(`   initialized (tx ${sig.slice(0, 12)}…)`);
-  } else {
-    console.log(`⚙️  Config already initialized, skipping`);
-  }
+  // Belt-and-braces: setup-dev.sh already calls this right after deploying
+  // the program (see scripts/ensureConfigInitialized.ts's doc comment for
+  // why this is load-bearing, not optional), but this script needs to keep
+  // working standalone against any stack that predates that setup-dev.sh
+  // step too. No-ops if Config already exists.
+  console.log(`⚙️  Ensuring Config is initialized`);
+  await ensureConfigInitialized(connection, programId, mint);
 
   console.log(`🔑 Generating a fresh seeding wallet`);
   const wallet = Keypair.generate();

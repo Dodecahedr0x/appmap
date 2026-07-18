@@ -2,14 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getAppDetail } from "@/lib/queries";
-import { formatToken, formatNumber, shortAddress, timeAgo } from "@/lib/utils";
+import { formatToken, shortAddress, timeAgo, hostname } from "@/lib/utils";
 import { TOKEN_SYMBOL, SITE_URL, SITE_NAME } from "@/lib/constants";
 import { VotePanel } from "@/components/app/VotePanel";
 import { TagStakePanel } from "@/components/app/TagStakePanel";
 import { TrafficBeacon } from "@/components/app/TrafficBeacon";
 import { AdSlot } from "@/components/ads/AdSlot";
-import { Sparkline } from "@/components/charts/Sparkline";
-import { TrendChart } from "@/components/app/TrendChart";
+import { AppMetricsPanel } from "@/components/app/AppMetricsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -46,22 +45,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="card p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-steel">{label}</div>
-      <div className="mt-1 text-xl font-bold tabular-nums text-ink">{value}</div>
-      {hint && <div className="text-xs text-slate-steel">{hint}</div>}
-    </div>
-  );
-}
-
 export default async function AppDetailPage({ params }: Props) {
   const { slug } = await params;
   const detail = await getAppDetail(slug);
   if (!detail) notFound();
 
-  const { app, recentVotes, topStakers, viewsLast7d, dailyViews, snapshots } = detail;
+  const { app, recentVotes, topStakers, snapshots } = detail;
 
   return (
     <div className="space-y-6">
@@ -72,85 +61,67 @@ export default async function AppDetailPage({ params }: Props) {
         ← Back to discover
       </Link>
 
-      {/* Header */}
-      <div className="card flex flex-col gap-4 p-6 sm:flex-row sm:items-center">
-        <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-card bg-ivory text-2xl font-bold text-cobalt">
+      {/* Header — an OpenGraph link-preview card (hero image, domain strip,
+          title, description, category/chain), the same shape a shared link
+          unfurls into. This is also the app's "About": its description
+          lives here instead of a separate panel. */}
+      <div className="card overflow-hidden p-0">
+        <div className="relative aspect-[3/1] w-full shrink-0 overflow-hidden bg-mist">
           {app.iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={app.iconUrl} alt="" className="h-full w-full object-cover ring-1 ring-inset ring-white/10" />
+            <img
+              src={app.iconUrl}
+              alt=""
+              className="h-full w-full object-cover ring-1 ring-inset ring-black/10"
+            />
           ) : (
-            app.name.charAt(0).toUpperCase()
+            <div className="grid h-full w-full place-items-center text-5xl font-bold text-violet">
+              {app.name.charAt(0).toUpperCase() || "?"}
+            </div>
           )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-balance text-2xl font-bold text-ink">{app.name}</h1>
-            <span className="chip capitalize">{app.category}</span>
-            <span className="chip capitalize">{app.chain}</span>
+          <div className="absolute right-3 top-3 flex gap-2">
+            <span className="chip border-none bg-white/90 capitalize shadow-subtle">
+              {app.category}
+            </span>
+            <span className="chip border-none bg-white/90 capitalize shadow-subtle">
+              {app.chain}
+            </span>
           </div>
-          <p className="mt-1 text-slate">{app.tagline}</p>
         </div>
-        <a
-          href={app.url}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="btn-primary shrink-0"
-        >
-          Visit app ↗
-        </a>
+        <div className="flex flex-col gap-4 border-t border-hairline bg-ivory/60 p-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-steel">
+              {hostname(app.url)}
+            </span>
+            <h1 className="font-display text-balance text-2xl font-bold text-ink">
+              {app.name}
+            </h1>
+            <p className="mt-1 whitespace-pre-line text-pretty text-slate">
+              {app.description || app.tagline}
+            </p>
+          </div>
+          <a
+            href={app.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="btn-primary shrink-0"
+          >
+            Visit app ↗
+          </a>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Rank score" value={app.rankScore.toFixed(2)} />
-            <Stat
-              label="Votes"
-              value={formatToken(app.voteWeight, "")}
-              hint={`${app.voteCount} txns`}
-            />
-            <Stat label="Total staked" value={formatToken(app.stakeTotal, "")} />
-            <Stat
-              label="Views"
-              value={formatNumber(app.viewCount)}
-              hint={`${viewsLast7d} in 7d`}
-            />
-          </div>
-
-          {/* About */}
-          <section className="card p-6">
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate">
-              About
-            </h2>
-            <p className="whitespace-pre-line text-pretty text-slate">{app.description}</p>
-          </section>
-
-          {/* Traffic */}
-          <section className="card p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate">
-                Traffic (last 7 days)
-              </h2>
-              <span className="text-sm text-slate">
-                {formatNumber(viewsLast7d)} views
-              </span>
-            </div>
-            <Sparkline
-              data={dailyViews.map((d) => ({ label: d.date.slice(5), value: d.views }))}
-            />
-          </section>
-
-          {/* Trend history */}
-          <section className="card p-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate">
-              Trends
-            </h2>
-            <TrendChart data={snapshots} />
-          </section>
-
-          {/* Tags + staking */}
-          <TagStakePanel appId={app.id} tags={app.tags} />
+          <AppMetricsPanel
+            snapshots={snapshots}
+            current={{
+              rankScore: app.rankScore,
+              voteWeight: app.voteWeight,
+              stakeTotal: app.stakeTotal,
+              viewCount: app.viewCount,
+            }}
+          />
 
           {/* Recent activity */}
           <section className="card p-6">
@@ -184,9 +155,11 @@ export default async function AppDetailPage({ params }: Props) {
           </section>
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar — every way to back this app or its tags lives here. */}
         <div className="space-y-6">
           <VotePanel appId={app.id} />
+
+          <TagStakePanel appId={app.id} tags={app.tags} />
 
           <AdSlot appId={app.id} />
 

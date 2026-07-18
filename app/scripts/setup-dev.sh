@@ -178,6 +178,16 @@ JSON
   rm -f "$LAUNCH_LOG"
 fi
 
+# `Config` (the program's one global singleton) only ever gets created by a
+# one-time `initialize` call signed by the program's upgrade authority —
+# nothing else in this script does that, so every vote/stake instruction
+# would fail with AccountNotInitialized on a freshly deployed program until
+# this runs. Idempotent (no-ops if already initialized), so safe on a
+# reused Surfnet too. Must run after the NEB launch above — it needs
+# NEXT_PUBLIC_VOTE_TOKEN_MINT in .env.
+log "Ensuring the program's Config is initialized"
+npm run ensure:config
+
 log "Installing indexer/dlmm-bridge dependencies"
 (cd "$INDEXER_DIR/dlmm-bridge" && npm install)
 
