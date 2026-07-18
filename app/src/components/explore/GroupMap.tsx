@@ -371,7 +371,19 @@ export function GroupMap({
   const h = hierarchy<PackNode>(root, (d) => (d.type === "tag" ? d.children : undefined))
     .sum((d) => (d.type === "app" ? Math.max(1, d.stake) : 0))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  const packed = pack<PackNode>().size([width, height]).padding(3)(h as HierarchyNode<PackNode>) as PackedNode;
+  // `padding` isn't just a gap between SIBLING circles — d3 reserves it
+  // around every child before enclosing them in their parent, so it's also
+  // what separates a tag's own label (which sits at its circle's own top
+  // rim) from its first child's label (which sits at THAT circle's own top
+  // rim, only `padding` below it). At the old value of 3 the two labels
+  // ended up close enough to render on top of each other — illegible
+  // without zooming in until the (screen-constant-sized) text finally had
+  // room. 8 was chosen empirically: enough clearance to keep parent/child
+  // and adjacent-sibling labels apart even on realistically dense maps
+  // (tested at 12 tags/45 apps and a 18-tag/90-app stress case), without
+  // shrinking circles enough to push any label below tagLabelFits'/
+  // appLabelFits' fit threshold on a normal-sized map that read fine before.
+  const packed = pack<PackNode>().size([width, height]).padding(8)(h as HierarchyNode<PackNode>) as PackedNode;
   const nodes = packed.descendants().filter((d) => d.depth > 0);
   const maxDepth = nodes.reduce((m, d) => Math.max(m, d.depth), 1);
   const hovered = hoveredId ? nodes.find((n) => nodeKey(n) === hoveredId) ?? null : null;
