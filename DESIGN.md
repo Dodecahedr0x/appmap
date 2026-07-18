@@ -1,236 +1,256 @@
-# Dock — Style Reference
-> Sunlit cream paper, cobalt pulse
+# Astro — Style Reference
+> Deep space mission control with a single purple nebula glow
 
-**Theme:** light
+**Theme:** dark
 
-Dock operates in a sunlit, cream-warm workspace language: a soft #faf9f7 canvas replaces the usual pure-white SaaS backdrop, giving every screen a paper-like, approachable feel. Typography carries the weight — 84px Roobert display headlines sit alongside 16px body text with generous breathing room, letting the copy feel like confident printed prose rather than UI chrome. A single electric cobalt blue (#0068f9) punctuates the calm neutrals as the only interactive color: filled CTAs, active states, and links all share this vivid hue, while a secondary violet (#6736eb) appears sparingly as decorative accent. Components stay featherlight — pill-shaped buttons, hairline borders, soft elevated cards, and zero heavy shadows — so the product screenshots become the visual heroes rather than chrome around them.
+Astro speaks in the language of a cosmic command bridge: near-black canvas, a single signature purple-magenta nebula gradient that blooms from the hero, and white display type that reads like mission copy. The system is overwhelmingly achromatic — 4% colorfulness — so every chromatic pixel is doing real work: a mint-aqua syntax highlight, a violet link, a sky-blue inline chip. Components are geometric and confident: pill-shaped interactive controls at 9999px radius, 16px cards, 8px chips, and thin hairline borders at 8% opacity rather than colored dividers. The custom display face 'Obviously' does the heavy lifting with its wide, open apertures and quirky alternates (salt, ss06, ss11) that give headlines a friendly, slightly retrofuturist swagger against the dark void.
 
 ## Tokens — Colors
 
-| Name | Value | Token | Role |
-|------|-------|-------|------|
-| Canvas Cream | `#faf9f7` | `--coloream` | Page background — warm off-white instead of pure white gives the entire system a paper-like, approachable feel |
-| Surface Ivory | `#fbfaf7` | `--color-surface-ivory` | Card and panel surfaces — one step brighter than canvas to create subtle elevation without shadows |
-| Pure White | `#ffffff` | `--color-pure-white` | Elevated surfaces, nav background, button text on filled CTAs |
-| Lavender Mist | `#f4f0ff` | `--color-lavender-mist` | Decorative wash behind icons ighlight badges — cool counterpoint to the warm cream canvas |
-| Powder Blue | `#d6e4f1` | `--color-powder-blue` | Outlined/ghost button border, subtle blue-tinted dividers within product UI |
-| Ink Charcoal | `#121722` | `--color-ink-charcoal` | Primary text, headings, icons — near-black with a cool blue undertone (17.9:1 on white) |
-| Deep Ink | `#1d1d1d` | `--color-deep-ink` | Secondary texark surface fills for footer or dark mode moments |
-| Mid Graphite | `#2d2d2d` | `--color-mid-graphite` | Dark surface for dark UI moments (footer dark blocks, modal overlays) |
-| Slate Gray | `#777c86` | `--color-slate-gray` | Secondary body text, card metadata, table labels |
-| Steel Gray | `#a5a5a5` | `--color-steel-gray` | Muted helper text, placeholder text, disabled states |
-| Hairline | `#efefef` | `--color-hairline` | Borders and dividers — barely-there separation between cards and sections |
-| Faint Gray | `#cccccc` | `--color-faint-gray` | Icon strokes in nav, subdued borders on neutral controls |
-| Electric Cobalt | `#0068f9` | `--color-electric-cobalt` | Violet supporting accent for decorative details and low-frequency emphasis. Do not promote it to the primary CTA color |
-| Deep Cobalt | `#024bb1` | `--color-deep-cobalt` | Pressed/hover state for Electric Cobalt buttons — darker shade of the brand blue |
-| Cerulean | `#0074dd` | `--color-cerulean` | Blue supporting accent for decorative det and low-frequency emphasis. Do not promote it to the primary CTA color |
-| Vivid Violet | `#6736eb` | `--color-vivid-violet` | Decorative accent — secondary brand color for highlight tags, illustrative elements, and customer logo treatments |
-| Forest | `#046645` | `--color-forest` | Green supporting accent for decorative details and low-frequency emphasis. Use as a supporting accent, not as a status color |
+| Name            | Value                                                            | Token                     | Role                                                                                                                                                                                                        |
+| --------------- | ---------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Void Canvas     | `#1f232e`                                                        | `--color-void-canvas`     | Primary page background — the base layer for hero, sections, and footer. Slight cool-blue undertone, never pure black, so colored elements feel like they're floating in space rather than printed on paper |
+| Abyss           | `#0c0f19`                                                        | `--color-abyss`           | Deeper surface level for elevated cards, code blocks, and inset wells. One step darker than the canvas to create depth without using shadows                                                                |
+| Singularity     | `#060913`                                                        | `--color-singularity`     | Darkest surface for terminal windows, CLI boxes, and high-contrast containers. Almost pure black with a blue whisper                                                                                        |
+| Carbon          | `#17191e`                                                        | `--color-carbon`          | Mid-elevation card surface, sitting between canvas and abyss. Used for theme preview tiles and nested cards                                                                                                 |
+| Lunar White     | `#f2f6fa`                                                        | `--color-lunar-white`     | Primary text and high-contrast foreground. The slightly cool tint keeps it from feeling clinical against the dark canvas                                                                                    |
+| Platinum        | `#e5e7eb`                                                        | `--color-platinum`        | Secondary text, icon strokes, and light dividers. Most-used achromatic token for hairline borders and muted foregrounds                                                                                     |
+| Mist            | `#bfc1c9`                                                        | `--color-mist`            | Supporting neutral for secondary UI, dividers, and muted labels. Do not promote it to the primary CTA color                                                                                                 |
+| Steel           | `#858b98`                                                        | `--color-steel`           | Muted body text and subdued descriptions. The default for paragraphs that should recede behind headlines                                                                                                    |
+| Gunmetal        | `#545864`                                                        | `--color-gunmetal`        | Hairline borders and dividers on the dark canvas. Low contrast on purpose — structural, not decorative                                                                                                      |
+| Nebula Gradient | `linear-gradient(83.21deg, rgb(50, 69, 255), rgb(184, 69, 237))` | `--color-nebula-gradient` | Primary brand gradient stop — the blue origin of the hero nebula and the color of highlighted CTAs and accent rings                                                                                         |
+| Plasma Gradient | `linear-gradient(66.77deg, rgb(216, 51, 51), rgb(240, 65, 255))` | `--color-plasma-gradient` | Secondary gradient (red-to-magenta) used sparingly for illustration accents and decorative energy bands                                                                                                     |
+| Aurora Mint     | `#4bf3c8`                                                        | `--color-aurora-mint`     | Teal supporting accent for decorative details and low-frequency emphasis                                                                                                                                    |
+| Plasma Blue     | `#54b9ff`                                                        | `--color-plasma-blue`     | Blue supporting accent for decorative details and low-frequency emphasis                                                                                                                                    |
+| Ultraviolet     | `#acafff`                                                        | `--color-ultraviolet`     | Code keywords, violet link variant, and decorative highlight. A desaturated violet that complements the nebula gradient without competing                                                                   |
+| Electric Cyan   | `#00daef`                                                        | `--color-electric-cyan`   | Secondary syntax token — reserved for specific code contexts and rare accent strokes                                                                                                                        |
+| Amber           | `#ffd493`                                                        | `--color-amber`           | Yellow supporting accent for decorative details and low-frequency emphasis                                                                                                                                  |
+| Signal Blue     | `#61dafb`                                                        | `--color-signal-blue`     | Decorative dot and badge accent — used for version pills and notification indicators                                                                                                                        |
 
 ## Tokens — Typography
 
-### Roobert — All text — single typeface carries the entire system. Headlines use 600–700 at 48–84px with extremely tight leading (1.06–1.09) creating dense, confident type blocks. Body and nav use 400–500 at 14–16px with generous 1.50–1.60 leading for readability on the cream background. · `--font-roobert`
-- **Substitute:** Inter (closest open alternative; matches geometric warmth and weight range), or Söhne / GT America if licensed
-- **Weights:** 400, 500, 600, 700
-- **Sizes:** 13, 14, 15, 16, 18, 20, 24, 40, 48, 57, 84
-- **Line height:** 1.06–1.60 (tipx→1.06, 57px→1.09; relaxed at body: 16px→1.56)
-- **Letter spacing:** 0.077em across tracked elements (uppercase labels, small caps in nav)
-- **OpenType features:** `"ss01" on, "kern" on`
-- **Role:** All text — single typeface carries the entire system. Headlines use 600–700 at 48–84px with extremely tight leading (1.06–1.09) creating dense, confident type blocks. Body and nav use 400–500 at 14–16px with generous 1.50–1.60 leading for readability on the cream background.
+### ui-sans-serif — Body and UI text — system stack fallback. Weight 400 for body copy, 500/600 for button labels and nav, 700 for subheadings. Line-height 1.65 at 14px keeps dense UI readable without feeling airy. · `--font-ui-sans-serif`
+- **Substitute:** Inter, system-ui
+- **Weights:** 300, 400, 500, 600, 700
+- **Sizes:** 14px, 16px, 20px
+- **Line height:** 1.40, 1.50, 1.65, 1.81
+- **Letter spacing:** normal
+- **OpenType features:** `"calt", "zero"`
+- **Role:** Body and UI text — system stack fallback. Weight 400 for body copy, 500/600 for button labels and nav, 700 for subheadings. Line-height 1.65 at 14px keeps dense UI readable without feeling airy.
+
+### Obviously — Display and headline face — the custom workhorse. Weight 300/400 used for the largest headlines, 700 for the hero. The cv09 and salt alternates give it a distinctive wide, slightly retro character; ss06 and ss11 add quirky details. No web-safe substitute captures the feel — Inter Black or Space Grotesk Bold approximate it. · `--font-obviously`
+- **Substitute:** Space Grotesk, Inter
+- **Weights:** 300, 400, 700
+- **Sizes:** 20px, 30px, 36px, 48px
+- **Line height:** 1.10, 1.11, 1.20, 1.40
+- **Letter spacing:** normal
+- **OpenType features:** `"calt", "cv09", "liga", "salt", "ss06", "ss11"`
+- **Role:** Display and headline face — the custom workhorse. Weight 300/400 used for the largest headlines, 700 for the hero. The cv09 and salt alternates give it a distinctive wide, slightly retro character; ss06 and ss11 add quirky details. No web-safe substitute captures the feel — Inter Black or Space Grotesk Bold approximate it.
+
+### ui-monospace — Code blocks, terminal commands, and inline code. Fixed 14px with generous 1.65 line-height for readability of multi-line snippets. · `--font-ui-monospace`
+- **Substitute:** JetBrains Mono, Fira Code
+- **Weights:** 300, 400
+- **Sizes:** 14px
+- **Line height:** 1.65
+- **OpenType features:** `"calt", "zero"`
+- **Role:** Code blocks, terminal commands, and inline code. Fixed 14px with generous 1.65 line-height for readability of multi-line snippets.
+
+### MDIO — Icon and badge face — used at 12-16px with widened tracking (0.0250em) for small labels and version chips. The slight letter-spacing and geometric forms give badges a technical, instrument-panel feel. · `--font-mdio`
+- **Substitute:** Space Mono, IBM Plex Mono
+- **Weights:** 300, 400
+- **Sizes:** 12px, 16px
+- **Line height:** 1.00, 1.33, 1.50
+- **Letter spacing:** 0.0250em
+- **OpenType features:** `"calt", "zero"`
+- **Role:** Icon and badge face — used at 12-16px with widened tracking (0.0250em) for small labels and version chips. The slight letter-spacing and geometric forms give badges a technical, instrument-panel feel.
+
+### Inter — Inter — detected in extracted data but not described by AI · `--font-inter`
+- **Weights:** 200, 400
+- **Sizes:** 16px, 18px
+- **Line height:** 1.5
+- **Role:** Inter — detected in extracted data but not described by AI
 
 ### Type Scale
 
-| Role | Size | Line Height | Letter Spacing | Token |
-|------|------|-------------|----------------|-------|
-| caption | 13px | 1.5 | 0.077px | `--text-caption` |
-| body | 16px | 1.56 | — | `--text-body` |
-| subheading | 18px | 1.5 | — | `--text-subheading` |
-| heading-sm | 20px | 1.38 | — | `--text-heading-sm` |
-| heading | 24px | 1.33 | — | `--text-heading` |
-| heading-lg | 40px | 1.25 | — | `--text-heading-lg` |
-| heading-xl | 48px | 1.2 | — | `--text-heading-xl` |
-| display | 57px | 1.09lay-lg | 84px | 1.06 | — | `--text-display-lg` |
+| Role       | Size | Line Height | Letter Spacing | Token               |
+| ---------- | ---- | ----------- | -------------- | ------------------- |
+| caption    | 12px | 1.5         | 0.3px          | `--text-caption`    |
+| body-sm    | 14px | 1.65        | —              | `--text-body-sm`    |
+| body       | 16px | 1.5         | —              | `--text-body`       |
+| subheading | 20px | 1.4         | —              | `--text-subheading` |
+| heading-sm | 30px | 1.2         | —              | `--text-heading-sm` |
+| heading    | 36px | 1.11        | —              | `--text-heading`    |
+| display    | 48px | 1.1         | —              | `--text-display`    |
 
 ## Tokens — Spacing & Shapes
 
-**Base unit:** 8px
+**Base unit:** 4px
 
 **Density:** comfortable
 
 ### Spacing Scale
 
-| Name | Value | Token |
-|------|-------|-------|
-| 8 | 8px | `--spacing-8` |
-| 16 | 16px | `--spacing-16` |
-| 24 | 24px | `--spacing-24` |
-| 32 | 32px | `--spacing-32` |
-| 40 | 40px | `--spacing-40` |
-| 48 | 48px | `--spacing-48` |
-| 64 | 64px | `--spacing-64` |
-| 80 | 80px | `--spacing-80` |
-| 88 | 88px | `--spacing-88` |
+| Name | Value | Token           |
+| ---- | ----- | --------------- |
+| 4    | 4px   | `--spacing-4`   |
+| 8    | 8px   | `--spacing-8`   |
+| 12   | 12px  | `--spacing-12`  |
+| 16   | 16px  | `--spacing-16`  |
+| 20   | 20px  | `--spacing-20`  |
+| 24   | 24px  | `--spacing-24`  |
+| 32   | 32px  | `--spacing-32`  |
+| 40   | 40px  | `--spacing-40`  |
+| 48   | 48px  | `--spacing-48`  |
+| 68   | 68px  | `--spacing-68`  |
+| 80   | 80px  | `--spacing-80`  |
+| 144  | 144px | `--spacing-144` |
+| 160  | 160px | `--spacing-160` |
+| 224  | 224px | `--spacing-224` |
 
 ### Border Radius
 
-| Element | Value |
-|---------|-------|
-| cards | 16px |
-| icons | 60px |
-| pills | 100px |
-| images | 16px |
-| buttons | 48px |
-| navItems | 48px |
-
-### Shadows
-
-| Name | Value | Token |
-|------|-------|-------|
-| subtle | `rgba(0, 0, 0, 0.07) 0px 1px 1px 0px, rgba(0, 0, 0, 0.04) ...` | `--shadow-subtle` |
-| lg | `rgba(0, 0, 0, 0.04) 0px 20px 20px -8px` | `--shadow-lg` |
+| Element | Value  |
+| ------- | ------ |
+| nav     | 8px    |
+| cards   | 16px   |
+| chips   | 9999px |
+| images  | 12px   |
+| buttons | 9999px |
 
 ### Layout
 
 - **Page max-width:** 1200px
 - **Section gap:** 80px
 - **Card padding:** 24px
-- **Element gap:** 8px
+- **Element gap:** 16px
 
 ## Components
 
-### Primary Filled But**Role:** Main conversion action (e.g., Start for Free, Request Demo)
+### Primary Pill Button
+**Role:** Main call-to-action (e.g., 'Get Started')
 
-Background #0068f9, text #ffffff, weight 500 at 15–16px. 48px border-radius (pill shape). 12px 24px padding. No visible border. On hover darkens to #024bb1.
+Full pill shape at 9999px radius, background #ffffff, text #1f232 at 16px weight 600, padding 12px 24px. High contrast inverted style — white on dark. No border. The inversion (white bg, dark text) is the system's signature CTA pattern.
 
-### Ghost/Neutral Button
-**Role:** Secondary action (e.g., Request Demo beside a filled CTA)
+### Terminal Command Box
+**Role:** CLI install command display
 
-Background #ffffff, text #121722, weight 500 at 15–16px. 48px border-radius. 1px border in #efefef. 12px 24px padding. Sits next to the filled CTA with equal weight, creating a paired-button pattern.
+Background #060913 with 1px border at #1f232, 8px radius, padding 12px 16px. Contains monospace 14px text in #f2f6fa with a copy icon at right. Rounded corners are soft, not pill — the box should feel like a terminal window embedded in the page.
 
-### Text Link
-**Role:** Inline navigation within paragraphs or product UI
+### Version Badge
+**Role:** Release announcement pill (e.g., 'Astro 6.1')
 
-Color #0074dd or #0068f9, no underline by default, underline on hover. Weight 500 at body size.
+Inline pill at 9999px radius, background #1f232 with 1px border #2c303b, padding 4px 12px. Text in #f2f6fa at 14px weight 500. Optionally preceded by a colored dot (Signal Blue #61dafb). Compact, instrument-panel aesthetic.
 
-### Top Navigation Bar
-**Role:** Primary site navigation
+### Feature Icon Circle
+**Role:** Icon container in feature columns
 
-Background #ffffff, 1px bottom border in #efefef. Logo left, nav links center (Product, Pricing, Customers, Resources with dropdown chevrons), auth actions right. Nav links at 14–15px weight 500 #121722. Right side has Log in (text) + Request Demo (ghost pill) + for Free (filled cobalt pill).
+48px circle with 1px colored border (blue, pink, or amber), transparent background. Contains a small inline icon. The colored border is the only color in the feature row — makes the icon feel like a charged node.
 
-### Hero Section
-**Role:** Above-the-fold headline and CTA
+### Theme Preview Card
+**Role:** Showcase tile for theme marketplace
 
-Background transitions from #faf9f7 to a soft blue gradient (#d5ecff → #f4f0ff) at the bottom. Headline at 84px weight 600, line-height 1.06, #121722, centered. Subtext at 18px weight 400 #121722, max-width ~640px. Two CTAs centered: ghost Request Demo + filled Start for Free.
+16px radius, background #17191, 1px border #1f232e. Internal image fills at 12px radius. Padding 0 (image bleeds to edges). Title and metadata appear below the image, not overlaid. The card sits on the void canvas with a barely-there border.
 
-### Product Feature Card
-**Role:** Showcasing product capabilities (Deal Rooms, Enablement Agent, etc.)
+### Filter Tab Pill
+**Role:** Category filter for grids (e.g., 'Trending', 'E-Commerce')
 
-Background #ffffff, 16px border-radius, 1px border in #efefef, subtle multi-layer shadow. Internal padding 24px. Often paired with a product screenshot that overflows the card or sits on a gradient background.
+9999px radius, two states: active = background #1f232 + border #2c303b + white text; inactive = transparent + border transparent + #858b98 text. Padding 8px 16px, text 14px weight 500. Active state uses the border as the only visual differentiator.
 
-### Tab Bar
-**Role:** Switching between product feature areas
+### Logo Cloud Item
+**Role:** Customer/partner logo display
 
-Horizontal row of text labels (Deal Rooms, Enablement Agent, AI Documents, etc.). Active tab has #fbfaf7 pill background with 48px radius. Inactive tabs are plain #121722 text. No underlines or borders — the pill background is the only active indicator.
+Inverted to white (#f2f6fa) on the dark canvas. No container or border — logos float directly on the background. Sized to a consistent visual weight (~24-32px height). Arranged in a single row or two-row wrap.
 
-### Customert Card
-**Role:** Social proof with metrics (Lattice +25% win rate, BrightHire +22%, Loom 2 hours saved)
+### Section Header
+**Role:** Eyebrow label + headline + description block
 
-Background #fbfaf7 to #ffffff, 16px radius, 1px border #efefef. Company logo + product label at top (14–15px). Large metric at 40–48px weight 600 in #0068f9 (the cobalt) or #6736eb (violet) — color varies per card to add rhythm. No heavy shadow.
+Eyebrow at 14px weight 600 in a chromatic accent (violet #acafff, teal #4bf3c8, or blue #54b9ff). Headline in Obviously 36px weight 300-400 in #f2f6fa. Description in body 16px weight 400 in #858b98. The colored eyebrow is the only chromatic punctuation in the section.
 
-### Gradient CTA Banner
-**Role:** Final conversion section (Want a deeper tour of Dock?)
+### Navigation Bar
+**Role:** Top-level site navigation
 
-Full-width background with a diagonal blue gradient from #faf9f7 through #c8dcf5 to #0068f9 in the lower-right corner. Headline at 48–57px weight 600 #121722, centered. Single filled cobalt button below. The gradient corner is the signature — it bleeds electric blue into the otherwise quiet page.
+Transparent background, sits on the void canvas. Logo (Astro mark) left, nav links center-right, GitHub icon far right. Nav text in #f2f6fa at 14px weight 500. No border or shadow — the nav is position-relative and disappears into the canvas.
 
-### Footer
-**Role:** Site-wide links and legal
+### Hero Gradient Backdrop
+**Role:** Atmospheric background glow behind hero content
 
-Background #ffffff, 1px top border in #efefef. 6-column grid of link lists (Product, Sales, Enablement, Customer Success, Templates, Resources, General). Section headers at 13–14px weight 600, links at 14px weight 400 #77op-left. Bottom bar with legal links + copyright at 13px #a5a5a5.
+Radial gradient blooming from center-top, combining the nebula blue (#3245ff at 30% opacity) blending into the void canvas (#1f232e). The gradient is positioned above the text layer with mix-blend-mode for a soft cosmic glow effect. No hard edges.
 
-### Pricing Table Row
-**Role:** Product pricing display within Deal Room UI
+### Stats Bar
+**Role:** Performance metric display (e.g., '% of real-world sites with good Core Web Vitals')
 
-Background #ffffff, 1px bottom border #efefef. Column headers at 14px weight 500 #777c86. Data cells at 15–16px weight 400 #121722. Alternating subtle background optional. Total column right-aligned and weight 600.
-
-### Checklist/Step Item
-**Role:** Task tracking within product (Success Criteria, Next Steps)
-
-Green circle check icon (#046645) for completed, hollow circle for pending. Text at 15px weight 400 #121722. Compact 6–8px row gap. Optional right-side badge (In Progress, Schedule call) in 8px radius pill with tinted background.
+Horizontal bar chart on a #060913 background with 1px #1f232 border, 8px radius. Bars in the brand gradient (#3245ff → #b845ed). Label in 14px monospace, value in 16px weight 600 #f2f6fa.
 
 ## Do's and Don'ts
 
 ### Do
-- Use #faf9f7 as the page background — never substitute pure #ffffff for the canvas
-- Apply the 48px pill radius to all buttons and the 16px radius to all cards
-- Set primary action buttons to #0068f9 fill with #ffffff text at weight 500, 15–16px
-- Use 84px Roobert weight 600 for hero headlines with ght 1.06
-- Pair a filled cobalt CTA with a white ghost CTA in hero sections for balanced hierarchy
-- Use #efefef for all borders — never heavier than 1px
-- Let the electric blue gradient corner appear only in the final CTA banner, not throughout
+- Use 9999px radius for all interactive elements (buttons, tabs, badges, chips)
+- Set the primary CTA to white background (#ffffff) with dark text (#1f232e) — inversion is the system's signature action pattern
+- Use the nebula gradient (linear-gradient(83.21deg, #3245ff, #b845ed)) only for hero atmospheric backdrops and stat bars — never for buttons or cards
+- Set section eyebrows (14px weight 600) in chromatic accent colors (#4bf3c8, #acafff, #54b9ff) to create the only color punctuation in each section
+- Use Obviously at weight 300-400 for headlines to keep the voice whisper-confident rather than shouty
+- Maintain 4px base unit for all spacing — element gaps at 8px or 16px, section gaps at 80px
+- Place colored borders (1px) on circular icon containers in feature columns using Aurora Mint, Plasma Blue, or Amber
 
 ### Don't
-- Don't use #ffffff as the page background — it kills the warm cream paper feel
-- Don't use flat shadows (e.g., box-shadow: 0 4px 8px) — the system uses feather-light multi-layer shadows or none
-- Don't add a second chromatic color to CTA buttons — #0068f9 is the only filled action color
-- Don't set headline line-height above 1.15 — the tight leading at display sizes is signature
-- Don't use #6736eb for CTAs or links — it's decorative accent only (tags, highlights, stat numbers)
-- Don't add heavy gradients to cards or panels — gradients belong only in the CTA banner and hero background
-- Don't use more than 1px borders in #efefef or #d6e4f1 — heavier strokes break the lightweight feel
+- Don't use drop shadows for elevation — the system relies on 1px borders in slightly lighter dark shades
+- Don't apply the nebula gradient to text — it destroys legibility against the dark canvas
+- Don't use chromatic colors for large background fills — they break the cosmic void atmosphere
+- Don't use radius values between 12px and 16px on cards — the system snaps to 8px, 12px, or 16px
+- Don't set body text below 14px or above 18px — the type scale is tight to maintain the instrument-panel density
+- Don't use obviously > 700 for headlines — the weight 300-400 range is the signature restraint
+- Don't add decorative icons inside buttons — pills should be text-only or text + chevron
 
 ## Surfaces
 
-| Level | Name | Value | Purpose |
-|------|---------|
-| 0 | Canvas Cream | `#faf9f7` | Page background — base layer for all content |
-| 1 | Surface Ivory | `#fbfaf7` | Cards, panels — subtle lift from canvas without shadow |
-| 2 | Pure White | `#ffffff` | Elevated cards, nav bar, input fields, button hover |
-| 3 | Lavender Mist | `#f4f0ff` | Decorative highlight wash, hero gradient zones |
+| Level | Name        | Value     | Purpose                                               |
+| ----- | ----------- | --------- | ----------------------------------------------------- |
+| 1     | Void Canvas | `#1f232`  | Page background — the deep space floor                |
+| 2     | Carbon Card | `#17191`  | Elevated card and panel surfaces                      |
+| 3     | Abyss Well  | `#0c0f19` | Inset wells, terminal boxes, and nested containers    |
+| 4     | Singularity | `#060913` | Deepest surface for high-contrast CLI and code blocks |
 
 ## Elevation
 
-- **Cards and panels:** `rgba(0, 0, 0, 0.07) 0px 1px 1px 0px, rgba(0, 0, 0, 0.04) 0px -1px 1px 0px inset, rgba(0, 0, 0, 0.14) 0px 0px 0px 0.5px inset`
-- **Product screenshot images:** `rgba(0, 0, 0, 0.04) 0px 20px 20px -8px`
+- **Theme Preview Card:** `0 1px 3px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(31, 35, 46, 1)`
+- **Terminal Command Box:** `inset 0 0 0 1px #1f232`
 
 ## Imagery
 
-Product screenshots are the dominant visual: real interface captures showing Deal Rooms, pricing tables, checklists, and file tabs — not mockups. These are presented in rounded 16px containers, often with a subtle soft shadow (rgba(0,0,0,0.04) 0px 20px 20px -8px) and positioned on a gradient or lavender mist background to make them float. Customer logos (Lattice, BrightHire, Loom) appear as compact marks paith colored metric numbers. No lifestyle photography, no abstract illustrations, no 3D renders — the product IS the hero. Icons are minimal, monoline-style, used sparingly in nav and status indicators.
+Imagery is minimal and functional: the hero relies on a single purple-magenta radial gradient glow with no photographic content. The rest of the site uses product screenshots (theme previews, terminal windows) contained within rounded card frames. The only photographic-style visuals are customer logos in the trust strip, rendered in white monochrome. No lifestyle photography, no abstract illustrations, no 3D renders — the void canvas is the visual statement. When illustrations appear (feature icons, decorative elements), they are flat, single-color line icons or small geometric shapes in the chromatic accent palette.
 
 ## Layout
 
-Full-width page with max-width 1200px centered content. Hero is a centered stack: 84px headline → 18px subtext (max ~640px) → two pill buttons, sitting on a cream-to-blue gradient. Feature sections alternate between full-bleed gradient backgrounds and contained card grids. Product tabs (Deal Rooms, Enablement Agent, etc.) sit as a horizontal pill-bar above a large product screenshot. Social proof uses a 3-column card grid (Lattice / BrightHire / Loom) with company mark + product label + large colored metric. Final CTA is a full-bleed section with a diagonal blue gradient bleeding from the lower-right corner. Footer is a 6-column link grid on white. Vertical rhythm uses 80px section gaps; cards use 24px internal padding with 8px element gaps.
+Full-width dark canvas with content constrained to 1200px max-width, centered. Hero is a centered stack: badge → headline → subhead → primary CTA → terminal box → logo cloud, with the nebula gradient blooming behind the headline. Sections alternate between full-bleed dark bands with no dividers, creating a seamless vertical flow. Feature sections use a 3-column grid for icon+text blocks. Content sections use 2-column text-left/visual-right or centered text-over-grid patterns. Theme showcase uses a 3-column card grid with 24px gaps. Navigation is a single transparent top bar with no sticky behavior. Vertical rhythm is maintained at 80px between major sections, with 32px between sub-blocks within a section.
 
 ## Agent Prompt Guide
 
-**Quick Color Reference**
-- #121722
-- background: #faf9f7
-- card surface: #fbfaf7 or #ffffff
-- border: #efefef
-- muted text: #777c86 or #a5a5a5
+## Quick Color Reference
+- Primary background: #1f232e
+- Primary text: #f2f6fa
+- Secondary text: #858b98
+- Border/hairline: #545864
+- Accent gradient: linear-gradient(83.21deg, #3245ff, #b845ed)
 - primary action: no distinct CTA color
 
-**Example Component Prompts**
-1. **Hero section**: Background gradient from #faf9f7 (top) to #d5ecff (bottom). Headline at 84px Roobert weight 600, #121722, line-height 1.06, centered. Subtext at 18px weight 400, #121722, max-width 640px. Two CTAs centered: ghost button (#ffffff fill, #121722 text, 1px #efefef border, 48px radius, 12px 24px padding) + filled button (#0068f9 fill, #ffffff text, 48px radius, 12px 24px padding).
-2. **Customer stat card**: Background #fbfaf7, 16px radius, 1px border #efefef, 24px padding. Company logo at top (24px tall). Product label at 14px weight 500 #777c86. Large metric at 48px weight 600 in #0068f9. Light shadow: rgba(0,0,0,0.07) 0px 1px 1px 0px + inset border.
-3. **Product feature card with screenshot**: Background #ffffff, 16px radius, 1px border #efefef, 24px padding. Tab bar above with active pill (#fbfaf7 fill, 48px radius). Screenshot image at 16px radius, 20px soft shadow below, sitting on a #f4f0ff to #ffffff gradient background.
+## Example Component Prompts
+
 No distinct primary action color was observed; use the extracted neutral button treatments instead of inventing a filled CTA color.
-5. **Tab bar**: Horizontal row on transparent background. 5–7 text labels at 15px weight 500 #121722, spaced 24px apart. Active tab has #fbfaf7 background, 48px radius, 8px 16px padding. No underlines, no borders — pill background is the sole active indicator.
 
-## Radius Language
+2. **Feature Card Grid**: Three columns on #1f232e background, 24px gap. Each card: 48px circle icon container with 1px border in #4bf3c8 (or #54b9ff, or #ffd493), transparent fill, small line icon centered. Headline in Obviously 20px weight 400 #f2f6fa. Body in 14px weight 400 #858b98, line-height 1.65.
 
-The system uses an unusually wide radius range that creates a distinct softness: 8px for small UI elements (badges, inline tags), 16px for cards and images, 48px for buttons and active nav states (pill shape), 60px for icon containers (ncircular), and 100px for decorative orbs. The 48px button radius is the most signature choice — it makes every action feel like a physical capsule, not a sharp rectangle. Never use 4px or 6px radii; the system commits fully to softness.
+3. **Theme Preview Card**: 16px radius, background #17191e, 1px border #1f232e. Internal image fills card to edges at 12px radius (overflow hidden). Title in 16px weight 500 #f2f6fa below image. Padding 0 on card, 16px below image for metadata.
 
-## Shadow Philosophy
+4. **Version Badge Pill**: Inline element, 9999px radius, background #1f232e, 1px border #2c303b, padding 4px 12px. Small dot (8px circle) in #61dafb at left. Text 'Astro 6.1' in 14px weight 500 #f2f6fa.
 
-Shadows are nearly invisible by design. Cards use a 3-layer micro-shadow (1px drop + 1px inset top + 0.5px inset border) that reads as a subtle outline more than elevation. Product screenshots get a single soft 20px spread shadow at 4% opacity. The system never uses heavy drop shadows, colored shadows, or glow effects. Elevation is communicated through background lightness steps (canvas → ivory → white) rather than shadow depth.
+5. **Section Header**: Eyebrow text in #acafff (or #4bf3c8), 14px weight 600, uppercase optional. Headline in Obviously 36px weight 300, #f2f6fa, line-height 1.11. Description in 16px weight 400 #858b98, max-width 640px.
 
 ## Similar Brands
 
-- **Linear** — Same single-accent-color discipline (Linear uses purple, Dock uses cobalt) against a warm light background with pill-shaped buttons and large confident type
-- **Attio** — Warm cream/off-white canvas rather than pure white, soft rounded cards, single vivid interactive color, generous acing
-- **Raycast** — Clean light SaaS with pill buttons, product screenshots as heroes, minimal chrome, and a single accent color doing all interactive work
-- **Pitch** — Same approach of letting a custom geometric typeface carry the brand, with featherlight components and a gradient hero section as a signature moment
-- **Loom** — Warm approachable light theme, rounded everything, and product UI shown as embedded screenshots rather than abstract illustrations
+- **Vercel** — Same dark cosmic canvas with a single brand-gradient hero glow, wide display type, and pill-shaped CTAs centered in a vertical stack
+- **Linear** — Near-black background, hairline border elevation strategy, and geometric sans-serif headlines — the 'devtools dark void' language
+- **Svelte** — Similar developer-framework landing page structure with centered hero, terminal command box, and logo cloud trust strip on dark background
+- **GitHub** — Dark mode with achromatic palette, monospace code accents, and the same instrument-panel badge/tab aesthetic
 
 ## Quick Start
 
@@ -239,99 +259,101 @@ Shadows are nearly invisible by design. Cards use a 3-layer micro-shadow (1px dr
 ```css
 :root {
   /* Colors */
-  --color-canvas-cream: #faf9f7;
-  --color-surface-ivory: #fbfaf7;
-  --color-pure-white: #ffffff;
-  --color-lavender-mist: #f4f0ff;
-  --color-powder-blue: #d6e4f1;
-  --colorharcoal: #121722;
-  --color-deep-ink: #1d1d1d;
-  --color-mid-graphite: #2d2d2d;
-  --color-slate-gray: #777c86;
-  --color-steel-gray: #a5a5a5;
-  --color-hairline: #efefef;
-  --color-faint-gray: #cccccc;
-  --color-electric-cobalt: #0068f9;
-  --color-deep-cobalt: #024bb1;
-  --color-cerulean: #0074dd;
-  --color-vivid-violet: #6736eb;
-  --color-forest: #046645;
+  --color-void-canvas: #1f232e;
+  --color-abyss: #0c0f19;
+  --color-singularity: #060913;
+  --color-carbon: #17191e;
+  --color-lunar-white: #f2f6fa;
+  --color-platinum: #e5e7eb;
+  --color-mist: #bfc1c9;
+  --color-steel: #858b98;
+  --color-gunmetal: #545864;
+  --color-nebula-gradient: #3245ff;
+  --gradient-nebula-gradient: linear-gradient(83.21deg, rgb(50, 69, 255), rgb(184, 69, 237));
+  --color-plasma-gradient: #d83333;
+  --gradient-plasma-gradient: linear-gradient(66.77deg, rgb(216, 51, 51), rgb(240, 65, 255));
+  --color-aurora-mint: #4bf3c8;
+  --color-plasma-blue: #54b9ff;
+  --color-ultraviolet: #acafff;
+  --color-electric-cyan: #00daef;
+  --color-amber: #ffd493;
+  --color-signal-blue: #61dafb;
 
   /* Typography — Font Families */
-  --font-roobert: 'Roobert', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-ui-sans-serif: 'ui-sans-serif', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-obviously: 'Obviously', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-ui-monospace: 'ui-monospace', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mdio: 'MDIO', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-inter: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   /* Typography — Scale */
-  --text-caption: 13px;
+  --text-caption: 12px;
   --leading-caption: 1.5;
-  --tracking-caption: 0.077px;
+  --tracking-caption: 0.3px;
+  --text-body-sm: 14px;
+  --leading-body-sm: 1.65;
   --text-body: 16px;
-  --leading-body: 1.56;
-  --text-subheading: 18px;
-  --leading-subheading: 1.5;
-  --text-heading-sm: 20px;
-  --leading-heading-sm: 1.38;
-  --text-heading: 24px;
-  --leading-heading: 1.33;
-  --text-heading-lg: 40px;
-  --leading-heading-lg: 1.25;
-  --text-heading-xl: 48px;
-  --leading-heading-xl: 1.2;
-  --text-display: 57px;
-  --leading-display: 1.09;
-  --text-display-lgpx;
-  --leading-display-lg: 1.06;
+  --leading-body: 1.5;
+  --text-subheading: 20px;
+  --leading-subheading: 1.4;
+  --text-heading-sm: 30px;
+  --leading-heading-sm: 1.2;
+  --text-heading: 36px;
+  --leading-heading: 1.11;
+  --text-display: 48px;
+  --leading-display: 1.1;
 
   /* Typography — Weights */
+  --font-weight-extralight: 200;
+  --font-weight-light: 300;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
   /* Spacing */
-  --spacing-unit: 8px;
+  --spacing-unit: 4px;
+  --spacing-4: 4px;
   --spacing-8: 8px;
+  --spacing-12: 12px;
   --spacing-16: 16px;
+  --spacing-20: 20px;
   --spacing-24: 24px;
   --spacing-32: 32px;
   --spacing-40: 40px;
   --spacing-48: 48px;
-  --spacing-64: 64px;
+  --spacing-68: 68px;
   --spacing-80: 80px;
-  --spacing-88: 88px;
+  --spacing-144: 144px;
+  --spacing-160: 160px;
+  --spacing-224: 224px;
 
   /* Layout */
   --page-max-width: 1200px;
   --section-gap: 80px;
   --card-padding: 24px;
-  --element-gap: 8px;
+  --element-gap: 16px;
 
   /* Border Radius */
   --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-2xl: 16px;
   --radius-2xl-2: 20px;
-  --radius-3xl: 32px;
-  --radius-3xl-2: 40px;
-  --radius-full: 48px;
-  --radius-full-2: 60px;
-  --radius-full-3: 100px;
+  --radius-3xl: 24px;
+  --radius-full: 9999px;
 
   /* Named Radii */
+  --radius-nav: 8px;
   --radius-cards: 16px;
-  --radius-icons: 60px;
-  --radius-pills: 100px;
-  --radius-images: 16px;
-  --radius-buttons: 48px;
-  --radius-navitems: 48px;
-
-  /* Shadows */
-  --shadow-subtle: rgba(0, 0, 0, 0.07) 0px 1px 1px 0px, rgba(0, 0, 0, 0.04) 0px -1px 1px 0pxnset, rgba(0, 0, 0, 0.14) 0px 0px 0px 0.5px inset;
-  --shadow-lg: rgba(0, 0, 0, 0.04) 0px 20px 20px -8px;
+  --radius-chips: 9999px;
+  --radius-images: 12px;
+  --radius-buttons: 9999px;
 
   /* Surfaces */
-  --surface-canvas-cream: #faf9f7;
-  --surface-surface-ivory: #fbfaf7;
-  --surface-pure-white: #ffffff;
-  --surface-lavender-mist: #f4f0ff;
+  --surface-void-canvas: #1f232;
+  --surface-carbon-card: #17191;
+  --surface-abyss-well: #0c0f19;
+  --surface-singularity: #060913;
 }
 ```
 
@@ -340,72 +362,70 @@ Shadows are nearly invisible by design. Cards use a 3-layer micro-shadow (1px dr
 ```css
 @theme {
   /* Colors */
-  --color-canvas-cream: #faf9f7;
-  --color-surface-ivory: #fbfaf7;
-  --color-pure-white: #ffffff;
-  --color-lavender-mist: #f4f0ff;
-  --color-powder-blue: #d6e4f1;
-  --color-ink-charcoal: #121722;
-  --color-deep-ink: #1d1d1d;
-  --color-mid-graphite: #2d2d2d;
-  --color-slate-gray: #777c86;
-  --color-steel-gray: #a5a5a5;
-  --color-hairline: #efefef;
-  --color-faint-gray: #cccccc;
-  --color-electric-cobalt: #0068f9;
-  --color-deep-cobalt: #024bb1;
-  --color-cerulean: #0074dd;
-  --color-vivid-violet: #6736eb;
-  --color-forest: #046645;
+  --color-void-canvas: #1f232e;
+  --color-abyss: #0c0f19;
+  --color-singularity: #060913;
+  --color-carbon: #17191e;
+  --color-lunar-white: #f2f6fa;
+  --color-platinum: #e5e7eb;
+  --color-mist: #bfc1c9;
+  --color-steel: #858b98;
+  --color-gunmetal: #545864;
+  --color-nebula-gradient: #3245ff;
+  --color-plasma-gradient: #d83333;
+  --color-aurora-mint: #4bf3c8;
+  --color-plasma-blue: #54b9ff;
+  --color-ultraviolet: #acafff;
+  --color-electric-cyan: #00daef;
+  --color-amber: #ffd493;
+  --color-signal-blue: #61dafb;
 
   /* Typography */
-  --font-roobert: 'Roobert', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-ui-sans-serif: 'ui-sans-serif', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-obviously: 'Obviously', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-ui-monospace: 'ui-monospace', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mdio: 'MDIO', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-inter: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-  /* Typography — Sce */
-  --text-caption: 13px;
+  /* Typography — Scale */
+  --text-caption: 12px;
   --leading-caption: 1.5;
-  --tracking-caption: 0.077px;
+  --tracking-caption: 0.3px;
+  --text-body-sm: 14px;
+  --leading-body-sm: 1.65;
   --text-body: 16px;
-  --leading-body: 1.56;
-  --text-subheading: 18px;
-  --leading-subheading: 1.5;
-  --text-heading-sm: 20px;
-  --leading-heading-sm: 1.38;
-  --text-heading: 24px;
-  --leading-heading: 1.33;
-  --text-heading-lg: 40px;
-  --leading-heading-lg: 1.25;
-  --text-heading-xl: 48px;
-  --leading-heading-xl: 1.2;
-  --text-display: 57px;
-  --leading-display: 1.09;
-  --text-display-lg: 84px;
-  --leading-display-lg: 1.06;
+  --leading-body: 1.5;
+  --text-subheading: 20px;
+  --leading-subheading: 1.4;
+  --text-heading-sm: 30px;
+  --leading-heading-sm: 1.2;
+  --text-heading: 36px;
+  --leading-heading: 1.11;
+  --text-display: 48px;
+  --leading-display: 1.1;
 
   /* Spacing */
+  --spacing-4: 4px;
   --spacing-8: 8px;
+  --spacing-12: 12px;
   --spacing-16: 16px;
+  --spacing-20: 20px;
   --spacing-24: 24px;
   --spacing-32: 32px;
   --spacing-40: 40px;
   --spacing-48: 48px;
-  --spacing-64: 64px;
+  --spacing-68: 68px;
   --spacing-80: 80px;
-  --spacing-88: 88px;
+  --spacing-144: 144px;
+  --spacing-160: 160px;
+  --spacing-224: 224px;
 
   /* Border Radius */
   --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-2xl: 16px;
   --radius-2xl-2: 20px;
-  --radius-3xl: 32px;
-  --radius-3xl-2: 40px;
-  --radius-full: 48px;
-  --radius-full-2: 60px;
-  --radius-full-3: 100px;
-
-  /* Shadows */
-  --shadow-subtle: rgba(0, 0, 0, 0.07) 0px 1px 1px 0px, rgba(0, 0, 0, 0.04) 0px -1px 1px 0px inset, rgba(0, 0, 0, 0.14) 0px 0px 0px 0.5px inset;
-  --shadow-lg: rgba(0, 0, 0, 0.04) 0px 20px 20px -8px;
+  --radius-3xl: 24px;
+  --radius-full: 9999px;
 }
 ```
-
