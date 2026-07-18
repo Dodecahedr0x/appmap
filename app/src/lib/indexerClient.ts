@@ -329,6 +329,16 @@ export async function fetchTagGraph(): Promise<TagGraph> {
   return (await get("/tags/graph")) as TagGraph;
 }
 
+export interface TagPack {
+  tags: { slug: string; name: string; appCount: number; stake: number }[];
+  apps: { slug: string; name: string; stake: number; tagSlugs: string[] }[];
+}
+
+/** Every approved app's full tag list, for the Explore page's Group (circle-packing) tab — see app/src/lib/tagPack.ts. */
+export async function fetchTagPack(): Promise<TagPack> {
+  return (await get("/tags/pack")) as TagPack;
+}
+
 export interface TagListEntry {
   id: string;
   slug: string;

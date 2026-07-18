@@ -9,8 +9,12 @@ import type { AppDTO } from "@/lib/types";
 export interface MapSelection {
   kind: "app" | "tag";
   label: string; // the selected node's display label, for the heading/copy
-  slugs?: string[]; // app map: [selectedAppSlug, ...neighborAppSlugs]
-  tagSlugs?: string[]; // tag map: [selectedTagSlug, ...neighborTagSlugs]
+  // app map: [selectedAppSlug, ...neighborAppSlugs]. Group map (both app
+  // leaves and tag circles): the exact app slugs already known to be under
+  // the clicked node, from its own locally-built tree — takes priority over
+  // tagSlugs below when present, since it's always more precise.
+  slugs?: string[];
+  tagSlugs?: string[]; // tag map: [selectedTagSlug, ...neighborTagSlugs] — OR-matched server-side, so only exact when there's just one unambiguous slug.
   selectedSlug?: string; // app map only — badges the exact selected card
 }
 
@@ -31,10 +35,9 @@ export function RelatedApps({
   useEffect(() => {
     setApps(null);
     let cancelled = false;
-    const qs =
-      selection.kind === "app"
-        ? `slugs=${encodeURIComponent((selection.slugs ?? []).join(","))}`
-        : `tagSlugs=${encodeURIComponent((selection.tagSlugs ?? []).join(","))}`;
+    const qs = selection.slugs?.length
+      ? `slugs=${encodeURIComponent(selection.slugs.join(","))}`
+      : `tagSlugs=${encodeURIComponent((selection.tagSlugs ?? []).join(","))}`;
     fetch(`/api/apps/related?${qs}`)
       .then((r) => r.json())
       .then((json) => {

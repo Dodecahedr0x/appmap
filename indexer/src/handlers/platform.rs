@@ -247,6 +247,87 @@ async fn tag_graph(State(state): State<Arc<ApiState>>) -> Result<Json<serde_json
     Ok(Json(serde_json::json!({ "nodes": nodes, "edges": edges })))
 }
 
+// --- tagPack.ts (Explore "Group" tab — circle-packing hierarchy) ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TagPackTagDto {
+    slug: String,
+    name: String,
+    app_count: i64,
+    stake: f64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TagPackAppDto {
+    slug: String,
+    name: String,
+    stake: f64,
+    tag_slugs: Vec<String>,
+}
+
+/// Raw material for a synthetic tag hierarchy: every approved app's full tag
+/// list plus each tag's global popularity. There's no `parentId` on `Tag` —
+/// the client derives "outer circle = most globally-common tag, inner
+/// circles = next-most-common" by sorting each app's own tags into that
+/// same global order (see app/src/lib/tagPack.ts's `buildTagPackTree`).
+/// Same join as `tag_graph`, grouped by app instead of collapsed into edges.
+async fn tag_pack(State(state): State<Arc<ApiState>>) -> Result<Json<serde_json::Value>, ApiError> {
+    let rows: Vec<(String, String, f64, String, String, f64)> = sqlx::query_as(
+        r#"
+        SELECT a.slug, a.name, a."stakeTotal", t.slug, t.name, at."stakeTotal"
+        FROM "AppTag" at
+        JOIN "Tag" t ON t.id = at."tagId"
+        JOIN "App" a ON a.id = at."appId"
+        WHERE a.status = 'approved'
+        "#,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    let mut tag_stats: HashMap<String, (String, i64, f64)> = HashMap::new(); // tagSlug -> (name, appCount, stake)
+    let mut apps: HashMap<String, (String, f64, Vec<String>)> = HashMap::new(); // appSlug -> (name, stake, tagSlugs)
+    for (app_slug, app_name, app_stake, tag_slug, tag_name, tag_stake) in rows {
+        let tag_entry = tag_stats.entry(tag_slug.clone()).or_insert((tag_name, 0, 0.0));
+        tag_entry.1 += 1;
+        tag_entry.2 += tag_stake;
+
+        let app_entry = apps.entry(app_slug).or_insert_with(|| (app_name, app_stake, Vec::new()));
+        app_entry.2.push(tag_slug);
+    }
+
+    // Approved apps with zero tags never appear in the join above — fetched
+    // separately so they still show up (as a synthetic "untagged" bucket in
+    // the client's tree, rather than silently vanishing from the pack).
+    let untagged_rows: Vec<(String, String, f64)> = sqlx::query_as(
+        r#"
+        SELECT a.slug, a.name, a."stakeTotal"
+        FROM "App" a
+        WHERE a.status = 'approved'
+          AND NOT EXISTS (SELECT 1 FROM "AppTag" at WHERE at."appId" = a.id)
+        "#,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+    for (slug, name, stake) in untagged_rows {
+        apps.entry(slug).or_insert((name, stake, Vec::new()));
+    }
+
+    let tags: Vec<TagPackTagDto> = tag_stats
+        .into_iter()
+        .map(|(slug, (name, app_count, stake))| TagPackTagDto { slug, name, app_count, stake })
+        .collect();
+    let apps: Vec<TagPackAppDto> = apps
+        .into_iter()
+        .map(|(slug, (name, stake, tag_slugs))| TagPackAppDto { slug, name, stake, tag_slugs })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "tags": tags, "apps": apps })))
+}
+
 // --- explore.ts ---
 
 #[derive(Serialize)]
@@ -320,6 +401,7 @@ pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
         .route("/apps/graph", get(app_graph))
         .route("/tags/graph", get(tag_graph))
+        .route("/tags/pack", get(tag_pack))
         .route("/platform/stats", get(platform_stats))
         .route("/platform/views-trend", get(platform_views_trend))
 }

@@ -74,7 +74,7 @@ export default async function ExplorePage() {
       <section>
         <h2 className="text-heading font-semibold text-ink">Maps</h2>
         <p className="mt-1 max-w-2xl text-pretty text-sm text-slate">
-          Two views of how nebulous.world connects — pick a tab, then click a node to see the
+          Three views of how nebulous.world connects — pick a tab, then click a node to see the
           apps behind it.
         </p>
         <div className="mt-6">
