@@ -873,5 +873,957 @@
       "hosting",
       "creator-tools"
     ]
+  },
+  {
+    "url": "https://stripe.com",
+    "name": "Stripe",
+    "tagline": "Payment infrastructure for the internet.",
+    "description": "Stripe provides APIs and hosted checkout tools that let businesses accept payments, manage subscriptions, and handle billing online.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "payments",
+      "billing",
+      "api"
+    ]
+  },
+  {
+    "url": "https://www.shopify.com",
+    "name": "Shopify",
+    "tagline": "Commerce platform to start and grow a business.",
+    "description": "Shopify powers online stores with built-in checkout, inventory, and payment processing for merchants of all sizes.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "ecommerce",
+      "merchant",
+      "retail"
+    ]
+  },
+  {
+    "url": "https://www.paypal.com",
+    "name": "PayPal",
+    "tagline": "Send, receive, and checkout with a trusted wallet.",
+    "description": "PayPal offers an online checkout button and digital wallet used by millions of merchants and consumers worldwide.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "payments",
+      "wallet",
+      "ecommerce"
+    ]
+  },
+  {
+    "url": "https://www.squareup.com",
+    "name": "Square",
+    "tagline": "Point of sale and payments for businesses.",
+    "description": "Square provides in-person and online checkout tools, POS hardware, and payment processing for small and large businesses.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "pos",
+      "payments",
+      "retail"
+    ]
+  },
+  {
+    "url": "https://www.klarna.com",
+    "name": "Klarna",
+    "tagline": "Buy now, pay later checkout for shoppers.",
+    "description": "Klarna integrates into merchant checkouts to offer installment payments and flexible financing at the point of sale.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "bnpl",
+      "payments",
+      "ecommerce"
+    ]
+  },
+  {
+    "url": "https://www.adyen.com",
+    "name": "Adyen",
+    "tagline": "Global payments platform for enterprises.",
+    "description": "Adyen offers a unified checkout and payment processing platform used by large enterprises to accept payments across channels and countries.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "payments",
+      "enterprise",
+      "global"
+    ]
+  },
+  {
+    "url": "https://www.bigcommerce.com",
+    "name": "BigCommerce",
+    "tagline": "Ecommerce platform with flexible checkout.",
+    "description": "BigCommerce provides an open SaaS ecommerce platform with customizable checkout flows for growing online retailers.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "ecommerce",
+      "saas",
+      "retail"
+    ]
+  },
+  {
+    "url": "https://www.affirm.com",
+    "name": "Affirm",
+    "tagline": "Pay-over-time checkout financing.",
+    "description": "Affirm embeds installment loan options into merchant checkouts, letting shoppers split purchases into payments.",
+    "category": "payments",
+    "chain": "web2",
+    "tags": [
+      "checkout",
+      "bnpl",
+      "financing",
+      "ecommerce"
+    ]
+  },
+  {
+    "url": "https://www.ebay.com",
+    "name": "eBay",
+    "tagline": "The original online auction marketplace.",
+    "description": "A global e-commerce platform where users buy and sell goods through auctions and fixed-price listings.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "ecommerce",
+      "marketplace"
+    ]
+  },
+  {
+    "url": "https://www.sothebys.com",
+    "name": "Sotheby's",
+    "tagline": "Fine art and luxury auction house.",
+    "description": "A leading global auction house selling art, jewelry, and collectibles both in-person and online.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "art",
+      "luxury"
+    ]
+  },
+  {
+    "url": "https://www.christies.com",
+    "name": "Christie's",
+    "tagline": "Renowned auction house for art and collectibles.",
+    "description": "A historic auction house offering live and online sales of fine art, watches, and rare items.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "art",
+      "collectibles"
+    ]
+  },
+  {
+    "url": "https://www.copart.com",
+    "name": "Copart",
+    "tagline": "Online vehicle auctions.",
+    "description": "A global platform for buying and selling used, wholesale, and salvage vehicles through online auctions.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "vehicles",
+      "b2b"
+    ]
+  },
+  {
+    "url": "https://www.heritageauctions.com",
+    "name": "Heritage Auctions",
+    "tagline": "World's largest collectibles auctioneer.",
+    "description": "An auction house specializing in coins, comics, art, and memorabilia with live and online bidding.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "collectibles",
+      "memorabilia"
+    ]
+  },
+  {
+    "url": "https://www.catawiki.com",
+    "name": "Catawiki",
+    "tagline": "Curated online auctions for special objects.",
+    "description": "A European online marketplace where expert-vetted lots in art, design, and collectibles are sold via weekly auctions.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "collectibles",
+      "europe"
+    ]
+  },
+  {
+    "url": "https://www.govdeals.com",
+    "name": "GovDeals",
+    "tagline": "Online auctions for government surplus.",
+    "description": "A marketplace where government agencies and public entities sell surplus equipment and assets via online auction.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "auctions",
+      "government",
+      "surplus"
+    ]
+  },
+  {
+    "url": "https://foundation.app",
+    "name": "Foundation",
+    "tagline": "NFT auction marketplace for digital art.",
+    "description": "An Ethereum-based platform where creators mint and sell digital art through timed auctions to collectors.",
+    "category": "nft",
+    "chain": "ethereum",
+    "tags": [
+      "auctions",
+      "nft",
+      "digital-art"
+    ]
+  },
+  {
+    "url": "https://www.duolingo.com",
+    "name": "Duolingo",
+    "tagline": "Learn a language for free, forever",
+    "description": "A gamified language-learning app offering bite-sized lessons in dozens of languages with streaks and leaderboards to keep learners engaged.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "education",
+      "gamification"
+    ]
+  },
+  {
+    "url": "https://www.strava.com",
+    "name": "Strava",
+    "tagline": "Track your runs and rides",
+    "description": "A social fitness network that lets athletes record workouts via GPS, compare segments, and share activity with friends.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "fitness",
+      "social"
+    ]
+  },
+  {
+    "url": "https://www.notion.so/desmos",
+    "name": "Desmos",
+    "tagline": "Free online graphing calculator",
+    "description": "An advanced graphing calculator and math tool used by students and teachers to visualize functions and equations interactively.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "education",
+      "math"
+    ]
+  },
+  {
+    "url": "https://www.headspace.com",
+    "name": "Headspace",
+    "tagline": "Meditation and mindfulness made simple",
+    "description": "A guided meditation and sleep app that helps users reduce stress and build daily mindfulness habits.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "wellness",
+      "meditation"
+    ]
+  },
+  {
+    "url": "https://trello.com",
+    "name": "Trello",
+    "tagline": "Organize anything with boards and cards",
+    "description": "A visual project management tool built around Kanban-style boards, lists, and cards for organizing tasks and workflows.",
+    "category": "productivity",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "project-management",
+      "kanban"
+    ]
+  },
+  {
+    "url": "https://www.airbnb.com",
+    "name": "Airbnb",
+    "tagline": "Book unique homes and experiences",
+    "description": "A global marketplace connecting travelers with hosts offering short-term lodging and local experiences worldwide.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "travel",
+      "booking"
+    ]
+  },
+  {
+    "url": "https://spotify.com",
+    "name": "Spotify",
+    "tagline": "Music and podcasts for everyone",
+    "description": "A streaming platform giving users on-demand access to millions of songs, podcasts, and curated playlists.",
+    "category": "entertainment",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "music",
+      "streaming"
+    ]
+  },
+  {
+    "url": "https://www.audible.com",
+    "name": "Audible",
+    "tagline": "Audiobooks and podcasts on demand",
+    "description": "An audiobook and spoken-word entertainment service offering a vast library of titles for listening on the go.",
+    "category": "entertainment",
+    "chain": "web2",
+    "tags": [
+      "misc",
+      "audiobooks",
+      "reading"
+    ]
+  },
+  {
+    "url": "https://store.steampowered.com",
+    "name": "Steam",
+    "tagline": "The world's largest PC gaming platform.",
+    "description": "A digital storefront and community platform for buying, playing, and discussing PC games, run by Valve.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "pc-games",
+      "digital-storefront"
+    ]
+  },
+  {
+    "url": "https://www.epicgames.com/store",
+    "name": "Epic Games Store",
+    "tagline": "PC and Mac game storefront with free weekly games.",
+    "description": "A digital game marketplace from Epic Games known for exclusive titles and its recurring free game giveaways.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "pc-games",
+      "marketplace"
+    ]
+  },
+  {
+    "url": "https://www.roblox.com",
+    "name": "Roblox",
+    "tagline": "Platform for playing and creating user-generated games.",
+    "description": "An online platform and game creation system letting users build, share, and play millions of user-generated 3D experiences.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "user-generated",
+      "metaverse"
+    ]
+  },
+  {
+    "url": "https://www.minecraft.net",
+    "name": "Minecraft",
+    "tagline": "Sandbox game about placing blocks and going on adventures.",
+    "description": "A best-selling sandbox video game by Mojang where players build, explore, and survive in procedurally generated worlds.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "sandbox",
+      "survival"
+    ]
+  },
+  {
+    "url": "https://www.gog.com",
+    "name": "GOG",
+    "tagline": "DRM-free PC game store and preservation platform.",
+    "description": "A digital distribution platform selling DRM-free games, with a focus on classics and game preservation.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "drm-free",
+      "pc-games"
+    ]
+  },
+  {
+    "url": "https://www.itch.io",
+    "name": "itch.io",
+    "tagline": "Open marketplace for independent digital creators.",
+    "description": "A storefront and hosting platform where indie developers publish and sell games, tools, and other creative work.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "indie",
+      "marketplace"
+    ]
+  },
+  {
+    "url": "https://www.ea.com",
+    "name": "EA (Electronic Arts)",
+    "tagline": "Major publisher behind franchises like FIFA and Battlefield.",
+    "description": "A leading video game publisher and developer producing sports, action, and simulation titles played by millions worldwide.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "publisher",
+      "console"
+    ]
+  },
+  {
+    "url": "https://www.playstation.com",
+    "name": "PlayStation",
+    "tagline": "Sony's console gaming ecosystem and online store.",
+    "description": "Sony's gaming platform encompassing PlayStation consoles, digital storefront, and the PlayStation Network online service.",
+    "category": "gaming",
+    "chain": "web2",
+    "tags": [
+      "gaming",
+      "console",
+      "online-store"
+    ]
+  },
+  {
+    "url": "https://snapshot.org",
+    "name": "Snapshot",
+    "tagline": "Gasless voting for web3 communities",
+    "description": "A decentralized voting platform that lets DAOs and token holders create proposals and vote off-chain without paying gas fees.",
+    "category": "dao",
+    "chain": "ethereum",
+    "tags": [
+      "governance",
+      "voting",
+      "dao-tooling"
+    ]
+  },
+  {
+    "url": "https://compound.finance",
+    "name": "Compound",
+    "tagline": "Algorithmic money markets governed by token holders",
+    "description": "A DeFi lending protocol whose interest rate models and treasury are controlled through on-chain governance proposals voted on by COMP holders.",
+    "category": "defi",
+    "chain": "ethereum",
+    "tags": [
+      "governance",
+      "lending",
+      "defi"
+    ]
+  },
+  {
+    "url": "https://uniswap.org",
+    "name": "Uniswap",
+    "tagline": "The leading decentralized exchange, run by its community",
+    "description": "An automated market maker protocol whose fee switches, treasury grants, and upgrades are decided through UNI token governance votes.",
+    "category": "defi",
+    "chain": "ethereum",
+    "tags": [
+      "governance",
+      "dex",
+      "defi"
+    ]
+  },
+  {
+    "url": "https://aragon.org",
+    "name": "Aragon",
+    "tagline": "Infrastructure for creating and running DAOs",
+    "description": "A platform that provides tools for launching decentralized organizations with customizable on-chain voting and governance modules.",
+    "category": "dao",
+    "chain": "ethereum",
+    "tags": [
+      "governance",
+      "dao-tooling",
+      "infrastructure"
+    ]
+  },
+  {
+    "url": "https://tally.xyz",
+    "name": "Tally",
+    "tagline": "Home for on-chain governance",
+    "description": "A governance dashboard where token holders can view proposals, delegate voting power, and cast on-chain votes across dozens of DAOs.",
+    "category": "dao",
+    "chain": "ethereum",
+    "tags": [
+      "governance",
+      "dao-tooling",
+      "voting"
+    ]
+  },
+  {
+    "url": "https://boardable.com",
+    "name": "Boardable",
+    "tagline": "Board management software for nonprofits and companies",
+    "description": "A web2 SaaS platform that helps organizations manage board meetings, voting, minutes, and document sharing for corporate governance.",
+    "category": "productivity",
+    "chain": "web2",
+    "tags": [
+      "governance",
+      "board-management",
+      "saas"
+    ]
+  },
+  {
+    "url": "https://diligent.com",
+    "name": "Diligent",
+    "tagline": "Governance, risk, and compliance software for boards",
+    "description": "An enterprise platform used by boards of directors and executives to manage governance workflows, secure meetings, and compliance reporting.",
+    "category": "productivity",
+    "chain": "web2",
+    "tags": [
+      "governance",
+      "compliance",
+      "enterprise"
+    ]
+  },
+  {
+    "url": "https://makerdao.com",
+    "name": "MakerDAO",
+    "tagline": "Decentralized stablecoin protocol governed by MKR holders",
+    "description": "The organization behind the DAI stablecoin, where MKR token holders vote on risk parameters, collateral types, and protocol upgrades.",
+    "category": "defi",
+    "chain": "ethereum",
+    "tags": [
+      "governance",
+      "stablecoin",
+      "defi"
+    ]
+  },
+  {
+    "url": "https://etherscan.io",
+    "name": "Etherscan",
+    "tagline": "The Ethereum blockchain explorer.",
+    "description": "Etherscan lets anyone browse transactions, blocks, addresses, and smart contracts on the Ethereum blockchain in real time.",
+    "category": "analytics",
+    "chain": "ethereum",
+    "tags": [
+      "on-chain-data",
+      "explorer",
+      "ethereum"
+    ]
+  },
+  {
+    "url": "https://solscan.io",
+    "name": "Solscan",
+    "tagline": "Solana blockchain explorer and analytics.",
+    "description": "Solscan provides detailed insights into Solana transactions, tokens, NFTs, and programs for developers and users alike.",
+    "category": "analytics",
+    "chain": "solana",
+    "tags": [
+      "on-chain-data",
+      "explorer",
+      "solana"
+    ]
+  },
+  {
+    "url": "https://dune.com",
+    "name": "Dune",
+    "tagline": "Query and visualize blockchain data.",
+    "description": "Dune lets anyone write SQL queries against indexed blockchain data and build shareable dashboards for crypto analytics.",
+    "category": "analytics",
+    "chain": "ethereum",
+    "tags": [
+      "on-chain-data",
+      "dashboards",
+      "sql"
+    ]
+  },
+  {
+    "url": "https://nansen.ai",
+    "name": "Nansen",
+    "tagline": "On-chain analytics platform for crypto investors.",
+    "description": "Nansen combines wallet labeling with on-chain data to help traders and funds track smart money and market trends.",
+    "category": "analytics",
+    "chain": "ethereum",
+    "tags": [
+      "on-chain-data",
+      "wallet-tracking",
+      "research"
+    ]
+  },
+  {
+    "url": "https://www.mempool.space",
+    "name": "mempool.space",
+    "tagline": "Bitcoin blockchain and mempool explorer.",
+    "description": "mempool.space visualizes the Bitcoin mempool and blockchain, showing fees, blocks, and transactions in real time.",
+    "category": "analytics",
+    "chain": "bitcoin",
+    "tags": [
+      "on-chain-data",
+      "explorer",
+      "bitcoin"
+    ]
+  },
+  {
+    "url": "https://debank.com",
+    "name": "DeBank",
+    "tagline": "Track your on-chain crypto portfolio.",
+    "description": "DeBank aggregates wallet balances and DeFi positions across chains, giving users a unified view of their on-chain assets.",
+    "category": "analytics",
+    "chain": "ethereum",
+    "tags": [
+      "on-chain-data",
+      "portfolio",
+      "defi"
+    ]
+  },
+  {
+    "url": "https://arkhamintelligence.com",
+    "name": "Arkham",
+    "tagline": "Deanonymize blockchain activity.",
+    "description": "Arkham Intelligence maps on-chain addresses to real-world entities, helping users research and monitor crypto transactions.",
+    "category": "analytics",
+    "chain": "ethereum",
+    "tags": [
+      "on-chain-data",
+      "intelligence",
+      "research"
+    ]
+  },
+  {
+    "url": "https://www.glassnode.com",
+    "name": "Glassnode",
+    "tagline": "On-chain market intelligence for crypto assets.",
+    "description": "Glassnode provides advanced on-chain metrics and indicators used by traders and institutions to gauge network health and market sentiment.",
+    "category": "analytics",
+    "chain": "bitcoin",
+    "tags": [
+      "on-chain-data",
+      "market-intelligence",
+      "metrics"
+    ]
+  },
+  {
+    "url": "https://www.topps.com",
+    "name": "Topps",
+    "tagline": "Iconic trading cards and collectibles since 1938.",
+    "description": "Publisher of sports and entertainment trading cards, stickers, and collectible memorabilia sold worldwide.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "trading-cards",
+      "sports"
+    ]
+  },
+  {
+    "url": "https://www.psacard.com",
+    "name": "PSA",
+    "tagline": "Authentication and grading for trading cards and collectibles.",
+    "description": "The leading third-party grading service for trading cards, autographs, and memorabilia, providing authentication and population data collectors rely on.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "grading",
+      "authentication"
+    ]
+  },
+  {
+    "url": "https://www.funko.com",
+    "name": "Funko",
+    "tagline": "Pop culture vinyl figures and collectibles.",
+    "description": "Designer and manufacturer of Funko Pop! vinyl figures and other licensed pop-culture collectibles spanning movies, games, and music.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "toys",
+      "pop-culture"
+    ]
+  },
+  {
+    "url": "https://www.ebay.com/b/Collectibles/1",
+    "name": "eBay Collectibles",
+    "tagline": "The world's largest marketplace for collectibles.",
+    "description": "A dedicated hub on eBay where collectors buy and sell trading cards, coins, stamps, comics, and countless other collectible categories.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "auction",
+      "marketplace"
+    ]
+  },
+  {
+    "url": "https://www.stockx.com",
+    "name": "StockX",
+    "tagline": "Marketplace for sneakers, streetwear, and collectibles.",
+    "description": "A live-market platform where authenticated sneakers, trading cards, apparel, and other collectibles are bought and sold at real-time prices.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "sneakers",
+      "streetwear"
+    ]
+  },
+  {
+    "url": "https://www.opensea.io",
+    "name": "OpenSea",
+    "tagline": "The largest marketplace for NFTs and digital collectibles.",
+    "description": "A leading NFT marketplace where users can discover, buy, and sell digital collectibles including art, gaming items, and profile pictures across multiple chains.",
+    "category": "nft",
+    "chain": "ethereum",
+    "tags": [
+      "collectibles",
+      "nft",
+      "digital-art"
+    ]
+  },
+  {
+    "url": "https://www.pcgs.com",
+    "name": "PCGS",
+    "tagline": "Grading and authentication for rare coins and collectibles.",
+    "description": "A trusted third-party grading service for rare coins and banknotes, giving collectors standardized authentication and valuation.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "coins",
+      "grading"
+    ]
+  },
+  {
+    "url": "https://www.rally.rio",
+    "name": "Rally",
+    "tagline": "Fractional ownership platform for rare collectibles.",
+    "description": "A platform that lets everyday investors buy shares in high-value collectibles like classic cars, comics, and memorabilia through equity crowdfunding.",
+    "category": "marketplace",
+    "chain": "web2",
+    "tags": [
+      "collectibles",
+      "fractional-ownership",
+      "investing"
+    ]
+  },
+  {
+    "url": "https://safe.global",
+    "name": "Safe",
+    "tagline": "The most trusted multisig wallet for Ethereum and EVM chains.",
+    "description": "Safe (formerly Gnosis Safe) lets teams and individuals manage digital assets with multiple required signers, securing billions in crypto across EVM chains.",
+    "category": "wallet",
+    "chain": "ethereum",
+    "tags": [
+      "multisig",
+      "smart-contract-wallet",
+      "treasury",
+      "security"
+    ]
+  },
+  {
+    "url": "https://onbtc.multisig.us",
+    "name": "Casa",
+    "tagline": "Multisig bitcoin key management for self-custody.",
+    "description": "Casa provides multisignature and multi-key vaults for securely storing bitcoin, helping users avoid single points of failure in self-custody.",
+    "category": "wallet",
+    "chain": "bitcoin",
+    "tags": [
+      "multisig",
+      "self-custody",
+      "vault",
+      "security"
+    ]
+  },
+  {
+    "url": "https://unchained.com",
+    "name": "Unchained",
+    "tagline": "Collaborative multisig custody for bitcoin holders.",
+    "description": "Unchained combines multisig vaults with concierge onboarding and inheritance planning to give bitcoin holders secure, collaborative custody.",
+    "category": "wallet",
+    "chain": "bitcoin",
+    "tags": [
+      "multisig",
+      "custody",
+      "bitcoin",
+      "inheritance"
+    ]
+  },
+  {
+    "url": "https://www.fireblocks.com",
+    "name": "Fireblocks",
+    "tagline": "Institutional platform for securing digital asset operations.",
+    "description": "Fireblocks offers MPC and multisig-based custody, transfer, and settlement infrastructure used by exchanges, banks, and enterprises to manage crypto assets.",
+    "category": "infrastructure",
+    "chain": "ethereum",
+    "tags": [
+      "multisig",
+      "mpc",
+      "custody",
+      "institutional"
+    ]
+  },
+  {
+    "url": "https://www.bitgo.com",
+    "name": "BitGo",
+    "tagline": "Multisig and custody infrastructure for institutional crypto.",
+    "description": "BitGo pioneered multisig wallet technology and now provides regulated custody, staking, and wallet infrastructure for institutions across many blockchains.",
+    "category": "infrastructure",
+    "chain": "bitcoin",
+    "tags": [
+      "multisig",
+      "custody",
+      "institutional",
+      "wallet"
+    ]
+  },
+  {
+    "url": "https://electrum.org",
+    "name": "Electrum",
+    "tagline": "Fast, lightweight bitcoin wallet with multisig support.",
+    "description": "Electrum is a longstanding open-source bitcoin wallet that supports multisignature wallet setups alongside hardware wallet integration.",
+    "category": "wallet",
+    "chain": "bitcoin",
+    "tags": [
+      "multisig",
+      "open-source",
+      "wallet",
+      "hardware-wallet"
+    ]
+  },
+  {
+    "url": "https://sparrowwallet.com",
+    "name": "Sparrow Wallet",
+    "tagline": "Desktop bitcoin wallet built for privacy and multisig.",
+    "description": "Sparrow is a desktop bitcoin wallet focused on privacy, transparency, and easy setup of multisig vaults with hardware wallets and coordinators.",
+    "category": "wallet",
+    "chain": "bitcoin",
+    "tags": [
+      "multisig",
+      "privacy",
+      "desktop",
+      "hardware-wallet"
+    ]
+  },
+  {
+    "url": "https://gnosis-safe.io",
+    "name": "Gnosis Guild",
+    "tagline": "Tooling for DAOs and multisig-governed on-chain organizations.",
+    "description": "Gnosis Guild builds modular governance and permissions tooling, such as Zodiac, that extends Safe multisig wallets into full on-chain organizations.",
+    "category": "dao",
+    "chain": "ethereum",
+    "tags": [
+      "multisig",
+      "governance",
+      "dao",
+      "permissions"
+    ]
+  },
+  {
+    "url": "https://1password.com",
+    "name": "1Password",
+    "tagline": "Password manager and digital vault.",
+    "description": "1Password securely stores passwords, logins, and sensitive documents across all your devices with strong encryption.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "security",
+      "password-manager"
+    ]
+  },
+  {
+    "url": "https://dropbox.com",
+    "name": "Dropbox",
+    "tagline": "Cloud storage and file sync.",
+    "description": "Dropbox lets individuals and teams store, sync, and share files securely across devices from anywhere.",
+    "category": "productivity",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "cloud-storage",
+      "file-sharing"
+    ]
+  },
+  {
+    "url": "https://tailscale.com",
+    "name": "Tailscale",
+    "tagline": "Zero-config secure networking.",
+    "description": "Tailscale creates encrypted mesh VPN networks between your devices in minutes using WireGuard, no complex configuration required.",
+    "category": "infrastructure",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "vpn",
+      "networking"
+    ]
+  },
+  {
+    "url": "https://1blocker.com",
+    "name": "1Blocker",
+    "tagline": "Ad and tracker blocker for Safari.",
+    "description": "1Blocker removes ads, trackers, and cookie notices from Safari on Mac and iOS to speed up browsing and protect privacy.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "privacy",
+      "ad-blocker"
+    ]
+  },
+  {
+    "url": "https://malwarebytes.com",
+    "name": "Malwarebytes",
+    "tagline": "Anti-malware and antivirus protection.",
+    "description": "Malwarebytes scans and removes malware, ransomware, and other threats to keep computers and devices secure.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "security",
+      "antivirus"
+    ]
+  },
+  {
+    "url": "https://ccleaner.com",
+    "name": "CCleaner",
+    "tagline": "System cleanup and optimization tool.",
+    "description": "CCleaner frees up disk space and speeds up PCs by clearing temporary files, browser caches, and unused registry entries.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "system-maintenance",
+      "optimization"
+    ]
+  },
+  {
+    "url": "https://handbrake.fr",
+    "name": "HandBrake",
+    "tagline": "Free open-source video transcoder.",
+    "description": "HandBrake converts video files between formats and compresses them for smaller sizes with a wide range of device presets.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "video",
+      "open-source"
+    ]
+  },
+  {
+    "url": "https://7-zip.org",
+    "name": "7-Zip",
+    "tagline": "Free file archiver with high compression.",
+    "description": "7-Zip compresses and extracts files in formats like 7z and ZIP, offering a high compression ratio and open-source licensing.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "utilities",
+      "file-compression",
+      "open-source"
+    ]
   }
 ]
