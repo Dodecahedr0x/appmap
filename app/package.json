@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:live": "tsx scripts/seed-live/index.ts",
+    "db:seed:onchain": "tsx scripts/seedOnchainStakes.ts",
     "og:backfill": "tsx scripts/backfillOpengraph.ts",
     "db:reset": "bash scripts/ensure-postgres.sh && prisma db push --force-reset && npm run db:seed",
     "db:studio": "prisma studio",
