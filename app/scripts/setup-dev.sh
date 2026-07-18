@@ -236,6 +236,15 @@ else
   echo "$INDEXER_PID" > "$INDEXER_PID_FILE"
 fi
 
+# Real on-chain content for a fresh local environment to actually show —
+# NOT a database seed script (there is no such thing in this repo, see
+# AGENTS.md): this sends genuine init_app/suggest_tag transactions, the
+# same instructions the app's own "Create app" UI flow builds, just signed
+# by the local dev keypair instead of a browser wallet. Idempotent (skips
+# any app already registered on-chain), so safe on a reused Surfnet too.
+log "Creating apps on-chain from scripts/appData/apps.json"
+npm run apps:create-onchain
+
 log "Done"
 cat <<EOF
 
@@ -246,12 +255,16 @@ Local dev environment is ready:
   - NEB minted and its DLMM pool created (or reused — see .env)
   - indexer running on 127.0.0.1:$INDEXER_API_PORT (logs: $INDEXER_LOG) — the
     app talks to this instead of Solana RPC directly, see indexer/README.md
-  - database schema applied by the indexer itself; empty until real on-chain
-    activity happens (there is no seed script — see AGENTS.md)
+  - database schema applied by the indexer itself, then populated by
+    scripts/appData/apps.json's apps landing on-chain (there is no seed
+    script — see AGENTS.md) — give the indexer a few seconds to catch up
 
 Next steps:
-  - Run 'npm run dev' to start the app (http://localhost:3000), then use the
-    "Create app" flow in the UI (or place votes/stakes) to generate real
-    on-chain activity for the indexer to pick up
+  - Run 'npm run dev' to start the app (http://localhost:3000) — apps should
+    already be there; use the "Create app" flow in the UI (or place
+    votes/stakes) to generate more on-chain activity
+  - Run 'npm run apps:discover -- --tag=<tag>' to use \`claude -p\` to find
+    more apps for a given tag and append them to scripts/appData/apps.json,
+    then 'npm run apps:create-onchain' to register the new ones
   - Run 'npm run teardown:dev' to stop surfpool, the indexer, and local Postgres
 EOF

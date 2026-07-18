@@ -123,6 +123,45 @@ Runnable from the repo root or from `app/` — identical either way.
 | `npm run settle:epoch` | Manual revenue settlement run (AdSense → on-chain reward funding) |
 | `npm run snapshot:daily` | Write today's `AppStatsSnapshot` row per app (for trend charts) |
 | `npm run launch:neb` | Mint NEB's full supply and seed the NEB/USDC Meteora DLMM pool (see below) |
+| `npm run apps:create-onchain` | Register every app in `scripts/appData/apps.json` on-chain (idempotent — see "Populating apps" below) |
+| `npm run apps:discover -- --tag=<tag>` | Use `claude -p` to find real apps matching a tag and append them to `scripts/appData/apps.json` |
+
+## Populating apps
+
+There is no database seed script (see "Database ownership" below) — apps
+only exist once a real `init_app` transaction confirms on-chain and the
+indexer picks it up. `scripts/appData/apps.json` is a checked-in list of
+`{url, name, tagline, description, category, chain, tags}` entries (seeded
+from ~30 well-known Solana apps, then expanded with `apps:discover` — see
+below); `npm run apps:create-onchain` sends one real, permissionless
+`init_app` (+ `suggest_tag` per initial tag) transaction per entry, signed
+by a local keypair (`~/.config/solana/id.json` by default, or
+`DEPLOYER_KEYPAIR_PATH`) — the exact same instructions the app's own
+"Create app" UI flow builds, just scripted. It's idempotent (the on-chain
+`app_id` is derived deterministically from each entry's URL, so a second
+run only creates whatever's still missing), so it's safe to run on every
+`setup:dev` (which does — see `app/scripts/setup-dev.sh`) and safe to
+re-run against a production deployment as the list grows.
+
+There's no automated production/deploy step for this in `render.yaml` — it
+needs a funded keypair with real SOL, which isn't something to hand to an
+automatic Render build. Run it manually against a deployment instead:
+
+```bash
+DEPLOYER_KEYPAIR_PATH=/path/to/funded-keypair.json \
+NEXT_PUBLIC_SOLANA_RPC=https://api.devnet.solana.com \
+NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID=<deployed program id> \
+npm run apps:create-onchain
+```
+
+To grow the list beyond its current apps (including into non-Solana
+categories — `chain` supports `web2`/`ethereum`/etc., not just `solana`),
+run `npm run apps:discover -- --tag=<tag>` for whatever tag/category you
+want more coverage of; it shells out to a local `claude -p` subprocess
+(same pattern as the deleted `seed-live/tagger.ts` used to tag apps, just
+inverted — see `scripts/discoverApps.ts`) asking for real apps matching
+that tag, dedupes against the existing list by URL, and appends whatever's
+new.
 
 ## NEB token launch
 

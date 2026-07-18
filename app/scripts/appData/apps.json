@@ -1,0 +1,800 @@
+[
+  {
+    "url": "https://jup.ag",
+    "name": "Jupiter",
+    "tagline": "The key liquidity aggregator for Solana",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "swap",
+      "aggregator",
+      "trading",
+      "dex"
+    ]
+  },
+  {
+    "url": "https://www.tensor.trade",
+    "name": "Tensor",
+    "tagline": "The fastest NFT marketplace on Solana",
+    "category": "nft",
+    "chain": "solana",
+    "tags": [
+      "marketplace",
+      "nft",
+      "trading"
+    ]
+  },
+  {
+    "url": "https://marinade.finance",
+    "name": "Marinade",
+    "tagline": "Liquid staking protocol",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "staking",
+      "liquid-staking",
+      "yield"
+    ]
+  },
+  {
+    "url": "https://phantom.app",
+    "name": "Phantom",
+    "tagline": "A friendly crypto wallet built for DeFi & NFTs",
+    "category": "wallet",
+    "chain": "solana",
+    "tags": [
+      "wallet",
+      "self-custody",
+      "mobile"
+    ]
+  },
+  {
+    "url": "https://www.drift.trade",
+    "name": "Drift",
+    "tagline": "Decentralized perpetuals exchange",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "perps",
+      "trading",
+      "derivatives",
+      "dex"
+    ]
+  },
+  {
+    "url": "https://magiceden.io",
+    "name": "Magic Eden",
+    "tagline": "The community-centric NFT marketplace",
+    "category": "nft",
+    "chain": "solana",
+    "tags": [
+      "marketplace",
+      "nft",
+      "launchpad"
+    ]
+  },
+  {
+    "url": "https://staratlas.com",
+    "name": "Star Atlas",
+    "tagline": "Grand strategy game of interstellar conquest",
+    "category": "gaming",
+    "chain": "solana",
+    "tags": [
+      "game",
+      "metaverse",
+      "strategy"
+    ]
+  },
+  {
+    "url": "https://app.realms.today",
+    "name": "Realms",
+    "tagline": "DAO tooling and governance for Solana",
+    "category": "dao",
+    "chain": "solana",
+    "tags": [
+      "dao",
+      "governance",
+      "voting"
+    ]
+  },
+  {
+    "url": "https://www.helius.dev",
+    "name": "Helius",
+    "tagline": "The best Solana RPC & developer platform",
+    "category": "infrastructure",
+    "chain": "solana",
+    "tags": [
+      "rpc",
+      "developer-tools",
+      "infrastructure",
+      "api"
+    ]
+  },
+  {
+    "url": "https://kamino.finance",
+    "name": "Kamino",
+    "tagline": "Automated liquidity & lending",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "lending",
+      "yield",
+      "automation"
+    ]
+  },
+  {
+    "url": "https://www.dialect.to",
+    "name": "Dialect",
+    "tagline": "Smart messaging & notifications",
+    "category": "social",
+    "chain": "solana",
+    "tags": [
+      "messaging",
+      "notifications",
+      "social"
+    ]
+  },
+  {
+    "url": "https://vybenetwork.com",
+    "name": "Vybe Network",
+    "tagline": "Wallet tracking and portfolio analytics for Solana",
+    "category": "analytics",
+    "chain": "solana",
+    "tags": [
+      "portfolio",
+      "analytics",
+      "dashboard"
+    ]
+  },
+  {
+    "url": "https://www.orca.so",
+    "name": "Orca",
+    "tagline": "The friendliest DEX on Solana",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "dex",
+      "swap",
+      "amm",
+      "trading"
+    ]
+  },
+  {
+    "url": "https://backpack.app",
+    "name": "Backpack",
+    "tagline": "A home for your xNFTs",
+    "category": "wallet",
+    "chain": "solana",
+    "tags": [
+      "wallet",
+      "xnft",
+      "exchange"
+    ]
+  },
+  {
+    "url": "https://zeta.markets",
+    "name": "Zeta Markets",
+    "tagline": "Under-collateralized DeFi derivatives",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "derivatives",
+      "options",
+      "perps"
+    ]
+  },
+  {
+    "url": "https://raydium.io",
+    "name": "Raydium",
+    "tagline": "On-chain order book AMM powering Solana DeFi",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "dex",
+      "amm",
+      "swap",
+      "trading"
+    ]
+  },
+  {
+    "url": "https://www.meteora.ag",
+    "name": "Meteora",
+    "tagline": "Dynamic liquidity market maker for Solana",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "dlmm",
+      "liquidity",
+      "amm"
+    ]
+  },
+  {
+    "url": "https://www.jito.wtf",
+    "name": "Jito",
+    "tagline": "MEV infrastructure and liquid staking for Solana",
+    "category": "infrastructure",
+    "chain": "solana",
+    "tags": [
+      "mev",
+      "liquid-staking",
+      "validators"
+    ]
+  },
+  {
+    "url": "https://squads.so",
+    "name": "Squads",
+    "tagline": "Multisig and smart account infrastructure for Solana",
+    "category": "infrastructure",
+    "chain": "solana",
+    "tags": [
+      "multisig",
+      "security",
+      "tooling"
+    ]
+  },
+  {
+    "url": "https://solflare.com",
+    "name": "Solflare",
+    "tagline": "A non-custodial wallet for Solana",
+    "category": "wallet",
+    "chain": "solana",
+    "tags": [
+      "wallet",
+      "self-custody",
+      "staking"
+    ]
+  },
+  {
+    "url": "https://save.finance",
+    "name": "Save",
+    "tagline": "Algorithmic lending and borrowing protocol",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "lending",
+      "borrowing",
+      "yield"
+    ]
+  },
+  {
+    "url": "https://www.pyth.network",
+    "name": "Pyth Network",
+    "tagline": "Real-time market data oracle for DeFi",
+    "category": "infrastructure",
+    "chain": "solana",
+    "tags": [
+      "oracle",
+      "market-data",
+      "infrastructure"
+    ]
+  },
+  {
+    "url": "https://www.metaplex.com",
+    "name": "Metaplex",
+    "tagline": "The NFT and digital asset standard for Solana",
+    "category": "developer-tools",
+    "chain": "solana",
+    "tags": [
+      "nft",
+      "protocol",
+      "developer-tools"
+    ]
+  },
+  {
+    "url": "https://solanamobile.com",
+    "name": "Solana Mobile",
+    "tagline": "Mobile hardware and stack built for crypto",
+    "category": "other",
+    "chain": "solana",
+    "tags": [
+      "mobile",
+      "hardware",
+      "wallet"
+    ]
+  },
+  {
+    "url": "https://www.sanctum.so",
+    "name": "Sanctum",
+    "tagline": "Liquidity infrastructure for every LST on Solana",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "liquid-staking",
+      "liquidity",
+      "yield"
+    ]
+  },
+  {
+    "url": "https://www.parcl.co",
+    "name": "Parcl",
+    "tagline": "Trade real estate markets on-chain",
+    "category": "defi",
+    "chain": "solana",
+    "tags": [
+      "perps",
+      "real-estate",
+      "trading"
+    ]
+  },
+  {
+    "url": "https://www.getgrass.io",
+    "name": "Grass",
+    "tagline": "DePIN network turning spare bandwidth into rewards",
+    "category": "infrastructure",
+    "chain": "solana",
+    "tags": [
+      "depin",
+      "bandwidth",
+      "network"
+    ]
+  },
+  {
+    "url": "https://notion.so",
+    "name": "Notion",
+    "tagline": "All-in-one workspace for notes and docs",
+    "description": "Notion combines notes, docs, wikis, and project tracking in a single flexible workspace used by teams and individuals.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "productivity",
+      "notes",
+      "collaboration"
+    ]
+  },
+  {
+    "url": "https://todoist.com",
+    "name": "Todoist",
+    "tagline": "Simple, powerful task manager",
+    "description": "Todoist helps individuals and teams organize tasks and projects with a clean interface across all major platforms.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "productivity",
+      "tasks",
+      "organization"
+    ]
+  },
+  {
+    "url": "https://linear.app",
+    "name": "Linear",
+    "tagline": "Issue tracking built for speed",
+    "description": "Linear is a streamlined project and issue tracking tool designed for high-performance software teams.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "productivity",
+      "project-management",
+      "engineering"
+    ]
+  },
+  {
+    "url": "https://obsidian.md",
+    "name": "Obsidian",
+    "tagline": "A knowledge base built on local Markdown files",
+    "description": "Obsidian lets users write and link notes in plain Markdown, building a personal knowledge graph stored on their own device.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "productivity",
+      "notes",
+      "knowledge-management"
+    ]
+  },
+  {
+    "url": "https://asana.com",
+    "name": "Asana",
+    "tagline": "Work management for teams",
+    "description": "Asana helps teams plan, track, and manage projects and tasks with timelines, boards, and automation.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "productivity",
+      "project-management",
+      "teams"
+    ]
+  },
+  {
+    "url": "https://calendly.com",
+    "name": "Calendly",
+    "tagline": "Automated scheduling made easy",
+    "description": "Calendly eliminates back-and-forth emails by letting others book time on your calendar based on your availability.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "productivity",
+      "scheduling",
+      "calendar"
+    ]
+  },
+  {
+    "url": "https://github.com",
+    "name": "GitHub",
+    "tagline": "The home for all developers.",
+    "description": "A platform for hosting and reviewing code, managing projects, and building software collaboratively, built on Git version control.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "developer-tools",
+      "version-control",
+      "collaboration"
+    ]
+  },
+  {
+    "url": "https://postman.com",
+    "name": "Postman",
+    "tagline": "API platform for building and using APIs.",
+    "description": "Postman lets developers design, test, document, and monitor APIs collaboratively across teams.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "developer-tools",
+      "api",
+      "testing"
+    ]
+  },
+  {
+    "url": "https://vercel.com",
+    "name": "Vercel",
+    "tagline": "Develop, preview, and ship frontend apps.",
+    "description": "A cloud platform for deploying and hosting frontend frameworks like Next.js with instant previews and global edge delivery.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "developer-tools",
+      "hosting",
+      "frontend"
+    ]
+  },
+  {
+    "url": "https://docker.com",
+    "name": "Docker",
+    "tagline": "Build, share, and run containerized apps.",
+    "description": "Docker provides tooling to package applications and their dependencies into portable containers for consistent development and deployment.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "developer-tools",
+      "containers",
+      "devops"
+    ]
+  },
+  {
+    "url": "https://sentry.io",
+    "name": "Sentry",
+    "tagline": "Application monitoring and error tracking.",
+    "description": "Sentry helps developers detect, triage, and fix performance issues and crashes in real time across their software stack.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "developer-tools",
+      "monitoring",
+      "debugging"
+    ]
+  },
+  {
+    "url": "https://supabase.com",
+    "name": "Supabase",
+    "tagline": "Open source Firebase alternative.",
+    "description": "Supabase gives developers a Postgres database, authentication, instant APIs, and storage to build apps quickly.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "developer-tools",
+      "backend",
+      "database"
+    ]
+  },
+  {
+    "url": "https://openai.com/chatgpt",
+    "name": "ChatGPT",
+    "tagline": "Conversational AI assistant for work and life.",
+    "description": "OpenAI's flagship chatbot for writing, coding, research, and general Q&A, powered by GPT models.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "ai",
+      "chatbot",
+      "assistant"
+    ]
+  },
+  {
+    "url": "https://midjourney.com",
+    "name": "Midjourney",
+    "tagline": "AI image generation from text prompts.",
+    "description": "A Discord-based and web tool that generates highly stylized images and art from natural language descriptions.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "ai",
+      "image-generation",
+      "art"
+    ]
+  },
+  {
+    "url": "https://perplexity.ai",
+    "name": "Perplexity",
+    "tagline": "AI-powered answer engine.",
+    "description": "A search assistant that answers questions in natural language with cited sources instead of just links.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "ai",
+      "search",
+      "research"
+    ]
+  },
+  {
+    "url": "https://elevenlabs.io",
+    "name": "ElevenLabs",
+    "tagline": "AI voice generation and cloning.",
+    "description": "A platform for generating realistic synthetic speech and cloning voices for audio, video, and app narration.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "ai",
+      "voice",
+      "audio"
+    ]
+  },
+  {
+    "url": "https://runwayml.com",
+    "name": "Runway",
+    "tagline": "AI video generation and editing.",
+    "description": "Creative suite offering text-to-video, video editing, and generative AI tools for filmmakers and designers.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "ai",
+      "video",
+      "creative-tools"
+    ]
+  },
+  {
+    "url": "https://cursor.com",
+    "name": "Cursor",
+    "tagline": "AI-native code editor.",
+    "description": "A code editor built around AI pair-programming, letting developers chat with and edit large codebases using LLMs.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "ai",
+      "code-editor",
+      "developer-tools"
+    ]
+  },
+  {
+    "url": "https://figma.com",
+    "name": "Figma",
+    "tagline": "Collaborative interface design tool",
+    "description": "A browser-based design platform for creating UI, prototypes, and design systems together in real time.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "design",
+      "ui",
+      "collaboration",
+      "prototyping"
+    ]
+  },
+  {
+    "url": "https://canva.com",
+    "name": "Canva",
+    "tagline": "Simple drag-and-drop design for everyone",
+    "description": "An online design tool for creating graphics, presentations, and marketing materials using templates and an easy visual editor.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "design",
+      "graphics",
+      "templates"
+    ]
+  },
+  {
+    "url": "https://adobe.com/products/xd.html",
+    "name": "Adobe XD",
+    "tagline": "UX/UI design and prototyping tool",
+    "description": "Adobe's vector-based tool for designing and prototyping websites and mobile apps.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "design",
+      "ux",
+      "prototyping"
+    ]
+  },
+  {
+    "url": "https://sketch.com",
+    "name": "Sketch",
+    "tagline": "Digital design toolkit for Mac",
+    "description": "A vector graphics editor built for macOS focused on UI and product design workflows.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "design",
+      "ui",
+      "mac"
+    ]
+  },
+  {
+    "url": "https://dribbble.com",
+    "name": "Dribbble",
+    "tagline": "Discover the world's top designers",
+    "description": "A community and portfolio platform where designers showcase work and find creative jobs.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "design",
+      "portfolio",
+      "community"
+    ]
+  },
+  {
+    "url": "https://framer.com",
+    "name": "Framer",
+    "tagline": "Design and publish real websites",
+    "description": "A design tool that lets creators build interactive prototypes and publish production-ready websites without code.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "design",
+      "no-code",
+      "website-builder"
+    ]
+  },
+  {
+    "url": "https://twitter.com",
+    "name": "X (Twitter)",
+    "tagline": "Real-time global conversation platform.",
+    "description": "A microblogging and social networking service where users post short updates, follow others, and engage in public discourse.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "social-media",
+      "microblogging",
+      "news"
+    ]
+  },
+  {
+    "url": "https://instagram.com",
+    "name": "Instagram",
+    "tagline": "Photo and video sharing social network.",
+    "description": "A visually-driven social platform for sharing photos, videos, stories, and reels with friends and followers worldwide.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "social-media",
+      "photo-sharing",
+      "video"
+    ]
+  },
+  {
+    "url": "https://reddit.com",
+    "name": "Reddit",
+    "tagline": "The front page of the internet.",
+    "description": "A network of community-driven forums (subreddits) where users discuss topics ranging from news to niche hobbies.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "social-media",
+      "forums",
+      "community"
+    ]
+  },
+  {
+    "url": "https://tiktok.com",
+    "name": "TikTok",
+    "tagline": "Short-form video social platform.",
+    "description": "An app for creating, sharing, and discovering short videos set to music, driven by a powerful recommendation algorithm.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "social-media",
+      "short-video",
+      "entertainment"
+    ]
+  },
+  {
+    "url": "https://linkedin.com",
+    "name": "LinkedIn",
+    "tagline": "Professional networking and career platform.",
+    "description": "A social network for professionals to build connections, find jobs, and share industry content and updates.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "social-media",
+      "professional-network",
+      "careers"
+    ]
+  },
+  {
+    "url": "https://bsky.app",
+    "name": "Bluesky",
+    "tagline": "Decentralized social networking app.",
+    "description": "A Twitter-like microblogging platform built on the open AT Protocol, emphasizing user choice and portable identity.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "social-media",
+      "decentralized",
+      "microblogging"
+    ]
+  },
+  {
+    "url": "https://netflix.com",
+    "name": "Netflix",
+    "tagline": "Stream movies and TV shows on demand.",
+    "description": "A subscription service offering a large library of films, series, and original productions across many genres.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "video-streaming",
+      "entertainment",
+      "subscription"
+    ]
+  },
+  {
+    "url": "https://youtube.com",
+    "name": "YouTube",
+    "tagline": "Watch and share videos from anyone.",
+    "description": "A global video platform hosting everything from user uploads to music videos, live streams, and creator content.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "video-streaming",
+      "social",
+      "creator-economy"
+    ]
+  },
+  {
+    "url": "https://twitch.tv",
+    "name": "Twitch",
+    "tagline": "Live streaming for gamers and creators.",
+    "description": "A live-streaming platform best known for video game broadcasts, esports, and interactive creator communities.",
+    "category": "social",
+    "chain": "web2",
+    "tags": [
+      "video-streaming",
+      "live-streaming",
+      "gaming"
+    ]
+  },
+  {
+    "url": "https://hulu.com",
+    "name": "Hulu",
+    "tagline": "Stream TV shows, movies, and originals.",
+    "description": "A U.S. streaming service offering next-day episodes, films, and exclusive original programming.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "video-streaming",
+      "entertainment",
+      "subscription"
+    ]
+  },
+  {
+    "url": "https://disneyplus.com",
+    "name": "Disney+",
+    "tagline": "Stream Disney, Pixar, Marvel, and Star Wars.",
+    "description": "Disney's flagship streaming service bundling content from its major studios and franchises.",
+    "category": "other",
+    "chain": "web2",
+    "tags": [
+      "video-streaming",
+      "entertainment",
+      "subscription"
+    ]
+  },
+  {
+    "url": "https://vimeo.com",
+    "name": "Vimeo",
+    "tagline": "Video hosting for creators and businesses.",
+    "description": "A platform for hosting, sharing, and monetizing high-quality video content, popular with filmmakers and companies.",
+    "category": "developer-tools",
+    "chain": "web2",
+    "tags": [
+      "video-streaming",
+      "hosting",
+      "creator-tools"
+    ]
+  }
+]
