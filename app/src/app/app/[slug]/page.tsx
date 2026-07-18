@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchAppBySlug } from "@/lib/indexerClient";
@@ -82,9 +83,22 @@ export default async function AppDetailPage({ params }: Props) {
     ],
   };
 
+  // Lets Google render "nebulous.world > App Name" as the SERP breadcrumb
+  // instead of the raw URL — small CTR bump, no visual change on the page
+  // itself (there's no on-page breadcrumb UI to keep in sync).
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: app.name, item: `${SITE_URL}/app/${app.slug}` },
+    ],
+  };
+
   return (
     <div className="space-y-6">
       <JsonLd data={appLd} />
+      <JsonLd data={breadcrumbLd} />
       {/* Records a page view for traffic analytics & revenue attribution. */}
       <TrafficBeacon appId={app.id} path={`/app/${app.slug}`} />
 
@@ -99,11 +113,13 @@ export default async function AppDetailPage({ params }: Props) {
       <div className="card overflow-hidden p-0">
         <div className="relative aspect-[3/1] w-full shrink-0 overflow-hidden bg-mist">
           {app.iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={app.iconUrl}
               alt=""
-              className="h-full w-full object-cover ring-1 ring-inset ring-black/10"
+              fill
+              sizes="(min-width: 1024px) 800px, 100vw"
+              priority
+              className="object-cover ring-1 ring-inset ring-black/10"
             />
           ) : (
             <div className="grid h-full w-full place-items-center text-5xl font-bold text-violet">

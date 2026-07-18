@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { AppDTO } from "@/lib/types";
 import { formatToken, formatNumber, hostname, cn, topStakedTag } from "@/lib/utils";
@@ -42,11 +43,16 @@ export function AppCard({
           card reads like a link preview rather than a bare list row. */}
       <div className="relative aspect-[1200/630] w-full shrink-0 overflow-hidden bg-mist">
         {app.iconUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={app.iconUrl}
             alt=""
-            className="h-full w-full object-cover ring-1 ring-inset ring-white/10 transition-transform duration-300 group-hover:scale-[1.03]"
+            fill
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            // Above-the-fold apps (top-ranked on the first screenful) load
+            // eagerly so they're not the page's LCP bottleneck; the rest
+            // lazy-load like any other next/image.
+            priority={typeof rank === "number" && rank <= 3}
+            className="object-cover ring-1 ring-inset ring-white/10 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-4xl font-bold text-violet">

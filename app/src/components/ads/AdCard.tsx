@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useAdServe } from "@/hooks/useAdServe";
 
 /**
@@ -40,11 +41,12 @@ export function AdCard({ appId }: { appId: string }) {
     >
       <div className="relative aspect-[1200/630] w-full shrink-0 overflow-hidden bg-mist">
         {ad.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={ad.imageUrl}
             alt=""
-            className="h-full w-full object-cover ring-1 ring-inset ring-white/10 transition-transform duration-300 group-hover:scale-[1.03]"
+            fill
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className="object-cover ring-1 ring-inset ring-white/10 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-4xl font-bold text-violet">
