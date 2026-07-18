@@ -12,6 +12,7 @@
     "ensure:config": "tsx --env-file=.env scripts/ensureConfigInitialized.ts",
     "apps:create-onchain": "tsx --env-file=.env scripts/createAppsOnchain.ts",
     "apps:discover": "tsx --env-file=.env scripts/discoverApps.ts",
+    "apps:extend": "tsx --env-file=.env scripts/extendAppList.ts",
     "og:backfill": "tsx scripts/backfillOpengraph.ts",
     "setup:dev": "bash scripts/setup-dev.sh",
     "teardown:dev": "bash scripts/teardown-dev.sh",

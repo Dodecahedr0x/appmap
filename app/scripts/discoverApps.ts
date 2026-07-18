@@ -26,7 +26,7 @@ interface ClaudePrintResult {
   result: string;
 }
 
-interface Args {
+export interface Args {
   tag: string;
   count: number;
   file: string;
@@ -113,22 +113,27 @@ async function discover(args: Args, existingUrls: string[]): Promise<AppEntry[]>
   return parseApps(parsed.result);
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (!args.tag) throw new Error("--tag=<tag> is required");
-
-  const existing = JSON.parse(readFileSync(args.file, "utf-8")) as AppEntry[];
+/**
+ * One tag's worth of discovery against `existing`: asks the model, dedupes
+ * the response by URL (against `existing` AND within the response itself),
+ * and logs what it found. Shared by this script's `main()` (single tag) and
+ * `extendAppList.ts` (many tags, one call per iteration) so the dedupe/
+ * logging logic isn't duplicated between them.
+ */
+export async function discoverTag(
+  args: Args,
+  existing: AppEntry[],
+): Promise<{ fresh: AppEntry[] }> {
   const existingUrls = new Set(existing.map((a) => normalizeUrl(a.url)));
-
   console.log(`🔎 Asking claude -p for apps tagged "${args.tag}" (model ${args.model})…`);
   const found = await discover(args, [...existingUrls]);
 
   const fresh: AppEntry[] = [];
-  const seenThisRun = new Set<string>();
+  const seenThisRound = new Set<string>();
   for (const app of found) {
     const key = normalizeUrl(app.url);
-    if (existingUrls.has(key) || seenThisRun.has(key)) continue;
-    seenThisRun.add(key);
+    if (existingUrls.has(key) || seenThisRound.has(key)) continue;
+    seenThisRound.add(key);
     fresh.push(app);
   }
 
@@ -136,6 +141,15 @@ async function main() {
   for (const app of fresh) {
     console.log(`  + ${app.name} — ${app.url} [${app.tags?.join(", ") ?? ""}]`);
   }
+  return { fresh };
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.tag) throw new Error("--tag=<tag> is required");
+
+  const existing = JSON.parse(readFileSync(args.file, "utf-8")) as AppEntry[];
+  const { fresh } = await discoverTag(args, existing);
 
   if (fresh.length === 0) {
     console.log("Nothing new to add.");
