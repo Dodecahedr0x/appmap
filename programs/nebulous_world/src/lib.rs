@@ -60,4 +60,12 @@ pub mod nebulous_world {
     pub fn claim_tag_reward(ctx: Context<ClaimTagReward>) -> Result<()> {
         claim_tag_reward::handler(ctx)
     }
+
+    pub fn close_vote_position(ctx: Context<CloseVotePosition>) -> Result<()> {
+        close_vote_position::handler(ctx)
+    }
+
+    pub fn close_tag_stake_position(ctx: Context<CloseTagStakePosition>) -> Result<()> {
+        close_tag_stake_position::handler(ctx)
+    }
 }

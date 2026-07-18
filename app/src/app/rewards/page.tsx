@@ -4,6 +4,7 @@ import { TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 import { BuyPanel } from "@/components/token/BuyPanel";
 import { PoolAnalytics } from "@/components/rewards/PoolAnalytics";
 import { ClaimRewards } from "@/components/rewards/ClaimRewards";
+import { CloseZeroStakeAccounts } from "@/components/rewards/CloseZeroStakeAccounts";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function RewardsPage() {
       <BuyPanel />
       <PoolAnalytics pool={pool} />
       <ClaimRewards />
+      <CloseZeroStakeAccounts />
     </div>
   );
 }

@@ -25,4 +25,8 @@ pub enum ErrorCode {
     NoStakers,
     #[msg("app_tag_stake does not belong to the provided app")]
     AppTagStakeMismatch,
+    #[msg("Cannot close a position that still holds stake")]
+    NonZeroStake,
+    #[msg("The provided payer account does not match the position's stored rent payer")]
+    PayerMismatch,
 }

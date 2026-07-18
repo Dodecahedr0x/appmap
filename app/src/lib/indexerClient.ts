@@ -87,6 +87,8 @@ export interface AppTagStakeData {
 export interface PositionData {
   pda: string;
   owner: string;
+  /** Who paid this position's rent at creation — see indexer/src/api.rs's `PositionRow::payer` doc comment. */
+  payer: string;
   amount: string;
   rewardDebt: string;
   /** Unix seconds — see app/src/lib/unstakeFee.ts for what this drives. */
@@ -221,6 +223,29 @@ export async function buildClaimTagRewardTx(
   user: string,
 ): Promise<BuiltTx> {
   return (await post("/tx/claim-tag-reward", { appId, tagSlug, user })) as BuiltTx;
+}
+
+export async function buildCloseVotePositionTx(position: string, user: string): Promise<BuiltTx> {
+  return (await post("/tx/close-vote-position", { position, user })) as BuiltTx;
+}
+
+export async function buildCloseTagStakePositionTx(position: string, user: string): Promise<BuiltTx> {
+  return (await post("/tx/close-tag-stake-position", { position, user })) as BuiltTx;
+}
+
+export interface CloseablePosition {
+  position: string;
+  kind: "vote" | "tagStake";
+  /** Rent lamports this position refunds once closed. */
+  lamports: number;
+}
+
+/** Every zero-stake VotePosition/StakePosition `owner` can reclaim rent from — see indexer/src/api.rs's get_closeable_positions. */
+export async function fetchCloseablePositions(owner: string): Promise<CloseablePosition[]> {
+  const { positions } = (await get(`/wallet/${owner}/closeable-positions`)) as {
+    positions: CloseablePosition[];
+  };
+  return positions;
 }
 
 export interface BuiltSwap extends BuiltTx {

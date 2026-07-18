@@ -87,6 +87,26 @@ pub async fn index_account(
     Ok(())
 }
 
+/// Removes a closed account's row from `indexed_account` entirely, rather
+/// than upserting a "deleted" state into it. Unlike every other mutation
+/// this indexer tracks, an Anchor `close` doesn't leave a still-owned
+/// account behind for the live `programSubscribe` datasource `index_account`
+/// above is fed by to observe — the account's owner reassigns to the System
+/// Program and its lamports drop to 0, so it simply stops matching that
+/// subscription's program-owned filter, and the stale row would otherwise
+/// sit in Postgres forever claiming a position that no longer exists.
+/// Called from `src/crawler.rs` on `close_vote_position`/
+/// `close_tag_stake_position`, the one place a decoded instruction (not an
+/// account update) tells us this happened.
+pub async fn delete_account(pool: &PgPool, pubkey: &str) -> CarbonResult<()> {
+    sqlx::query("DELETE FROM indexed_account WHERE pubkey = $1")
+        .bind(pubkey)
+        .execute(pool)
+        .await
+        .map_err(|e| carbon_core::error::Error::Custom(e.to_string()))?;
+    Ok(())
+}
+
 pub struct AccountProcessor {
     pub pool: PgPool,
 }

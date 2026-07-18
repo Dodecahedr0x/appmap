@@ -9,6 +9,7 @@ use solana_pubkey::Pubkey;
 pub struct StakePosition {
     pub app_tag_stake: Pubkey,
     pub owner: Pubkey,
+    pub payer: Pubkey,
     pub amount: u64,
     pub reward_debt: u128,
     /// Size-weighted-average deposit timestamp (Unix seconds) — see

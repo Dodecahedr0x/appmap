@@ -58,6 +58,8 @@ const CLAIM_VOTE_REWARD_DISC: [u8; 8] = [113, 18, 86, 93, 183, 183, 117, 245];
 const CLAIM_TAG_REWARD_DISC: [u8; 8] = [90, 104, 233, 219, 216, 183, 0, 2];
 const INIT_APP_DISC: [u8; 8] = [126, 7, 32, 62, 17, 43, 172, 107];
 const SUGGEST_TAG_DISC: [u8; 8] = [192, 92, 24, 181, 145, 125, 233, 31];
+const CLOSE_VOTE_POSITION_DISC: [u8; 8] = [134, 150, 55, 9, 196, 152, 228, 22];
+const CLOSE_TAG_STAKE_POSITION_DISC: [u8; 8] = [38, 121, 255, 37, 236, 94, 214, 33];
 
 pub struct ApiState {
     pub pool: PgPool,
@@ -88,6 +90,10 @@ pub fn router(state: Arc<ApiState>) -> Router {
             get(get_stake_position),
         )
         .route("/balances/:owner/:mint", get(get_balance))
+        .route(
+            "/wallet/:owner/closeable-positions",
+            get(get_closeable_positions),
+        )
         .route("/pool", get(get_pool))
         .route("/metrics/platform-history", get(get_platform_metrics_history))
         .route("/tx/create-app", post(build_create_app))
@@ -98,6 +104,11 @@ pub fn router(state: Arc<ApiState>) -> Router {
         .route("/tx/withdraw-tag-stake", post(build_withdraw_tag_stake))
         .route("/tx/claim-vote-reward", post(build_claim_vote_reward))
         .route("/tx/claim-tag-reward", post(build_claim_tag_reward))
+        .route("/tx/close-vote-position", post(build_close_vote_position))
+        .route(
+            "/tx/close-tag-stake-position",
+            post(build_close_tag_stake_position),
+        )
         .route("/tx/buy-neb/build", post(build_buy_neb))
         .route("/tx/submit", post(submit_tx))
         .merge(crate::handlers::users::routes())
@@ -361,6 +372,12 @@ struct AppTagStakeRow {
 #[derive(Deserialize)]
 struct PositionRow {
     owner: Pubkey,
+    /// Who paid this position's rent at creation — see
+    /// `VotePosition::payer`/`StakePosition::payer`'s doc comments in the
+    /// program crate. `build_close_vote_position`/`build_close_tag_stake_position`
+    /// read this to fill in the close instruction's `payer` account, since
+    /// it isn't a PDA seed and can't be re-derived, only read.
+    payer: Pubkey,
     amount: u64,
     reward_debt: u128,
     /// Unix seconds — see `VotePosition::staked_at`/`StakePosition::staked_at`'s
@@ -402,6 +419,7 @@ struct AppTagStakeDto {
 struct PositionDto {
     pda: String,
     owner: String,
+    payer: String,
     amount: String,
     reward_debt: String,
     /// Unix seconds (not milliseconds, not an ISO string) — the raw on-chain
@@ -493,6 +511,7 @@ async fn get_vote_position(
     Ok(Json(PositionDto {
         pda: pda.to_string(),
         owner: row.owner.to_string(),
+        payer: row.payer.to_string(),
         amount: row.amount.to_string(),
         reward_debt: row.reward_debt.to_string(),
         staked_at: row.staked_at,
@@ -517,6 +536,7 @@ async fn get_stake_position(
     Ok(Json(PositionDto {
         pda: pda.to_string(),
         owner: row.owner.to_string(),
+        payer: row.payer.to_string(),
         amount: row.amount.to_string(),
         reward_debt: row.reward_debt.to_string(),
         staked_at: row.staked_at,
@@ -988,6 +1008,141 @@ async fn build_withdraw_tag_stake(
     let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
     let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
     Ok(Json(BuiltTxDto { transaction: tx }))
+}
+
+// ---------------------------------------------------------------------
+// Closing emptied positions — reclaims a `VotePosition`/`StakePosition`'s
+// rent once its `amount` is back to 0, refunded to whoever originally paid
+// it (`PositionRow::payer`, read off the indexed account itself: it isn't a
+// PDA seed, so it can only be looked up, not re-derived). Both endpoints
+// take the position's own pubkey directly rather than app_id (+tag_slug) —
+// the on-chain instructions re-derive their seeds from the position
+// account's own stored `app`/`app_tag_stake` field (see
+// `close_vote_position.rs`'s doc comment), so nothing else is needed to
+// build a valid close instruction, and the caller already has the pubkey
+// from `GET /wallet/:owner/closeable-positions` below.
+// ---------------------------------------------------------------------
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClosePositionReq {
+    position: String,
+    user: String,
+}
+
+async fn build_close_vote_position(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<ClosePositionReq>,
+) -> Result<Json<BuiltTxDto>, ApiError> {
+    let user = parse_pubkey("user", &req.user)?;
+    let position = parse_pubkey("position", &req.position)?;
+    let row: PositionRow = fetch_account(&state.pool, &position, "VotePosition")
+        .await?
+        .ok_or_else(|| not_found("vote position does not exist".to_string()))?;
+    if row.owner != user {
+        return Err(forbidden("user is not this position's owner".to_string()));
+    }
+    if row.amount != 0 {
+        return Err(conflict("position still holds stake — withdraw it first".to_string()));
+    }
+
+    let data = CLOSE_VOTE_POSITION_DISC.to_vec();
+    // `payer` is writable (it receives the reclaimed rent lamports) but
+    // never needs to sign — see close_vote_position.rs's doc comment on why
+    // receiving lamports back requires no authorization from the receiver.
+    let accounts = vec![
+        AccountMeta::new(position, false),
+        AccountMeta::new(row.payer, false),
+        AccountMeta::new_readonly(user, true),
+    ];
+    let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
+    let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
+    Ok(Json(BuiltTxDto { transaction: tx }))
+}
+
+async fn build_close_tag_stake_position(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<ClosePositionReq>,
+) -> Result<Json<BuiltTxDto>, ApiError> {
+    let user = parse_pubkey("user", &req.user)?;
+    let position = parse_pubkey("position", &req.position)?;
+    let row: PositionRow = fetch_account(&state.pool, &position, "StakePosition")
+        .await?
+        .ok_or_else(|| not_found("tag stake position does not exist".to_string()))?;
+    if row.owner != user {
+        return Err(forbidden("user is not this position's owner".to_string()));
+    }
+    if row.amount != 0 {
+        return Err(conflict("position still holds stake — withdraw it first".to_string()));
+    }
+
+    let data = CLOSE_TAG_STAKE_POSITION_DISC.to_vec();
+    let accounts = vec![
+        AccountMeta::new(position, false),
+        AccountMeta::new(row.payer, false),
+        AccountMeta::new_readonly(user, true),
+    ];
+    let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
+    let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
+    Ok(Json(BuiltTxDto { transaction: tx }))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CloseablePositionDto {
+    position: String,
+    kind: &'static str,
+    /// Rent lamports this position will refund to its payer once closed —
+    /// small enough (a rent-exempt minimum, not a token amount) to safely
+    /// be a plain JS number rather than a decimal string.
+    lamports: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CloseablePositionsDto {
+    positions: Vec<CloseablePositionDto>,
+}
+
+/// Every `VotePosition`/`StakePosition` owned by `owner` that currently
+/// holds zero stake — exactly the set `build_close_vote_position`/
+/// `build_close_tag_stake_position` above are safe to call against, and
+/// what the "close all 0-stake accounts" UI action lists. A direct JSONB
+/// query against `indexed_account` rather than a live `getProgramAccounts`
+/// scan (see the module doc's "no RPC per request" contract) — the account
+/// processor (src/processors/account.rs) keeps `owner`/`amount` current for
+/// every position it observes, and `src/crawler.rs` deletes a position's row
+/// entirely once `close_vote_position`/`close_tag_stake_position` actually
+/// closes it, so a row showing up here is never already-closed.
+async fn get_closeable_positions(
+    State(state): State<Arc<ApiState>>,
+    Path(owner): Path<String>,
+) -> Result<Json<CloseablePositionsDto>, ApiError> {
+    let owner_pk = parse_pubkey("owner", &owner)?;
+    let rows: Vec<(String, String, i64)> = sqlx::query_as(
+        r#"
+        SELECT pubkey, account_type, lamports
+        FROM indexed_account
+        WHERE account_type IN ('VotePosition', 'StakePosition')
+          AND data->'data'->>'owner' = $1
+          AND data->'data'->>'amount' = '0'
+        ORDER BY pubkey
+        "#,
+    )
+    .bind(owner_pk.to_string())
+    .fetch_all(&state.pool)
+    .await
+    .map_err(internal)?;
+
+    let positions = rows
+        .into_iter()
+        .map(|(pubkey, account_type, lamports)| CloseablePositionDto {
+            position: pubkey,
+            kind: if account_type == "VotePosition" { "vote" } else { "tagStake" },
+            lamports,
+        })
+        .collect();
+    Ok(Json(CloseablePositionsDto { positions }))
 }
 
 #[derive(Deserialize)]
