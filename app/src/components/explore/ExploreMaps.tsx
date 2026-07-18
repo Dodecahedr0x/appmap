@@ -29,7 +29,7 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
     key: "group",
     label: "Group",
     description:
-      "Apps nested by tag, from the most common tag down to the most specific. Outer circles are broad themes, inner circles narrow them down, and the smallest filled circles are individual apps. Click a circle to zoom in, drag to pan, and scroll to zoom.",
+      "Apps nested by tag, from the most common tag down to the most specific. Outer circles are broad themes, inner circles narrow them down, and the smallest filled circles are individual apps. Click an app to zoom in, or a tag (here or below) to filter down to it — drag to pan, scroll to zoom.",
   },
 ];
 
@@ -139,7 +139,7 @@ export function ExploreMaps() {
 
           <p className="max-w-2xl text-pretty text-sm text-slate">{active.description}</p>
 
-          {tab === "apps" && availableTags.length > 0 && (
+          {(tab === "apps" || tab === "group") && availableTags.length > 0 && (
             <div>
               <div className="text-caption font-semibold uppercase tracking-wide text-slate">
                 Filter by tag{selectedTags.length > 0 ? ` (${selectedTags.length} selected)` : ""}
@@ -171,7 +171,7 @@ export function ExploreMaps() {
             ) : tab === "tags" ? (
               <TagMap onSelect={handleTagSelect} />
             ) : (
-              <GroupMap onSelect={handleGroupSelect} />
+              <GroupMap onSelect={handleGroupSelect} selectedTags={selectedTags} onToggleTag={toggleTagFilter} />
             )}
           </div>
         </div>

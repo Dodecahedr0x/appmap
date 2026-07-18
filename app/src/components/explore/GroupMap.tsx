@@ -201,14 +201,36 @@ function selectionFor(node: PackedNode): MapSelection | null {
  * Inspired by https://observablehq.com/@d3/zoomable-circle-packing. Unlike
  * AppMap/TagMap, the circles themselves have no physics step (their
  * position is deterministic from d3.pack()), so the "dynamic" part is
- * entirely a view transform layered on top: click a circle to smoothly zoom
- * in and select it (click it again, or the background, to zoom back out),
- * drag anywhere to pan, and scroll/pinch or the +/−/reset buttons to zoom —
- * the same interaction language as ForceMap's canvas maps, just driven by a
- * CSS `transform`/`transition` on a wrapping `<g>` instead of a per-frame
- * canvas repaint, since there's no simulation to redraw every tick.
+ * entirely a view transform layered on top: drag anywhere to pan, and
+ * scroll/pinch or the +/−/reset buttons to zoom — the same interaction
+ * language as ForceMap's canvas maps, just driven by a CSS
+ * `transform`/`transition` on a wrapping `<g>` instead of a per-frame canvas
+ * repaint, since there's no simulation to redraw every tick.
+ *
+ * Clicking a circle means one of two different things depending on what it
+ * is, since a tag and an app aren't interchangeable here the way they are
+ * in TagMap/AppMap: clicking an APP leaf zooms in and selects it (same as
+ * before — a one-off preview, shown in RelatedApps below). Clicking a TAG
+ * circle instead toggles that tag into/out of `selectedTags`, the same
+ * standing filter ExploreMaps' chip picker drives — not a one-off zoom,
+ * since once a tag is filtered the tree is rebuilt from only the apps that
+ * carry it, and the existing "reset view when the data changes" effect
+ * already snaps to a fresh full view of that narrower tree, which serves
+ * "look closer at this tag" better than a manual zoom would (no unrelated
+ * apps left cluttering the view to zoom past). Deliberately not both at
+ * once — toggling the filter already changes the tree the old zoom target
+ * would have pointed into, and showing a RelatedApps preview for a tag
+ * whose apps are already the entire (filtered) map would be redundant.
  */
-export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | null) => void }) {
+export function GroupMap({
+  onSelect,
+  selectedTags = [],
+  onToggleTag,
+}: {
+  onSelect?: (selection: MapSelection | null) => void;
+  selectedTags?: string[];
+  onToggleTag?: (slug: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -278,14 +300,25 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
     return () => ro.disconnect();
   }, []);
 
-  // A resize or a fresh dataset changes every node's x/y/r (pack() re-lays
-  // out to fill the current container size), so a pan/zoom computed against
-  // the old layout no longer points at anything meaningful — reset to the
-  // full view rather than leave the camera aimed at empty space.
+  // A resize, a fresh dataset, or a tag-filter change all change every
+  // node's x/y/r (pack() re-lays out from scratch each time), so a pan/zoom
+  // computed against the old layout no longer points at anything
+  // meaningful — reset to the full view rather than leave the camera aimed
+  // at empty space. A stale selection is cleared for the same reason: it
+  // might reference an app the new filter just excluded from the tree
+  // entirely.
+  const selectedTagsKey = selectedTags.join(",");
   useEffect(() => {
     setView(IDENTITY_VIEW);
     setFocusKey(null);
-  }, [size.width, size.height, pkg]);
+    setSelectedId(null);
+    onSelect?.(null);
+    // onSelect intentionally excluded — it's a fresh closure every render
+    // (ExploreMaps doesn't memoize its handlers), and including it would
+    // re-run this reset (clearing the very selection it just set) on every
+    // parent re-render, not just when the filter/dataset actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size.width, size.height, pkg, selectedTagsKey]);
 
   // Native, non-passive listener so preventDefault reliably stops page
   // scroll while the cursor is over the map — React's onWheel is passive by
@@ -318,7 +351,20 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
     gestureTimeoutRef.current = window.setTimeout(() => setInstant(false), GESTURE_SETTLE_MS);
   }
 
-  const tree = buildTagPackTree(pkg);
+  // AND semantics — same as AppMap's own tag filter (see its fetchUrl's
+  // ?tags= building an intersection server-side): a filtered map should
+  // only ever get more specific as more tags are added, not less.
+  // `tags` in the tree still comes from the full, unfiltered `pkg` — an
+  // app's own tags are still ranked by their TRUE global popularity across
+  // every app, not just the filtered subset, so filtering to "wallet"
+  // narrows which apps appear without reshuffling how the ones that remain
+  // nest relative to each other.
+  const filteredApps =
+    selectedTags.length > 0
+      ? pkg.apps.filter((a) => selectedTags.every((t) => a.tagSlugs.includes(t)))
+      : pkg.apps;
+  const isFilteredEmpty = selectedTags.length > 0 && filteredApps.length === 0 && !isEmpty;
+  const tree = buildTagPackTree({ tags: pkg.tags, apps: filteredApps });
   const root: PackTagNode = { type: "tag", id: "__root__", name: "", children: tree.children };
   const width = Math.max(1, size.width);
   const height = Math.max(1, size.height);
@@ -365,10 +411,10 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
     onSelect?.(selectionFor(node));
   }
 
-  // Click-to-zoom: clicking a circle zooms in and selects it; clicking the
-  // circle that's already filling the view zooms back out one level
+  // Click-to-zoom: clicking an app leaf zooms in and selects it; clicking
+  // the leaf that's already filling the view zooms back out one level
   // instead (and drops the selection, mirroring a background click).
-  function handleNodeClick(n: PackedNode) {
+  function handleAppClick(n: PackedNode) {
     const key = nodeKey(n);
     if (focusKey === key) {
       zoomToNode(parentFocusTarget(n));
@@ -378,6 +424,18 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
     }
     zoomToNode(n);
     select(n);
+  }
+
+  // A tag circle's click means "filter to this tag" rather than "zoom to
+  // this circle" — see the component doc comment for why the two node
+  // types don't share a click behavior here. No-ops if the caller didn't
+  // wire up filtering (onToggleTag is optional).
+  function handleCircleClick(n: PackedNode) {
+    if (n.data.type === "app") {
+      handleAppClick(n);
+    } else {
+      onToggleTag?.(n.data.id);
+    }
   }
 
   // Screen (client) coordinates -> the same node-space (n.x/n.y/n.r) our
@@ -443,7 +501,7 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
       const point = screenToNodeSpace(e.clientX, e.clientY);
       const hit = point && nodeAtPoint(point);
       if (hit) {
-        handleNodeClick(hit);
+        handleCircleClick(hit);
       } else if (selectedId || focusKey) {
         zoomToNode(null);
         setSelectedId(null);
@@ -470,7 +528,7 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
             height="100%"
             viewBox={`0 0 ${width} ${height}`}
             role="img"
-            aria-label="Circle-packing map of nebulous.world tags and apps. Outer circles are the most common tags; inner circles nest one tag deeper; small filled circles are individual apps. Drag to pan, scroll or use the zoom buttons to zoom, and click a circle to zoom into it and select it."
+            aria-label="Circle-packing map of nebulous.world tags and apps. Outer circles are the most common tags; inner circles nest one tag deeper; small filled circles are individual apps. Drag to pan, scroll or use the zoom buttons to zoom. Click an app to zoom into it and select it; click a tag to filter the map down to apps carrying it."
             className={cn("touch-none select-none", isPanning ? "cursor-grabbing" : "cursor-grab")}
             onPointerDown={onPointerDownPan}
             onPointerMove={onPointerMovePan}
@@ -488,6 +546,11 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
                 const isApp = n.data.type === "app";
                 const isSelected = selectedId === key;
                 const isHovered = hoveredId === key;
+                // A tag circle's "selected" state is standing (part of the
+                // active filter) rather than transient like an app leaf's —
+                // it stays highlighted until toggled off again, not just
+                // while it's the last-clicked thing.
+                const isFilterTag = !isApp && selectedTags.includes(n.data.id);
                 // Effective on-screen radius at the current zoom — see
                 // appLabelFits' comment for why the fit check (and the
                 // counter-scaled fontSize/y below) use this instead of n.r.
@@ -505,8 +568,8 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
                       r={n.r}
                       fill={isApp ? APP_FILL : tagFill(n.depth, maxDepth)}
                       fillOpacity={isApp ? (isHovered || isSelected ? 0.95 : 0.75) : undefined}
-                      stroke={isSelected ? SELECTED_RING : isHovered ? "#ffffff" : "rgba(255,255,255,0.15)"}
-                      strokeWidth={(isSelected ? 2.5 : isHovered ? 2 : 1) / view.k}
+                      stroke={isSelected || isFilterTag ? SELECTED_RING : isHovered ? "#ffffff" : "rgba(255,255,255,0.15)"}
+                      strokeWidth={(isSelected || isFilterTag ? 2.5 : isHovered ? 2 : 1) / view.k}
                     />
                     {showLabel && (
                       <text
@@ -529,6 +592,13 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
         {isEmpty && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
             <p className="text-sm text-white/50">No approved apps to group yet.</p>
+          </div>
+        )}
+        {isFilteredEmpty && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
+            <p className="text-sm text-white/50">
+              No apps carry every selected tag: {selectedTags.map((t) => `#${t}`).join(", ")}.
+            </p>
           </div>
         )}
         {loading && !isEmpty && (
@@ -585,7 +655,7 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
         {leafNodes.map((n) => (
           <li key={n.data.id}>
             {onSelect ? (
-              <button type="button" onClick={() => handleNodeClick(n)}>
+              <button type="button" onClick={() => handleAppClick(n)}>
                 {n.data.name}: {formatToken(n.data.stake, TOKEN_SYMBOL)} staked
               </button>
             ) : (
@@ -595,8 +665,8 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
         ))}
       </ul>
       <div className="mt-2 text-caption text-white/50">
-        {source === "live" ? "Live tags & apps." : "Sample tags & apps."} Drag to pan, scroll to zoom, click a
-        circle to zoom in and select it.
+        {source === "live" ? "Live tags & apps." : "Sample tags & apps."} Drag to pan, scroll to zoom, click an app
+        to zoom in and select it, click a tag to filter the map to it.
       </div>
     </div>
   );
