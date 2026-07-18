@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { searchApps } from "@/lib/indexerClient";
+import { searchApps, fetchTags } from "@/lib/indexerClient";
 import { SITE_URL } from "@/lib/constants";
 
 // Server-only, so unlike the public /api/apps route (whose zod schema caps
@@ -16,14 +16,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.3 },
   ];
 
-  const { apps } = await searchApps({
-    q: "",
-    tags: [],
-    fuzzy: "",
-    sort: "new",
-    page: 1,
-    pageSize: MAX_APPS,
-  });
+  const [{ apps }, { tags }] = await Promise.all([
+    searchApps({ q: "", tags: [], fuzzy: "", sort: "new", page: 1, pageSize: MAX_APPS }),
+    fetchTags(),
+  ]);
 
   const appRoutes: MetadataRoute.Sitemap = apps.map((app) => ({
     url: `${SITE_URL}/app/${app.slug}`,
@@ -31,5 +27,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...appRoutes];
+  // Long-tail landing pages (see app/tags/[slug]/page.tsx) — only ones with
+  // at least one app are worth a crawler's time; an empty tag has no
+  // content to rank for yet.
+  const tagRoutes: MetadataRoute.Sitemap = tags
+    .filter((tag) => tag.appCount > 0)
+    .map((tag) => ({
+      url: `${SITE_URL}/tags/${tag.slug}`,
+      changeFrequency: "daily",
+      priority: 0.5,
+    }));
+
+  return [...staticRoutes, ...appRoutes, ...tagRoutes];
 }

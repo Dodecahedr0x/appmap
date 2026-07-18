@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
@@ -197,7 +198,9 @@ export function TagStakePanel({
             <li key={t.id} className="rounded-lg border border-hairline p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <span className="font-medium text-ink">#{t.name}</span>
+                  <Link href={`/tags/${t.slug}`} className="font-medium text-ink hover:text-cobalt">
+                    #{t.name}
+                  </Link>
                   <span className="ml-2 text-xs text-slate-steel">
                     {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
                   </span>

@@ -335,6 +335,11 @@ export async function fetchTags(q?: string): Promise<{ tags: TagListEntry[] }> {
   return (await get(`/tags${sp}`)) as { tags: TagListEntry[] };
 }
 
+/** Exact-slug lookup, `null` if the tag doesn't exist — for /tags/[slug]'s metadata/404. */
+export async function fetchTagBySlug(slug: string): Promise<TagListEntry | null> {
+  return (await getOrNull(`/tags/by-slug/${encodeURIComponent(slug)}`)) as TagListEntry | null;
+}
+
 export interface PlatformStats {
   totalApps: number;
   totalTags: number;

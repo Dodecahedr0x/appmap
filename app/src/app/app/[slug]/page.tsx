@@ -128,9 +128,12 @@ export default async function AppDetailPage({ params }: Props) {
           )}
           <div className="absolute right-3 top-3 flex gap-2">
             {topTag && (
-              <span className="chip border-none bg-white/90 shadow-subtle">
+              <Link
+                href={`/tags/${topTag.slug}`}
+                className="chip border-none bg-white/90 shadow-subtle hover:bg-white"
+              >
                 #{topTag.name}
-              </span>
+              </Link>
             )}
             <span className="chip border-none bg-white/90 capitalize shadow-subtle">
               {app.chain}
