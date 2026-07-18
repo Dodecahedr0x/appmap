@@ -11,6 +11,8 @@
 
 import { Transaction } from "@solana/web3.js";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
+import { isSimulationMode } from "@/lib/config";
+import type { ProgramTxResult } from "@/lib/anchorClient";
 
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -52,6 +54,28 @@ export async function pollUntilIndexed<T>(
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return null;
+}
+
+/**
+ * Builds (via the indexer, `POST path`), signs, and submits a program
+ * transaction — the shared shape behind every vote/stake/claim action. In
+ * simulation mode (no vote mint configured) this short-circuits without
+ * touching the chain, same as the off-chain fallback it replaces.
+ */
+export async function runProgramTx(
+  wallet: WalletContextState,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<ProgramTxResult> {
+  if (isSimulationMode()) return { txSig: null, simulated: true };
+  if (!wallet.publicKey) throw new Error("Connect your wallet first");
+
+  const { transaction } = await apiPost<{ transaction: string }>(path, {
+    ...body,
+    user: wallet.publicKey.toBase58(),
+  });
+  const txSig = await signAndSubmit(wallet, transaction);
+  return { txSig, simulated: false };
 }
 
 /** Signs an indexer-built unsigned transaction and submits it, returning the confirmed signature. */

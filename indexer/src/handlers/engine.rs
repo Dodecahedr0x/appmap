@@ -91,16 +91,12 @@ pub struct DistributionResult {
     pub shares: Vec<RevenueShare>,
 }
 
-fn clamp(x: f64, lo: f64, hi: f64) -> f64 {
-    x.max(lo).min(hi)
-}
-
 /// Same formula as `revenue.ts`'s `distributeRevenue` — protocol fee off the
 /// top, remainder split pro-rata by stake, last staker absorbs rounding
 /// dust so shares sum exactly to the distributable amount.
 pub fn distribute_revenue(gross: f64, positions: &[StakePosition], fee_rate: f64) -> DistributionResult {
     let safe_gross = gross.max(0.0);
-    let fee = round_to(safe_gross * clamp(fee_rate, 0.0, 1.0), 9);
+    let fee = round_to(safe_gross * fee_rate.clamp(0.0, 1.0), 9);
     let distributable = round_to(safe_gross - fee, 9);
 
     let active: Vec<&StakePosition> = positions.iter().filter(|p| p.stake > 0.0).collect();
@@ -153,7 +149,7 @@ pub fn distribute_app_revenue(
     fee_rate: f64,
 ) -> AppRevenueSplit {
     let safe_gross = gross.max(0.0);
-    let fee = round_to(safe_gross * clamp(fee_rate, 0.0, 1.0), 9);
+    let fee = round_to(safe_gross * fee_rate.clamp(0.0, 1.0), 9);
     let distributable = round_to(safe_gross - fee, 9);
 
     let has_voters = vote_positions.iter().any(|p| p.stake > 0.0);

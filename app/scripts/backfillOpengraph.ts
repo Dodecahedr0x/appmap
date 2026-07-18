@@ -7,6 +7,8 @@
 
 import { fetchAppsMissingMetadata, updateAppMetadata } from "../src/lib/indexerClient";
 import { enrichWithOpenGraph } from "../src/lib/opengraph";
+import { mapWithConcurrency } from "./lib/concurrency";
+import { parseFlags } from "./lib/parseFlags";
 
 interface Args {
   limit: number;
@@ -15,28 +17,12 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { limit: 200, concurrency: 5, dryRun: false };
-  for (const arg of argv) {
-    const [key, value] = arg.replace(/^--/, "").split("=");
-    if (key === "limit" && value) args.limit = Number(value);
-    else if (key === "concurrency" && value) args.concurrency = Number(value);
-    else if (key === "dry-run") args.dryRun = true;
-  }
-  return args;
-}
-
-/** Run `fn` over `items` with at most `limit` in flight at once. */
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]!, i);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
+  const f = parseFlags(argv);
+  return {
+    limit: typeof f.limit === "string" ? Number(f.limit) : 200,
+    concurrency: typeof f.concurrency === "string" ? Number(f.concurrency) : 5,
+    dryRun: Boolean(f["dry-run"]),
+  };
 }
 
 async function main() {

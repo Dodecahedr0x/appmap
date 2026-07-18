@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
 import { useCreateAppProgram } from "@/hooks/useCreateAppProgram";
+import { useMountTransition } from "@/hooks/useMountTransition";
 import { cn, formatToken, slugify } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { estimateUnstakeFee } from "@/lib/unstakeFee";
@@ -30,11 +31,7 @@ export function TagStakePanel({
   const { suggestTag } = useCreateAppProgram();
 
   const [stakingId, setStakingId] = useState<string | null>(null);
-  // Mirrors `stakingId` but stays mounted a beat longer on close so the
-  // stake-input row can fade/rise out instead of popping away the instant
-  // "Cancel" is clicked — same mount-delay pattern as Modal.tsx/FilterPanel.tsx.
-  const [revealRendered, setRevealRendered] = useState<string | null>(null);
-  const [revealVisible, setRevealVisible] = useState(false);
+  const { rendered: revealRendered, visible: revealVisible } = useMountTransition(stakingId, 200);
   const [stakeAmount, setStakeAmount] = useState(100);
   const [busy, setBusy] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -45,17 +42,6 @@ export function TagStakePanel({
   // button. Fetched per-tag since only the indexed on-chain account (not
   // the Postgres `myStakes` row) carries this field.
   const [stakedAtByTag, setStakedAtByTag] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    if (stakingId) {
-      setRevealRendered(stakingId);
-      const raf = requestAnimationFrame(() => setRevealVisible(true));
-      return () => cancelAnimationFrame(raf);
-    }
-    setRevealVisible(false);
-    const t = setTimeout(() => setRevealRendered(null), 200);
-    return () => clearTimeout(t);
-  }, [stakingId]);
 
   useEffect(() => {
     if (!user) {

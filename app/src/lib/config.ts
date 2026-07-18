@@ -13,11 +13,6 @@ export const config = {
       process.env.NEXT_PUBLIC_VOTE_TOKEN_DECIMALS || "6",
     ),
     programId: process.env.NEXT_PUBLIC_NEBULOUS_WORLD_PROGRAM_ID || "",
-    treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS || "",
-  },
-  ads: {
-    // Default CPM (revenue in token units per 1000 impressions).
-    cpm: Number(process.env.AD_CPM || "2.5"),
   },
   tracking: {
     secret: process.env.TRACKING_SECRET || "dev-tracking-secret-change-me",

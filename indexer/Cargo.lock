@@ -870,18 +870,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "carbon-log-metrics"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e0155ad8562c3ee6c97c2b1f8fa7c2ca95a55d65b9c9f2fbfe571483adedbf6"
-dependencies = [
- "async-trait",
- "carbon-core",
- "log",
- "tokio",
-]
-
-[[package]]
 name = "carbon-macros"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -893,9 +881,7 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "carbon-core",
- "carbon-test-utils",
  "serde",
- "serde-big-array",
  "serde_json",
  "solana-account",
  "solana-instruction",
@@ -931,24 +917,6 @@ dependencies = [
  "solana-pubkey 3.0.0",
  "tokio",
  "tokio-util",
-]
-
-[[package]]
-name = "carbon-test-utils"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7779b7e92909ec3784d9098569f430362b9530941eacbfc9d6b20bbf9026260b"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "bs58",
- "hex",
- "serde",
- "serde_json",
- "solana-account",
- "solana-instruction",
- "solana-pubkey 3.0.0",
- "solana-transaction-status",
 ]
 
 [[package]]
@@ -2634,7 +2602,6 @@ dependencies = [
  "base64 0.22.1",
  "bincode",
  "carbon-core",
- "carbon-log-metrics",
  "carbon-nebulous-world-decoder",
  "carbon-rpc-program-subscribe-datasource",
  "chrono",

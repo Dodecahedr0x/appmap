@@ -2,9 +2,8 @@
 
 import { useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { isSimulationMode } from "@/lib/config";
 import { toRawAmount, type ProgramTxResult } from "@/lib/anchorClient";
-import { apiPost, signAndSubmit } from "@/lib/txClient";
+import { runProgramTx } from "@/lib/txClient";
 
 /**
  * Vote/withdraw against the real Anchor program. In simulation mode (no
@@ -18,34 +17,14 @@ export function useVoteProgram() {
   const wallet = useWallet();
 
   const vote = useCallback(
-    async (appId: string, amount: number): Promise<ProgramTxResult> => {
-      if (isSimulationMode()) return { txSig: null, simulated: true };
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-
-      const { transaction } = await apiPost<{ transaction: string }>("/api/tx/vote", {
-        appId,
-        amount: toRawAmount(amount).toString(),
-        user: wallet.publicKey.toBase58(),
-      });
-      const txSig = await signAndSubmit(wallet, transaction);
-      return { txSig, simulated: false };
-    },
+    async (appId: string, amount: number): Promise<ProgramTxResult> =>
+      runProgramTx(wallet, "/api/tx/vote", { appId, amount: toRawAmount(amount).toString() }),
     [wallet],
   );
 
   const withdrawVote = useCallback(
-    async (appId: string, amount: number): Promise<ProgramTxResult> => {
-      if (isSimulationMode()) return { txSig: null, simulated: true };
-      if (!wallet.publicKey) throw new Error("Connect your wallet first");
-
-      const { transaction } = await apiPost<{ transaction: string }>("/api/tx/withdraw-vote", {
-        appId,
-        amount: toRawAmount(amount).toString(),
-        user: wallet.publicKey.toBase58(),
-      });
-      const txSig = await signAndSubmit(wallet, transaction);
-      return { txSig, simulated: false };
-    },
+    async (appId: string, amount: number): Promise<ProgramTxResult> =>
+      runProgramTx(wallet, "/api/tx/withdraw-vote", { appId, amount: toRawAmount(amount).toString() }),
     [wallet],
   );
 

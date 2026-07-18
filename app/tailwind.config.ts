@@ -91,10 +91,16 @@ const config: Config = {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        // A slow, quiet breathing pulse — ToastGlow's accent glow.
+        "toast-glow-pulse": {
+          "0%, 100%": { opacity: "0.5", transform: "scale(0.92)" },
+          "50%": { opacity: "0.8", transform: "scale(1.05)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.25s ease-out",
         "fade-in-fast": "fade-in-fast 0.15s ease-out",
+        "toast-glow-pulse": "toast-glow-pulse 3.5s ease-in-out infinite",
       },
     },
   },

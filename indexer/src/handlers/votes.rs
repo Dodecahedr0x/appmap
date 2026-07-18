@@ -64,7 +64,7 @@ async fn create(State(state): State<Arc<ApiState>>, Json(req): Json<CreateReq>) 
             .await
             .map_err(crate::api::internal)?;
         if existing {
-            return Err(ApiError(axum::http::StatusCode::CONFLICT, "This transaction was already recorded".into()));
+            return Err(crate::api::conflict("This transaction was already recorded"));
         }
     }
 
@@ -120,10 +120,10 @@ async fn withdraw(
         return Err(crate::api::not_found("Vote not found"));
     };
     if user_id != req.user_id {
-        return Err(ApiError(axum::http::StatusCode::FORBIDDEN, "Not your vote".into()));
+        return Err(crate::api::forbidden("Not your vote"));
     }
     if !active {
-        return Err(bad_request_conflict("Vote already withdrawn"));
+        return Err(crate::api::conflict("Vote already withdrawn"));
     }
 
     let app_id: String = sqlx::query_scalar(
@@ -137,10 +137,6 @@ async fn withdraw(
     refresh_app(&state.pool, &app_id).await?;
 
     Ok(Json(serde_json::json!({ "withdrawn": true })))
-}
-
-fn bad_request_conflict(msg: impl Into<String>) -> ApiError {
-    ApiError(axum::http::StatusCode::CONFLICT, msg.into())
 }
 
 pub fn routes() -> Router<Arc<ApiState>> {

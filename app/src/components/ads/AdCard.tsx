@@ -1,14 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-interface ServedAd {
-  id: string;
-  title: string;
-  body: string;
-  imageUrl: string | null;
-  targetUrl: string;
-}
+import { useAdServe } from "@/hooks/useAdServe";
 
 /**
  * A sponsored slot styled to match AppCard exactly (same hero-image aspect
@@ -21,45 +13,7 @@ interface ServedAd {
  * the app whose card immediately precedes this slot; see interleaveAds.
  */
 export function AdCard({ appId }: { appId: string }) {
-  const [ad, setAd] = useState<ServedAd | null>(null);
-  const [impressionId, setImpressionId] = useState<string | null>(null);
-  // Tracks which appId we've already requested for, rather than a plain
-  // one-shot boolean (AdSlot's pattern) — this slot's appId changes
-  // whenever the underlying list/page does (pagination, search, filters),
-  // without necessarily unmounting, and each new appId deserves its own ad
-  // request rather than silently keeping whatever the first one served.
-  const requestedFor = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (requestedFor.current === appId) return;
-    requestedFor.current = appId;
-    setAd(null);
-    setImpressionId(null);
-    fetch("/api/ads/serve", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ appId, path: window.location.pathname }),
-    })
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.ok && json.data.ad) {
-          setAd(json.data.ad);
-          setImpressionId(json.data.impressionId ?? null);
-        }
-      })
-      .catch(() => {});
-  }, [appId]);
-
-  const onClick = () => {
-    if (impressionId) {
-      fetch("/api/ads/click", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ impressionId }),
-        keepalive: true,
-      }).catch(() => {});
-    }
-  };
+  const { ad, onClick } = useAdServe(appId);
 
   if (!ad) {
     return (

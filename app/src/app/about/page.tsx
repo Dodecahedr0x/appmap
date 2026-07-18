@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchPlatformStats } from "@/lib/indexerClient";
-import { formatNumber, formatToken } from "@/lib/utils";
+import { formatNumber, formatToken, splitValueUnit } from "@/lib/utils";
 import { SITE_NAME, TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 import { ConstellationField } from "@/components/about/ConstellationField";
 
@@ -290,8 +290,7 @@ function StatItem({ label, value }: { label: string; value: string }) {
   // viewport. min-w-0 lets the column actually shrink to its track width;
   // splitting the unit onto its own line (like MetricTrendCard) gives long
   // values ("133.96K NEB") a natural wrap point instead of overflowing.
-  const [amount, ...unitParts] = value.split(" ");
-  const unit = unitParts.join(" ");
+  const [amount, unit] = splitValueUnit(value);
   return (
     <div className="min-w-0">
       <div className="flex flex-wrap items-baseline gap-x-1.5">

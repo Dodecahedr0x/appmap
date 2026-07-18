@@ -33,6 +33,55 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
 // the moment it ran.
 const UNSTAKE_FEE_START_BPS = 100;
 
+/**
+ * `Config` is a singleton PDA that can only be initialized once per test
+ * run. Since ts-mocha runs root `describe`s sequentially in file order, an
+ * earlier describe block may have already initialized it — reuse its
+ * `voteMint`/vault in that case instead of trying (and failing) to
+ * `initialize` again. Falls back to initializing it otherwise, so each
+ * describe block using this is also runnable in isolation (e.g. `mocha
+ * --grep`).
+ */
+async function ensureConfig(
+  program: Program<NebulousWorld>,
+  provider: anchor.AnchorProvider,
+  configPda: PublicKey,
+): Promise<{ voteMint: PublicKey; vault: PublicKey }> {
+  try {
+    const config = await program.account.config.fetch(configPda);
+    return {
+      voteMint: config.voteMint,
+      vault: getAssociatedTokenAddressSync(config.voteMint, configPda, true),
+    };
+  } catch {
+    // Config not initialized yet — fall through and initialize it.
+  }
+
+  const voteMint = await createMint(
+    provider.connection,
+    (provider.wallet as any).payer,
+    provider.wallet.publicKey,
+    null,
+    6,
+  );
+  const vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
+  const [programDataPda] = PublicKey.findProgramAddressSync(
+    [program.programId.toBuffer()],
+    BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+  );
+  await program.methods
+    .initialize(1000)
+    .accounts({
+      config: configPda,
+      vault,
+      authority: provider.wallet.publicKey,
+      voteMint,
+      programData: programDataPda,
+    })
+    .rpc();
+  return { voteMint, vault };
+}
+
 describe("nebulous_world: config", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -109,36 +158,7 @@ describe("nebulous_world: init_app", () => {
   // purely to guarantee `Config` exists for later describe blocks in this
   // file that do need it.
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    const vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint } = await ensureConfig(program, provider, configPda));
   });
 
   function derivePda(appId: string) {
@@ -248,36 +268,7 @@ describe("nebulous_world: suggest_tag", () => {
   // block in this file already created it. Like `init_app`, `suggest_tag`
   // never references `Config`/a vote mint either (see `suggest_tag.rs`).
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    const vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint } = await ensureConfig(program, provider, configPda));
   });
 
   function deriveAppPda(appId: string) {
@@ -524,37 +515,7 @@ describe("nebulous_world: vote", () => {
   // `Config` is a singleton, so reuse it if a prior describe block in this
   // file already created it.
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint, vault } = await ensureConfig(program, provider, configPda));
   });
 
   function derivePda(appId: string) {
@@ -708,37 +669,7 @@ describe("nebulous_world: withdraw_vote", () => {
   // above: `Config` is a singleton, so reuse it if a prior describe block in
   // this file already created it.
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint, vault } = await ensureConfig(program, provider, configPda));
   });
 
   function derivePda(appId: string) {
@@ -996,37 +927,7 @@ describe("nebulous_world: fund_app_rewards + claim_vote_reward", () => {
   // `provider.wallet` deployer) if a prior describe block already created
   // it.
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint, vault } = await ensureConfig(program, provider, configPda));
   });
 
   function derivePda(appId: string) {
@@ -1428,37 +1329,7 @@ describe("nebulous_world: stake_tag", () => {
   // `Config` is a singleton, so reuse it if a prior describe block in this
   // file already created it.
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint, vault } = await ensureConfig(program, provider, configPda));
   });
 
   function deriveAppPda(appId: string) {
@@ -1860,37 +1731,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
   let vault: PublicKey;
 
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint, vault } = await ensureConfig(program, provider, configPda));
   });
 
   function deriveAppPda(appId: string) {
@@ -2400,37 +2241,7 @@ describe("nebulous_world: claim_tag_reward", () => {
   let vault: PublicKey;
 
   before(async () => {
-    try {
-      const config = await program.account.config.fetch(configPda);
-      voteMint = config.voteMint;
-      vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-      return;
-    } catch {
-      // Config not initialized yet — fall through and initialize it.
-    }
-
-    voteMint = await createMint(
-      provider.connection,
-      (provider.wallet as any).payer,
-      provider.wallet.publicKey,
-      null,
-      6,
-    );
-    vault = getAssociatedTokenAddressSync(voteMint, configPda, true);
-    const [programDataPda] = PublicKey.findProgramAddressSync(
-      [program.programId.toBuffer()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    );
-    await program.methods
-      .initialize(1000)
-      .accounts({
-        config: configPda,
-        vault,
-        authority: provider.wallet.publicKey,
-        voteMint,
-        programData: programDataPda,
-      })
-      .rpc();
+    ({ voteMint, vault } = await ensureConfig(program, provider, configPda));
   });
 
   function deriveAppPda(appId: string) {
