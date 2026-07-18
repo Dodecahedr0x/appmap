@@ -87,7 +87,7 @@ program-derived signer, which by definition can never be a wallet `Signer`.
 Two genuine, low-severity issues found. Each gets its own commit; this
 checklist is ticked off as each lands.
 
-- [ ] **1. Unstake fee rounds in the withdrawer's favor, not the protocol's**
+- [x] **1. Unstake fee rounds in the withdrawer's favor, not the protocol's**
       (`unstake_fee.rs`) — SOL-023-class. `unstake_fee()`'s integer division
       truncates the fee down, so `net_amount = amount - fee` is always
       *at least* the mathematically-exact payout, off by at most 1 raw token
