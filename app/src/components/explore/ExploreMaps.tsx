@@ -10,13 +10,6 @@ import { GroupMap } from "./GroupMap";
 import { RelatedApps, type MapSelection } from "./RelatedApps";
 import type { MapNode } from "./ForceMap";
 
-// Local dark-glass chip styling for the tag-combination filter — this panel
-// sits on the animated nebula backdrop, not the light cream background the
-// shared `.chip`/`.chip-active` classes are tuned for (e.g. Discover).
-const DARK_CHIP =
-  "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
-const DARK_CHIP_ACTIVE = "border-[#54b9ff]/60 bg-[#54b9ff]/15 text-white";
-
 type TabKey = "apps" | "tags" | "group";
 
 const TABS: { key: TabKey; label: string; description: string }[] = [
@@ -111,12 +104,21 @@ export function ExploreMaps() {
 
   return (
     <div>
-      <section className="relative isolate overflow-hidden rounded-card border border-white/10 bg-gradient-to-b from-[#0c0f19] to-[#060913] p-4 sm:p-6">
-        <div className="relative space-y-4">
+      {/* Same Carbon-card surface as every other panel in the app (see
+          .card in globals.css) — this used to be a bespoke dark-glass
+          treatment (translucent white overlays, a hand-picked abyss →
+          singularity gradient) built for when this was the one dark
+          section on an otherwise light-cream page, sitting on an animated
+          nebula backdrop. Now that the whole app is the same dark Astro
+          theme (see DESIGN.md) and the nebula backdrop is gone, that
+          bespoke treatment just reads as visually out of step with
+          everything else — this panel is a card like any other now. */}
+      <section className="card overflow-hidden p-4 sm:p-6">
+        <div className="space-y-4">
           <div
             role="tablist"
             aria-label="Explore maps"
-            className="inline-flex gap-1 rounded-navitem border border-white/10 bg-white/5 p-1 backdrop-blur-sm"
+            className="inline-flex gap-1 rounded-navitem border border-hairline bg-mist p-1"
           >
             {TABS.map((t) => (
               <button
@@ -127,7 +129,7 @@ export function ExploreMaps() {
                 onClick={() => switchTab(t.key)}
                 className={cn(
                   "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.96]",
-                  tab === t.key ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80",
+                  tab === t.key ? "bg-ivory text-ink" : "text-slate hover:text-ink",
                 )}
               >
                 {t.label}
@@ -135,11 +137,11 @@ export function ExploreMaps() {
             ))}
           </div>
 
-          <p className="max-w-2xl text-pretty text-sm text-white/60">{active.description}</p>
+          <p className="max-w-2xl text-pretty text-sm text-slate">{active.description}</p>
 
           {tab === "apps" && availableTags.length > 0 && (
             <div>
-              <div className="text-caption font-semibold uppercase tracking-wide text-white/50">
+              <div className="text-caption font-semibold uppercase tracking-wide text-slate">
                 Filter by tag{selectedTags.length > 0 ? ` (${selectedTags.length} selected)` : ""}
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -149,17 +151,13 @@ export function ExploreMaps() {
                     type="button"
                     onClick={() => toggleTagFilter(t.id)}
                     aria-pressed={selectedTags.includes(t.id)}
-                    className={cn(DARK_CHIP, selectedTags.includes(t.id) && DARK_CHIP_ACTIVE)}
+                    className={cn("chip", selectedTags.includes(t.id) && "chip-active")}
                   >
                     #{t.name}
                   </button>
                 ))}
                 {selectedTags.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTags([])}
-                    className={cn(DARK_CHIP, "text-white/50 hover:text-white/80")}
-                  >
+                  <button type="button" onClick={() => setSelectedTags([])} className="chip">
                     Clear filters
                   </button>
                 )}
