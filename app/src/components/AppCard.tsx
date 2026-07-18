@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AppDTO } from "@/lib/types";
-import { formatToken, formatNumber, hostname, cn } from "@/lib/utils";
+import { formatToken, formatNumber, hostname, cn, topStakedTag } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 
 /** Compact metric with a label. */
@@ -32,6 +32,9 @@ export function AppCard({
     "card group flex flex-col overflow-hidden transition-colors",
     !preview && "hover:border-cobalt/40",
   );
+  // Apps have no onchain "category" — the corner badge shows the tag with
+  // the most stake behind it instead, or nothing if the app has no tags.
+  const topTag = topStakedTag(app.tags);
 
   const content = (
     <>
@@ -55,9 +58,11 @@ export function AppCard({
             {rank}
           </span>
         )}
-        <span className="chip absolute right-2.5 top-2.5 border-none bg-ivory/90 capitalize">
-          {app.category}
-        </span>
+        {topTag && (
+          <span className="chip absolute right-2.5 top-2.5 border-none bg-ivory/90">
+            #{topTag.name}
+          </span>
+        )}
       </div>
 
       {/* Domain + title strip, mirroring how a shared link preview unfurls. */}

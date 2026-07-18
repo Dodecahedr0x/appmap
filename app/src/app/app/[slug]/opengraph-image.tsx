@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { fetchAppBySlug } from "@/lib/indexerClient";
-import { formatToken, formatNumber } from "@/lib/utils";
+import { formatToken, formatNumber, topStakedTag } from "@/lib/utils";
 import { SITE_NAME } from "@/lib/constants";
 
 export const alt = "App preview";
@@ -50,6 +50,7 @@ export default async function Image({
   }
 
   const { app } = detail;
+  const topTag = topStakedTag(app.tags);
 
   return new ImageResponse(
     (
@@ -98,20 +99,21 @@ export default async function Image({
               {app.name}
             </div>
             <div style={{ display: "flex", gap: 12 }}>
-              <div
-                style={{
-                  display: "flex",
-                  padding: "6px 18px",
-                  borderRadius: 999,
-                  border: `1px solid ${hairline}`,
-                  background: ivory,
-                  fontSize: 24,
-                  color: slate,
-                  textTransform: "capitalize",
-                }}
-              >
-                {app.category}
-              </div>
+              {topTag && (
+                <div
+                  style={{
+                    display: "flex",
+                    padding: "6px 18px",
+                    borderRadius: 999,
+                    border: `1px solid ${hairline}`,
+                    background: ivory,
+                    fontSize: 24,
+                    color: slate,
+                  }}
+                >
+                  #{topTag.name}
+                </div>
+              )}
               <div
                 style={{
                   display: "flex",
