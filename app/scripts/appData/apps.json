@@ -9,7 +9,9 @@
       "swap",
       "aggregator",
       "trading",
-      "dex"
+      "dex",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -21,7 +23,9 @@
     "tags": [
       "marketplace",
       "nft",
-      "trading"
+      "trading",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -33,7 +37,9 @@
     "tags": [
       "staking",
       "liquid-staking",
-      "yield"
+      "yield",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -45,7 +51,9 @@
     "tags": [
       "wallet",
       "self-custody",
-      "mobile"
+      "mobile",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -58,7 +66,9 @@
       "perps",
       "trading",
       "derivatives",
-      "dex"
+      "dex",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -70,7 +80,9 @@
     "tags": [
       "marketplace",
       "nft",
-      "launchpad"
+      "launchpad",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -82,7 +94,9 @@
     "tags": [
       "game",
       "metaverse",
-      "strategy"
+      "strategy",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -94,7 +108,9 @@
     "tags": [
       "dao",
       "governance",
-      "voting"
+      "voting",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -107,7 +123,9 @@
       "rpc",
       "developer-tools",
       "infrastructure",
-      "api"
+      "api",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -119,7 +137,9 @@
     "tags": [
       "lending",
       "yield",
-      "automation"
+      "automation",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -131,7 +151,9 @@
     "tags": [
       "messaging",
       "notifications",
-      "social"
+      "social",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -143,7 +165,9 @@
     "tags": [
       "portfolio",
       "analytics",
-      "dashboard"
+      "dashboard",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -156,7 +180,9 @@
       "dex",
       "swap",
       "amm",
-      "trading"
+      "trading",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -168,7 +194,9 @@
     "tags": [
       "wallet",
       "xnft",
-      "exchange"
+      "exchange",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -180,7 +208,9 @@
     "tags": [
       "derivatives",
       "options",
-      "perps"
+      "perps",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -193,7 +223,9 @@
       "dex",
       "amm",
       "swap",
-      "trading"
+      "trading",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -205,7 +237,9 @@
     "tags": [
       "dlmm",
       "liquidity",
-      "amm"
+      "amm",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -217,7 +251,9 @@
     "tags": [
       "mev",
       "liquid-staking",
-      "validators"
+      "validators",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -229,7 +265,9 @@
     "tags": [
       "multisig",
       "security",
-      "tooling"
+      "tooling",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -241,7 +279,9 @@
     "tags": [
       "wallet",
       "self-custody",
-      "staking"
+      "staking",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -253,7 +293,9 @@
     "tags": [
       "lending",
       "borrowing",
-      "yield"
+      "yield",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -265,7 +307,9 @@
     "tags": [
       "oracle",
       "market-data",
-      "infrastructure"
+      "infrastructure",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -277,19 +321,23 @@
     "tags": [
       "nft",
       "protocol",
-      "developer-tools"
+      "developer-tools",
+      "solana",
+      "crypto"
     ]
   },
   {
     "url": "https://solanamobile.com",
     "name": "Solana Mobile",
     "tagline": "Mobile hardware and stack built for crypto",
-    "category": "other",
+    "category": "infrastructure",
     "chain": "solana",
     "tags": [
       "mobile",
       "hardware",
-      "wallet"
+      "wallet",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -301,7 +349,9 @@
     "tags": [
       "liquid-staking",
       "liquidity",
-      "yield"
+      "yield",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -313,7 +363,9 @@
     "tags": [
       "perps",
       "real-estate",
-      "trading"
+      "trading",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -325,7 +377,9 @@
     "tags": [
       "depin",
       "bandwidth",
-      "network"
+      "network",
+      "solana",
+      "crypto"
     ]
   },
   {
@@ -333,12 +387,13 @@
     "name": "Notion",
     "tagline": "All-in-one workspace for notes and docs",
     "description": "Notion combines notes, docs, wikis, and project tracking in a single flexible workspace used by teams and individuals.",
-    "category": "other",
+    "category": "productivity",
     "chain": "web2",
     "tags": [
       "productivity",
       "notes",
-      "collaboration"
+      "collaboration",
+      "workspace"
     ]
   },
   {
@@ -346,12 +401,13 @@
     "name": "Todoist",
     "tagline": "Simple, powerful task manager",
     "description": "Todoist helps individuals and teams organize tasks and projects with a clean interface across all major platforms.",
-    "category": "other",
+    "category": "productivity",
     "chain": "web2",
     "tags": [
       "productivity",
       "tasks",
-      "organization"
+      "organization",
+      "task-management"
     ]
   },
   {
@@ -364,7 +420,8 @@
     "tags": [
       "productivity",
       "project-management",
-      "engineering"
+      "engineering",
+      "issue-tracking"
     ]
   },
   {
@@ -372,12 +429,13 @@
     "name": "Obsidian",
     "tagline": "A knowledge base built on local Markdown files",
     "description": "Obsidian lets users write and link notes in plain Markdown, building a personal knowledge graph stored on their own device.",
-    "category": "other",
+    "category": "productivity",
     "chain": "web2",
     "tags": [
       "productivity",
       "notes",
-      "knowledge-management"
+      "knowledge-management",
+      "markdown"
     ]
   },
   {
@@ -385,12 +443,13 @@
     "name": "Asana",
     "tagline": "Work management for teams",
     "description": "Asana helps teams plan, track, and manage projects and tasks with timelines, boards, and automation.",
-    "category": "other",
+    "category": "productivity",
     "chain": "web2",
     "tags": [
       "productivity",
       "project-management",
-      "teams"
+      "teams",
+      "task-management"
     ]
   },
   {
@@ -398,12 +457,13 @@
     "name": "Calendly",
     "tagline": "Automated scheduling made easy",
     "description": "Calendly eliminates back-and-forth emails by letting others book time on your calendar based on your availability.",
-    "category": "other",
+    "category": "productivity",
     "chain": "web2",
     "tags": [
       "productivity",
       "scheduling",
-      "calendar"
+      "calendar",
+      "booking"
     ]
   },
   {
@@ -416,7 +476,8 @@
     "tags": [
       "developer-tools",
       "version-control",
-      "collaboration"
+      "collaboration",
+      "git"
     ]
   },
   {
@@ -429,7 +490,8 @@
     "tags": [
       "developer-tools",
       "api",
-      "testing"
+      "testing",
+      "api-testing"
     ]
   },
   {
@@ -442,7 +504,8 @@
     "tags": [
       "developer-tools",
       "hosting",
-      "frontend"
+      "frontend",
+      "deployment"
     ]
   },
   {
@@ -455,7 +518,8 @@
     "tags": [
       "developer-tools",
       "containers",
-      "devops"
+      "devops",
+      "infrastructure"
     ]
   },
   {
@@ -468,7 +532,8 @@
     "tags": [
       "developer-tools",
       "monitoring",
-      "debugging"
+      "debugging",
+      "observability"
     ]
   },
   {
@@ -481,7 +546,8 @@
     "tags": [
       "developer-tools",
       "backend",
-      "database"
+      "database",
+      "open-source"
     ]
   },
   {
@@ -489,12 +555,13 @@
     "name": "ChatGPT",
     "tagline": "Conversational AI assistant for work and life.",
     "description": "OpenAI's flagship chatbot for writing, coding, research, and general Q&A, powered by GPT models.",
-    "category": "other",
+    "category": "ai",
     "chain": "web2",
     "tags": [
       "ai",
       "chatbot",
-      "assistant"
+      "assistant",
+      "llm"
     ]
   },
   {
@@ -502,12 +569,13 @@
     "name": "Midjourney",
     "tagline": "AI image generation from text prompts.",
     "description": "A Discord-based and web tool that generates highly stylized images and art from natural language descriptions.",
-    "category": "other",
+    "category": "ai",
     "chain": "web2",
     "tags": [
       "ai",
       "image-generation",
-      "art"
+      "art",
+      "generative-ai"
     ]
   },
   {
@@ -515,12 +583,13 @@
     "name": "Perplexity",
     "tagline": "AI-powered answer engine.",
     "description": "A search assistant that answers questions in natural language with cited sources instead of just links.",
-    "category": "other",
+    "category": "ai",
     "chain": "web2",
     "tags": [
       "ai",
       "search",
-      "research"
+      "research",
+      "answer-engine"
     ]
   },
   {
@@ -528,12 +597,13 @@
     "name": "ElevenLabs",
     "tagline": "AI voice generation and cloning.",
     "description": "A platform for generating realistic synthetic speech and cloning voices for audio, video, and app narration.",
-    "category": "developer-tools",
+    "category": "ai",
     "chain": "web2",
     "tags": [
       "ai",
       "voice",
-      "audio"
+      "audio",
+      "text-to-speech"
     ]
   },
   {
@@ -541,12 +611,13 @@
     "name": "Runway",
     "tagline": "AI video generation and editing.",
     "description": "Creative suite offering text-to-video, video editing, and generative AI tools for filmmakers and designers.",
-    "category": "other",
+    "category": "ai",
     "chain": "web2",
     "tags": [
       "ai",
       "video",
-      "creative-tools"
+      "creative-tools",
+      "generative-ai"
     ]
   },
   {
@@ -559,7 +630,8 @@
     "tags": [
       "ai",
       "code-editor",
-      "developer-tools"
+      "developer-tools",
+      "ai-coding"
     ]
   },
   {
@@ -567,7 +639,7 @@
     "name": "Figma",
     "tagline": "Collaborative interface design tool",
     "description": "A browser-based design platform for creating UI, prototypes, and design systems together in real time.",
-    "category": "other",
+    "category": "design",
     "chain": "web2",
     "tags": [
       "design",
@@ -581,12 +653,13 @@
     "name": "Canva",
     "tagline": "Simple drag-and-drop design for everyone",
     "description": "An online design tool for creating graphics, presentations, and marketing materials using templates and an easy visual editor.",
-    "category": "other",
+    "category": "design",
     "chain": "web2",
     "tags": [
       "design",
       "graphics",
-      "templates"
+      "templates",
+      "no-code"
     ]
   },
   {
@@ -594,12 +667,13 @@
     "name": "Adobe XD",
     "tagline": "UX/UI design and prototyping tool",
     "description": "Adobe's vector-based tool for designing and prototyping websites and mobile apps.",
-    "category": "other",
+    "category": "design",
     "chain": "web2",
     "tags": [
       "design",
       "ux",
-      "prototyping"
+      "prototyping",
+      "ui"
     ]
   },
   {
@@ -607,12 +681,13 @@
     "name": "Sketch",
     "tagline": "Digital design toolkit for Mac",
     "description": "A vector graphics editor built for macOS focused on UI and product design workflows.",
-    "category": "other",
+    "category": "design",
     "chain": "web2",
     "tags": [
       "design",
       "ui",
-      "mac"
+      "mac",
+      "vector-graphics"
     ]
   },
   {
@@ -620,12 +695,13 @@
     "name": "Dribbble",
     "tagline": "Discover the world's top designers",
     "description": "A community and portfolio platform where designers showcase work and find creative jobs.",
-    "category": "social",
+    "category": "design",
     "chain": "web2",
     "tags": [
       "design",
       "portfolio",
-      "community"
+      "community",
+      "social"
     ]
   },
   {
@@ -633,12 +709,13 @@
     "name": "Framer",
     "tagline": "Design and publish real websites",
     "description": "A design tool that lets creators build interactive prototypes and publish production-ready websites without code.",
-    "category": "other",
+    "category": "design",
     "chain": "web2",
     "tags": [
       "design",
       "no-code",
-      "website-builder"
+      "website-builder",
+      "prototyping"
     ]
   },
   {
@@ -724,7 +801,7 @@
     "name": "Netflix",
     "tagline": "Stream movies and TV shows on demand.",
     "description": "A subscription service offering a large library of films, series, and original productions across many genres.",
-    "category": "other",
+    "category": "entertainment",
     "chain": "web2",
     "tags": [
       "video-streaming",
@@ -737,7 +814,7 @@
     "name": "YouTube",
     "tagline": "Watch and share videos from anyone.",
     "description": "A global video platform hosting everything from user uploads to music videos, live streams, and creator content.",
-    "category": "social",
+    "category": "entertainment",
     "chain": "web2",
     "tags": [
       "video-streaming",
@@ -750,7 +827,7 @@
     "name": "Twitch",
     "tagline": "Live streaming for gamers and creators.",
     "description": "A live-streaming platform best known for video game broadcasts, esports, and interactive creator communities.",
-    "category": "social",
+    "category": "entertainment",
     "chain": "web2",
     "tags": [
       "video-streaming",
@@ -763,7 +840,7 @@
     "name": "Hulu",
     "tagline": "Stream TV shows, movies, and originals.",
     "description": "A U.S. streaming service offering next-day episodes, films, and exclusive original programming.",
-    "category": "other",
+    "category": "entertainment",
     "chain": "web2",
     "tags": [
       "video-streaming",
@@ -776,7 +853,7 @@
     "name": "Disney+",
     "tagline": "Stream Disney, Pixar, Marvel, and Star Wars.",
     "description": "Disney's flagship streaming service bundling content from its major studios and franchises.",
-    "category": "other",
+    "category": "entertainment",
     "chain": "web2",
     "tags": [
       "video-streaming",
@@ -789,7 +866,7 @@
     "name": "Vimeo",
     "tagline": "Video hosting for creators and businesses.",
     "description": "A platform for hosting, sharing, and monetizing high-quality video content, popular with filmmakers and companies.",
-    "category": "developer-tools",
+    "category": "entertainment",
     "chain": "web2",
     "tags": [
       "video-streaming",
