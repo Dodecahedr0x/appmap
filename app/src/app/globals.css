@@ -14,6 +14,15 @@ body {
 
 body {
   min-height: 100vh;
+  /* Safety net for full-bleed sections (`w-screen` breakouts, e.g. the About
+     page's hero/CTA bands): if any of their content ever overflows its own
+     column (long unbreakable text, a stray fixed width, ...), that overflow
+     mustn't be able to widen the whole document — every `left: 50%` on a
+     later full-bleed section is computed against its containing block's
+     width, so a wider document throws off their centering, not just the
+     offending element's own bounds. `clip` (not `hidden`) so this doesn't
+     also create a new scroll container of its own. */
+  overflow-x: clip;
 }
 
 /* Thin custom scrollbars to match the dark theme. */
@@ -69,6 +78,37 @@ body {
   .navbar-chrome {
     background-color: #1f232e;
     backdrop-filter: none;
+  }
+}
+
+/* Scroll-driven section reveals (About page): content fades/rises in as it
+   scrolls into view, tied to actual scroll position via `animation-timeline`
+   rather than an IntersectionObserver + JS class toggle. Feature-detected —
+   browsers without support (or reduced-motion) just show the content, never
+   stuck at opacity: 0, since the opacity dip only exists inside the
+   @supports block. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@supports (animation-timeline: view()) {
+  .reveal {
+    opacity: 0;
+    animation: reveal-up linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 35%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    animation: none;
   }
 }
 
