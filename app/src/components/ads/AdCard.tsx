@@ -90,14 +90,14 @@ export function AdCard({ appId }: { appId: string }) {
           <img
             src={ad.imageUrl}
             alt=""
-            className="h-full w-full object-cover ring-1 ring-inset ring-black/10 transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-cover ring-1 ring-inset ring-white/10 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="grid h-full w-full place-items-center text-4xl font-bold text-violet">
             Ad
           </div>
         )}
-        <span className="chip absolute right-2.5 top-2.5 border-none bg-white/90 capitalize shadow-subtle">
+        <span className="chip absolute right-2.5 top-2.5 border-none bg-ivory/90 capitalize">
           Sponsored
         </span>
       </div>
