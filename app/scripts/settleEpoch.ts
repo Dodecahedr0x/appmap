@@ -16,7 +16,12 @@ import idl from "../../target/idl/nebulous_world.json";
 import type { NebulousWorld } from "../../target/types/nebulous_world";
 
 const SETTLEMENT_LAG_DAYS = 3; // AdSense finalization lag, per the design doc
-const PROTOCOL_FEE = 0.1; // must match REVENUE_CONFIG.protocolFee in src/lib/revenue.ts
+// Must match REVENUE_CONFIG.protocolFee in src/lib/revenue.ts. This — not
+// on-chain Config.protocol_fee_bps — is the fee's actual enforcement point:
+// it's deducted here, off-chain, from gross ad revenue before any of it is
+// ever passed to fund_app_rewards. See the doc comment on
+// programs/nebulous_world/src/state/config.rs's protocol_fee_bps field.
+const PROTOCOL_FEE = 0.1;
 const APP_TAG_SPLIT = 0.5; // must match APP_TAG_SPLIT in src/lib/revenue.ts
 
 // A pool is only funded if the on-chain total stake it's about to be funded

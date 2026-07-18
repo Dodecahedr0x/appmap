@@ -7,7 +7,13 @@
 // tested independently of the database.
 
 export const REVENUE_CONFIG = {
-  /** Fraction of gross revenue retained by the protocol treasury. */
+  /**
+   * Fraction of gross revenue retained by the protocol treasury. This value
+   * (kept in sync with `PROTOCOL_FEE` in `app/scripts/settleEpoch.ts`,
+   * which actually applies it during settlement) is the fee's real
+   * enforcement point — on-chain `Config.protocol_fee_bps` is a recorded
+   * deployment parameter only, not read by any instruction.
+   */
   protocolFee: 0.1,
 } as const;
 
