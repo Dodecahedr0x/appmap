@@ -55,6 +55,7 @@ export function VotePanel({ appId }: { appId: string }) {
         simulated
           ? `Voted ${amount} ${TOKEN_SYMBOL} (simulated)`
           : `Voted ${amount} ${TOKEN_SYMBOL} — tx confirmed`,
+        txSig ? { txSig } : undefined,
       );
       router.refresh();
     } catch (err) {
@@ -68,7 +69,7 @@ export function VotePanel({ appId }: { appId: string }) {
     if (!myVote) return;
     setBusy(true);
     try {
-      const { simulated } = await withdrawVote(appId, myVote.amount);
+      const { txSig, simulated } = await withdrawVote(appId, myVote.amount);
 
       const res = await fetch("/api/vote/withdraw", {
         method: "POST",
@@ -82,6 +83,7 @@ export function VotePanel({ appId }: { appId: string }) {
         simulated
           ? "Vote withdrawn (simulated)"
           : "Vote withdrawn — tokens returned",
+        txSig ? { txSig } : undefined,
       );
       setMyVote(null);
       router.refresh();

@@ -40,8 +40,11 @@ export function BuyPanel() {
     if (usdcAmount <= 0) return;
     setBusy(true);
     try {
-      const { nebOut } = await buy(usdcAmount);
-      toast.success(`Bought ${formatToken(nebOut, TOKEN_SYMBOL)} — tx confirmed`);
+      const { txSig, nebOut } = await buy(usdcAmount);
+      toast.success(
+        `Bought ${formatToken(nebOut, TOKEN_SYMBOL)} — tx confirmed`,
+        txSig ? { txSig } : undefined,
+      );
       await refresh();
       balances.refresh();
     } catch (err) {
