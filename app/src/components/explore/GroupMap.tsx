@@ -39,8 +39,19 @@ const SELECTED_RING = "#acafff";
 const LABEL_INK = "#f2f6fa";
 const LABEL_DIM = "#c7cbd6";
 const MAX_SIBLINGS = 6;
-const MIN_LABEL_RADIUS_TAG = 20;
-const MIN_LABEL_RADIUS_APP = 16;
+const APP_LABEL_FONT_SIZE = 11;
+const APP_LABEL_FONT_WEIGHT = 500;
+const TAG_LABEL_FONT_SIZE = 12;
+const TAG_LABEL_FONT_WEIGHT = 600;
+// How far below a tag circle's topmost point its label sits — children
+// fill the middle of a tag circle, so the label lives in that top rim
+// instead of dead center like a leaf's does.
+const TAG_LABEL_Y_OFFSET = 14;
+// Horizontal breathing room a label needs on each side before it counts as
+// "fits" — without this, a label could render right up against (or past)
+// its own circle's stroke, which reads as cramped/cut-off even when it
+// technically doesn't overlap a neighbor.
+const LABEL_PADDING_PX = 6;
 // Pan/zoom tuning — same shape as ForceMap's view transform, adapted to a
 // declarative SVG `<g>` (a CSS `transform` + `transition` pair) instead of
 // an imperative canvas repaint loop, since GroupMap has no per-frame work.
@@ -72,6 +83,62 @@ function tagFill(depth: number, maxDepth: number): string {
   const g = Math.round(g1 + (g2 - g1) * t);
   const b = Math.round(b1 + (b2 - b1) * t);
   return `rgba(${r}, ${g}, ${b}, ${0.16 + t * 0.12})`;
+}
+
+// Lazily created, cached — a single offscreen canvas 2D context is enough
+// to measure every label on every render; there's no reason to allocate
+// one per node or per render.
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+function getMeasureCtx(): CanvasRenderingContext2D | null {
+  if (measureCtx === undefined) {
+    measureCtx = typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+  }
+  return measureCtx ?? null;
+}
+
+// Actual rendered pixel width of a label, not a character-count guess —
+// this is what lets the fit checks below be exact instead of a flat radius
+// cutoff that let long names overflow small-but-above-threshold circles
+// while hiding short names on circles that had plenty of room to spare.
+// `document` isn't available during SSR; the fallback is a deliberately
+// generous per-character estimate so a label is never claimed to fit when
+// it might not (better to hide once on hydration than flash overflowing
+// text for one server-rendered frame).
+function measureLabelWidth(text: string, fontSize: number, fontWeight: number): number {
+  const ctx = getMeasureCtx();
+  if (!ctx) return text.length * fontSize * 0.65;
+  ctx.font = `${fontWeight} ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+  return ctx.measureText(text).width;
+}
+
+// Half the horizontal chord available at TAG_LABEL_Y_OFFSET below a tag
+// circle's topmost point — narrower than the full diameter, since the
+// label doesn't sit at the circle's widest point. `r` here (like in the fit
+// checks below) is an on-*screen* radius — see their own comment for why.
+function tagLabelHalfWidth(r: number): number {
+  const dy = r - TAG_LABEL_Y_OFFSET;
+  return Math.sqrt(Math.max(0, r * r - dy * dy));
+}
+
+// `r` is the circle's EFFECTIVE on-screen radius (n.r * the current view
+// zoom), not its raw layout radius. Labels are rendered at a constant
+// on-screen size regardless of zoom (see the `/ view.k` counter-scaling at
+// the call site — same technique ForceMap/this file already use to keep
+// stroke widths a constant screen thickness), so whether a label fits is
+// also a screen-space question: a circle too small for its label at the
+// default zoom can still grow past that threshold once the user zooms in
+// on it, which is the whole point of click-to-zoom existing. Checking the
+// unzoomed layout radius instead would mean a label some apps could never
+// be read even by zooming all the way in on them.
+function appLabelFits(r: number, name: string): boolean {
+  const available = 2 * r - LABEL_PADDING_PX * 2;
+  return available > 0 && available >= measureLabelWidth(name, APP_LABEL_FONT_SIZE, APP_LABEL_FONT_WEIGHT);
+}
+
+function tagLabelFits(r: number, name: string): boolean {
+  if (r <= TAG_LABEL_Y_OFFSET) return false;
+  const available = tagLabelHalfWidth(r) * 2 - LABEL_PADDING_PX * 2;
+  return available > 0 && available >= measureLabelWidth(`#${name}`, TAG_LABEL_FONT_SIZE, TAG_LABEL_FONT_WEIGHT);
 }
 
 type PackedNode = HierarchyCircularNode<PackNode>;
@@ -421,7 +488,11 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
                 const isApp = n.data.type === "app";
                 const isSelected = selectedId === key;
                 const isHovered = hoveredId === key;
-                const showLabel = isApp ? n.r >= MIN_LABEL_RADIUS_APP : n.r >= MIN_LABEL_RADIUS_TAG;
+                // Effective on-screen radius at the current zoom — see
+                // appLabelFits' comment for why the fit check (and the
+                // counter-scaled fontSize/y below) use this instead of n.r.
+                const screenR = n.r * view.k;
+                const showLabel = isApp ? appLabelFits(screenR, n.data.name) : tagLabelFits(screenR, n.data.name);
                 return (
                   <g
                     key={key}
@@ -440,9 +511,9 @@ export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | n
                     {showLabel && (
                       <text
                         textAnchor="middle"
-                        y={isApp ? 4 : -n.r + 14}
-                        fontSize={isApp ? 11 : 12}
-                        fontWeight={isApp ? 500 : 600}
+                        y={(isApp ? 4 : -screenR + TAG_LABEL_Y_OFFSET) / view.k}
+                        fontSize={(isApp ? APP_LABEL_FONT_SIZE : TAG_LABEL_FONT_SIZE) / view.k}
+                        fontWeight={isApp ? APP_LABEL_FONT_WEIGHT : TAG_LABEL_FONT_WEIGHT}
                         fill={isApp ? LABEL_INK : LABEL_DIM}
                         className="pointer-events-none select-none"
                       >
