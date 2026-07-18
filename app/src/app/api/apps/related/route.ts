@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
-import { prisma } from "@/lib/prisma";
-import { serializeApp, appInclude } from "@/lib/serialize";
-import { AppStatus } from "@/lib/constants";
+import { fetchRelatedApps } from "@/lib/indexerClient";
 
 // GET /api/apps/related — apps for a selected node in the Explore page's
 // app/tag maps, plus that node's connected peers. Two mutually exclusive
@@ -18,8 +16,6 @@ import { AppStatus } from "@/lib/constants";
 //                                   filtering, since here we want everything
 //                                   in the selected node's neighborhood, not
 //                                   apps carrying every one of those tags.
-const MAX_RESULTS = 24;
-
 export const GET = handler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams;
   const slugs = sp.get("slugs")?.split(",").filter(Boolean) ?? [];
@@ -27,17 +23,6 @@ export const GET = handler(async (req: NextRequest) => {
 
   if (slugs.length === 0 && tagSlugs.length === 0) return ok({ apps: [] });
 
-  const rows = await prisma.app.findMany({
-    where: {
-      status: AppStatus.APPROVED,
-      ...(slugs.length > 0
-        ? { slug: { in: slugs } }
-        : { appTags: { some: { tag: { slug: { in: tagSlugs } } } } }),
-    },
-    include: appInclude,
-    take: MAX_RESULTS,
-  });
-
-  const apps = rows.map(serializeApp).sort((a, b) => b.rankScore - a.rankScore);
-  return ok({ apps });
+  const result = await fetchRelatedApps({ slugs, tagSlugs });
+  return ok(result);
 });

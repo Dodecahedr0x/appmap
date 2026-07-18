@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { TagGraphNode } from "@/lib/tagGraph";
+import type { TagGraph } from "@/lib/indexerClient";
+type TagGraphNode = TagGraph["nodes"][number];
 import { AppMap } from "./AppMap";
 import { TagMap } from "./TagMap";
 import { NebulaField } from "./NebulaField";

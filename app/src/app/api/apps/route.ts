@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
 import { searchSchema } from "@/lib/validation";
-import { searchApps } from "@/lib/search";
+import { searchApps } from "@/lib/indexerClient";
 
 export const dynamic = "force-dynamic";
 

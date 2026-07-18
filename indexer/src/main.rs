@@ -4,6 +4,7 @@ mod config;
 mod crawler;
 mod db;
 mod dlmm_bridge;
+mod handlers;
 mod platform_metrics;
 mod processors;
 mod rollup;

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { handler, ok, ApiError } from "@/lib/api";
 import { issueSessionToken, setSessionCookie } from "@/lib/session";
 import { isValidWallet } from "@/lib/solana-auth";
-import { prisma } from "@/lib/prisma";
+import { connectUser } from "@/lib/indexerClient";
 
 const schema = z.object({ wallet: z.string().min(32).max(64) });
 
@@ -15,11 +15,7 @@ export const POST = handler(async (req: NextRequest) => {
   const body = schema.parse(await req.json());
   if (!isValidWallet(body.wallet)) throw new ApiError("Invalid wallet", 400);
 
-  const user = await prisma.user.upsert({
-    where: { wallet: body.wallet },
-    create: { wallet: body.wallet },
-    update: {},
-  });
+  const user = await connectUser(body.wallet);
 
   const token = issueSessionToken(user.wallet, user.id);
   await setSessionCookie(token);

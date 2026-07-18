@@ -8,19 +8,16 @@ services:
     region: oregon
     branch: main
     autoDeploy: true
-    # Schema is applied by the indexer service (below), not here — no `prisma
-    # db push`/`migrate` in this app's build any more (see AGENTS.md). `npm
-    # run build` still runs `prisma generate` for the typed client, just
-    # never touches the database's actual DDL.
+    # This app has no Postgres connection at all any more — the indexer
+    # (below) owns the database, applies its own schema, and is the only
+    # thing that ever queries it (see root AGENTS.md and
+    # src/lib/indexerClient.ts). No `prisma db push`/`migrate`/`generate`
+    # in this build — there is no Prisma dependency left in app/.
     buildCommand: npm ci && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: nebulous-world-db
-          property: connectionString
 
       # --- Solana ---
       # Only used to tell the connected wallet extension which chain it's
@@ -65,8 +62,9 @@ services:
       - key: TURNSTILE_SECRET_KEY
         sync: false
 
-  # Writes the AppStatsSnapshot rows that power per-app trend charts
-  # (see app/scripts/dailySnapshot.ts). No secrets beyond DATABASE_URL.
+  # Writes the AppStatsSnapshot rows that power per-app trend charts (see
+  # app/scripts/dailySnapshot.ts) by calling the indexer's HTTP API — no
+  # direct database access, same as the web service above.
   - type: cron
     name: nebulous-world-daily-snapshot
     runtime: node
@@ -77,10 +75,8 @@ services:
     buildCommand: npm ci
     startCommand: npm run snapshot:daily
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: nebulous-world-db
-          property: connectionString
+      - key: INDEXER_API_URL
+        value: http://nebulous-world-indexer:8090
 
   # Carbon (https://github.com/sevenlabs-hq/carbon) indexer: watches every
   # account owned by the nebulous_world program and every instruction sent

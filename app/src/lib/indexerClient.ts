@@ -19,17 +19,29 @@
 // right before use.
 
 import { config } from "@/lib/config";
+import type { AppDTO, AppDetail, SearchResult } from "@/lib/types";
+import type { SearchInput } from "@/lib/validation";
 
 const INDEXER_API_URL = config.indexerApiUrl;
 
 class IndexerNotFoundError extends Error {}
 
+/** Every indexer error response body is `{"error": "message"}"` — see indexer/src/api.rs's `ApiError`. */
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const parsed = JSON.parse(text) as { error?: string };
+    return parsed.error ?? fallback;
+  } catch {
+    return text || fallback;
+  }
+}
+
 async function get(path: string): Promise<unknown> {
   const res = await fetch(`${INDEXER_API_URL}${path}`, { cache: "no-store" });
   if (res.status === 404) throw new IndexerNotFoundError(path);
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`indexer GET ${path} failed (${res.status}): ${body}`);
+    throw new Error(await errorMessage(res, `indexer GET ${path} failed (${res.status})`));
   }
   return res.json();
 }
@@ -42,8 +54,20 @@ async function post(path: string, body: unknown): Promise<unknown> {
     cache: "no-store",
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`indexer POST ${path} failed (${res.status}): ${text}`);
+    throw new Error(await errorMessage(res, `indexer POST ${path} failed (${res.status})`));
+  }
+  return res.json();
+}
+
+async function patch(path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(`${INDEXER_API_URL}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, `indexer PATCH ${path} failed (${res.status})`));
   }
   return res.json();
 }
@@ -243,4 +267,229 @@ export interface PlatformMetricsPoint {
 /** Ascending time series written by indexer/src/platform_metrics.rs — the on-chain-derived half of the Explore page's metric trend charts. */
 export async function fetchPlatformMetricsHistory(): Promise<PlatformMetricsPoint[]> {
   return (await get("/metrics/platform-history")) as PlatformMetricsPoint[];
+}
+
+// ---------------------------------------------------------------------
+// Product-data endpoints (indexer/src/handlers/**) — everything that used
+// to be a direct Prisma query from this app now goes through here instead,
+// same as the on-chain reads above. See root AGENTS.md.
+// ---------------------------------------------------------------------
+
+export interface IndexerUser {
+  id: string;
+  wallet: string;
+  handle: string | null;
+}
+
+export async function connectUser(wallet: string): Promise<IndexerUser> {
+  return (await post("/users/connect", { wallet })) as IndexerUser;
+}
+
+export async function fetchUserById(id: string): Promise<IndexerUser | null> {
+  return (await getOrNull(`/users/${encodeURIComponent(id)}`)) as IndexerUser | null;
+}
+
+export async function searchApps(input: SearchInput): Promise<SearchResult> {
+  return (await post("/apps/search", input)) as SearchResult;
+}
+
+export async function fetchAppBySlug(slug: string): Promise<AppDetail | null> {
+  return (await getOrNull(`/apps/by-slug/${encodeURIComponent(slug)}`)) as AppDetail | null;
+}
+
+export async function fetchAppById(id: string): Promise<AppDTO | null> {
+  return (await getOrNull(`/apps/by-id/${encodeURIComponent(id)}`)) as AppDTO | null;
+}
+
+export async function fetchRelatedApps(query: { slugs?: string[]; tagSlugs?: string[] }): Promise<{ apps: AppDTO[] }> {
+  const sp = new URLSearchParams();
+  if (query.slugs?.length) sp.set("slugs", query.slugs.join(","));
+  if (query.tagSlugs?.length) sp.set("tagSlugs", query.tagSlugs.join(","));
+  return (await get(`/apps/related?${sp.toString()}`)) as { apps: AppDTO[] };
+}
+
+export interface AppGraph {
+  nodes: { id: string; name: string; stake: number; views: number; votes: number }[];
+  edges: { source: string; target: string; shared: number; weighted: number }[];
+}
+
+export async function fetchAppGraph(tags: string[] = []): Promise<AppGraph> {
+  const sp = tags.length > 0 ? `?tags=${encodeURIComponent(tags.join(","))}` : "";
+  return (await get(`/apps/graph${sp}`)) as AppGraph;
+}
+
+export interface TagGraph {
+  nodes: { id: string; name: string; stake: number; appCount: number }[];
+  edges: { source: string; target: string; weight: number; similarity: number }[];
+}
+
+export async function fetchTagGraph(): Promise<TagGraph> {
+  return (await get("/tags/graph")) as TagGraph;
+}
+
+export interface TagListEntry {
+  id: string;
+  slug: string;
+  name: string;
+  appCount: number;
+  stakeTotal: number;
+}
+
+export async function fetchTags(q?: string): Promise<{ tags: TagListEntry[] }> {
+  const sp = q ? `?q=${encodeURIComponent(q)}` : "";
+  return (await get(`/tags${sp}`)) as { tags: TagListEntry[] };
+}
+
+export interface PlatformStats {
+  totalApps: number;
+  totalTags: number;
+  totalVoteWeight: number;
+  totalStake: number;
+  totalViews: number;
+}
+
+export async function fetchPlatformStats(): Promise<PlatformStats> {
+  return (await get("/platform/stats")) as PlatformStats;
+}
+
+export async function fetchPlatformViewsTrend(): Promise<{ date: string; totalViews: number }[]> {
+  return (await get("/platform/views-trend")) as { date: string; totalViews: number }[];
+}
+
+export async function fetchVote(appId: string, userId: string): Promise<{ id: string; amount: number } | null> {
+  const res = (await get(`/votes?appId=${encodeURIComponent(appId)}&userId=${encodeURIComponent(userId)}`)) as {
+    vote: { id: string; amount: number } | null;
+  };
+  return res.vote;
+}
+
+export async function createVote(input: {
+  appId: string;
+  userId: string;
+  amount: number;
+  txSig: string | null;
+}): Promise<{ vote: { id: string; amount: number; txSig: string | null }; app: { voteWeight: number; voteCount: number; rankScore: number } }> {
+  return (await post("/votes", input)) as {
+    vote: { id: string; amount: number; txSig: string | null };
+    app: { voteWeight: number; voteCount: number; rankScore: number };
+  };
+}
+
+export async function withdrawVote(voteId: string, userId: string): Promise<{ withdrawn: boolean }> {
+  return (await post(`/votes/${encodeURIComponent(voteId)}/withdraw`, { userId })) as { withdrawn: boolean };
+}
+
+export async function fetchStakes(appId: string, userId: string): Promise<{ id: string; amount: number; appTagId: string }[]> {
+  const res = (await get(`/stakes?appId=${encodeURIComponent(appId)}&userId=${encodeURIComponent(userId)}`)) as {
+    stakes: { id: string; amount: number; appTagId: string }[];
+  };
+  return res.stakes;
+}
+
+export async function createStake(input: {
+  appTagId: string;
+  userId: string;
+  amount: number;
+  txSig: string | null;
+  simulationMode: boolean;
+}): Promise<{ stake: { id: string; amount: number } }> {
+  return (await post("/stakes", input)) as { stake: { id: string; amount: number } };
+}
+
+export async function withdrawStake(stakeId: string, userId: string): Promise<{ withdrawn: boolean }> {
+  return (await post(`/stakes/${encodeURIComponent(stakeId)}/withdraw`, { userId })) as { withdrawn: boolean };
+}
+
+export interface RewardsPositions {
+  votes: { appId: string; appSlug: string; appName: string; amount: number }[];
+  stakes: {
+    appTagId: string;
+    appId: string;
+    appSlug: string;
+    appName: string;
+    tagSlug: string;
+    tagName: string;
+    amount: number;
+  }[];
+}
+
+export async function fetchRewardsPositions(userId: string): Promise<RewardsPositions> {
+  return (await get(`/rewards/positions?userId=${encodeURIComponent(userId)}`)) as RewardsPositions;
+}
+
+export interface VisitorInfo {
+  visitorId: string;
+  sessionId: string;
+  userAgent: string;
+  path?: string;
+  referrer?: string | null;
+}
+
+export async function serveAd(
+  appId: string,
+  visitor: VisitorInfo,
+): Promise<{
+  ad: { id: string; title: string; body: string; imageUrl: string | null; targetUrl: string } | null;
+  impressionId?: string;
+  reason?: string;
+}> {
+  return (await post("/ads/serve", { appId, ...visitor })) as {
+    ad: { id: string; title: string; body: string; imageUrl: string | null; targetUrl: string } | null;
+    impressionId?: string;
+    reason?: string;
+  };
+}
+
+export async function clickAd(impressionId: string): Promise<{ ok: boolean }> {
+  return (await post("/ads/click", { impressionId })) as { ok: boolean };
+}
+
+export async function trackPageView(
+  appId: string,
+  visitor: VisitorInfo,
+  revenueEligible: boolean,
+): Promise<{ tracked: boolean; reason?: string; revenueEligible?: boolean }> {
+  return (await post("/track", { appId, ...visitor, revenueEligible })) as {
+    tracked: boolean;
+    reason?: string;
+    revenueEligible?: boolean;
+  };
+}
+
+export async function settleRevenueEpoch(epochId: string): Promise<{ gross: number; claims: number }> {
+  return (await post(`/revenue/epochs/${encodeURIComponent(epochId)}/settle`, {})) as { gross: number; claims: number };
+}
+
+export async function refreshRankScores(): Promise<{ refreshed: number }> {
+  return (await post("/rank-scores/refresh", {})) as { refreshed: number };
+}
+
+export async function writeDailySnapshot(): Promise<{ written: number }> {
+  return (await post("/snapshots/daily", {})) as { written: number };
+}
+
+export interface MissingMetadataApp {
+  id: string;
+  slug: string;
+  url: string;
+  iconUrl: string | null;
+  tagline: string;
+  description: string;
+}
+
+export async function fetchAppsMissingMetadata(): Promise<MissingMetadataApp[]> {
+  return (await get("/apps/missing-metadata")) as MissingMetadataApp[];
+}
+
+/** Revenue-eligible page-view count per app in `[start, end)` — see indexer/src/handlers/revenue.rs's `traffic`. */
+export async function fetchPlatformTraffic(start: Date, end: Date): Promise<Record<string, number>> {
+  const sp = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
+  return (await get(`/platform/traffic?${sp.toString()}`)) as Record<string, number>;
+}
+
+export async function updateAppMetadata(
+  id: string,
+  fields: { iconUrl?: string | null; tagline?: string; description?: string },
+): Promise<void> {
+  await patch(`/apps/${encodeURIComponent(id)}/metadata`, fields);
 }

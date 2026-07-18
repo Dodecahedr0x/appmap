@@ -100,6 +100,16 @@ pub fn router(state: Arc<ApiState>) -> Router {
         .route("/tx/claim-tag-reward", post(build_claim_tag_reward))
         .route("/tx/buy-neb/build", post(build_buy_neb))
         .route("/tx/submit", post(submit_tx))
+        .merge(crate::handlers::users::routes())
+        .merge(crate::handlers::apps::routes())
+        .merge(crate::handlers::tags::routes())
+        .merge(crate::handlers::platform::routes())
+        .merge(crate::handlers::votes::routes())
+        .merge(crate::handlers::stakes::routes())
+        .merge(crate::handlers::rewards::routes())
+        .merge(crate::handlers::ads::routes())
+        .merge(crate::handlers::track::routes())
+        .merge(crate::handlers::revenue::routes())
         .with_state(state)
 }
 
@@ -111,7 +121,7 @@ async fn health() -> &'static str {
 // Errors
 // ---------------------------------------------------------------------
 
-struct ApiError(StatusCode, String);
+pub(crate) struct ApiError(pub(crate) StatusCode, pub(crate) String);
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
@@ -119,15 +129,15 @@ impl IntoResponse for ApiError {
     }
 }
 
-fn bad_request(msg: impl Into<String>) -> ApiError {
+pub(crate) fn bad_request(msg: impl Into<String>) -> ApiError {
     ApiError(StatusCode::BAD_REQUEST, msg.into())
 }
 
-fn not_found(msg: impl Into<String>) -> ApiError {
+pub(crate) fn not_found(msg: impl Into<String>) -> ApiError {
     ApiError(StatusCode::NOT_FOUND, msg.into())
 }
 
-fn internal(msg: impl std::fmt::Display) -> ApiError {
+pub(crate) fn internal(msg: impl std::fmt::Display) -> ApiError {
     ApiError(StatusCode::INTERNAL_SERVER_ERROR, msg.to_string())
 }
 

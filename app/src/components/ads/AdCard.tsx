@@ -16,7 +16,7 @@ interface ServedAd {
  * app grid — see AD_EVERY_N_APPS — without breaking the grid's rhythm.
  *
  * `appId` attributes this impression's revenue to that app (AdImpression is
- * always tied to one app — see the Prisma schema), same as AdSlot on the app
+ * always tied to one app — see indexer/migrations/005_app_schema.sql), same as AdSlot on the app
  * detail page. In a grid there's no single "current app", so callers pass
  * the app whose card immediately precedes this slot; see interleaveAds.
  */

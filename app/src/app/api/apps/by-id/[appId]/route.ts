@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok, ApiError } from "@/lib/api";
-import { prisma } from "@/lib/prisma";
+import { fetchAppById } from "@/lib/indexerClient";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,7 @@ export const dynamic = "force-dynamic";
 export const GET = handler(
   async (_req: NextRequest, ctx: { params: Promise<{ appId: string }> }) => {
     const { appId } = await ctx.params;
-    const app = await prisma.app.findUnique({
-      where: { id: appId },
-      select: { id: true, slug: true, name: true },
-    });
+    const app = await fetchAppById(appId);
     if (!app) throw new ApiError("Not indexed yet", 404);
     return ok({ app });
   },

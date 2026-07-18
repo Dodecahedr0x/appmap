@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Discover } from "@/components/discover/Discover";
-import { searchApps } from "@/lib/search";
+import { searchApps } from "@/lib/indexerClient";
 import { searchSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";

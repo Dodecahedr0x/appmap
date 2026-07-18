@@ -58,3 +58,31 @@ export function looksLikeBot(userAgent: string): boolean {
     userAgent,
   );
 }
+
+export interface ResolvedVisitor {
+  visitorId: string;
+  sessionId: string;
+  userAgent: string;
+  isBot: boolean;
+}
+
+/**
+ * Derive the pseudonymous visitor/session identity from request headers —
+ * shared by the tracking beacon and the ad server (via /api/track and
+ * /api/ads/serve) so both attribute traffic the same way. The indexer's
+ * `/track`/`/ads/serve` endpoints trust whatever `visitorId`/`sessionId` they're
+ * given rather than deriving it themselves, since that requires the tracking
+ * secret and raw request headers, neither of which cross the app-indexer
+ * boundary.
+ */
+export function resolveVisitor(headers: Headers): ResolvedVisitor {
+  const userAgent = headers.get("user-agent") ?? "";
+  const ip = clientIpFromHeaders(headers);
+  const visitorId = deriveVisitorId(ip, userAgent);
+  return {
+    visitorId,
+    sessionId: deriveSessionId(visitorId),
+    userAgent,
+    isBot: looksLikeBot(userAgent),
+  };
+}

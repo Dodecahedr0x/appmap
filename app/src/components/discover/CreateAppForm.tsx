@@ -25,8 +25,8 @@ interface Props {
  * The app-submission form. Only name/url are required; everything else is
  * optional. Submitting builds a single on-chain transaction (`init_app` +
  * one `suggest_tag` per initial tag, see useCreateAppProgram) which the
- * connected wallet signs directly — there is no Prisma write here any
- * more. The `App`/`Tag`/`AppTag` rows (and any OpenGraph-derived
+ * connected wallet signs directly — there is no database write here at
+ * all. The `App`/`Tag`/`AppTag` rows (and any OpenGraph-derived
  * tagline/description/icon left blank here) only exist once the indexer
  * observes the confirmed transaction and, later, `og:backfill` fills in
  * imagery — see AGENTS.md.

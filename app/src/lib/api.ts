@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getSession, type SessionPayload } from "./session";
-import { prisma } from "./prisma";
+import { fetchUserById } from "./indexerClient";
 
 // Small helpers for consistent JSON API responses and auth guards.
 
@@ -54,7 +54,7 @@ export async function requireSession(): Promise<SessionPayload> {
 /** Require an authenticated session AND load the user record. */
 export async function requireUser() {
   const session = await requireSession();
-  const user = await prisma.user.findUnique({ where: { id: session.userId } });
+  const user = await fetchUserById(session.userId);
   if (!user) throw new ApiError("User not found", 401);
   return user;
 }

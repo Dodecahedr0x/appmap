@@ -47,3 +47,24 @@ export interface ApiEnvelope<T> {
   error?: string;
   details?: unknown;
 }
+
+/** Full detail for a single app's page — see indexer/src/handlers/apps.rs's `AppDetailDto`. */
+export interface AppDetail {
+  app: AppDTO;
+  recentVotes: {
+    id: string;
+    amount: number;
+    createdAt: string;
+    wallet: string;
+    txSig: string | null;
+  }[];
+  topStakers: { wallet: string; amount: number }[];
+  viewsLast7d: number;
+  snapshots: {
+    date: string;
+    voteWeight: number;
+    stakeTotal: number;
+    viewCount: number;
+    rankScore: number;
+  }[];
+}

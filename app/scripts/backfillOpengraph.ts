@@ -5,10 +5,8 @@
 // Usage:
 //   tsx scripts/backfillOpengraph.ts [--limit=200] [--concurrency=5] [--dry-run]
 
-import { PrismaClient } from "@prisma/client";
+import { fetchAppsMissingMetadata, updateAppMetadata } from "../src/lib/indexerClient";
 import { enrichWithOpenGraph } from "../src/lib/opengraph";
-
-const prisma = new PrismaClient();
 
 interface Args {
   limit: number;
@@ -44,13 +42,7 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T,
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  const apps = await prisma.app.findMany({
-    where: {
-      OR: [{ iconUrl: null }, { tagline: "" }, { description: "" }],
-    },
-    take: args.limit,
-    select: { id: true, slug: true, url: true, iconUrl: true, tagline: true, description: true },
-  });
+  const apps = (await fetchAppsMissingMetadata()).slice(0, args.limit);
 
   if (apps.length === 0) {
     console.log("Nothing to backfill — every app already has icon/tagline/description.");
@@ -81,7 +73,7 @@ async function main() {
     ].filter(Boolean).join(", ")}`);
 
     if (!args.dryRun) {
-      await prisma.app.update({ where: { id: app.id }, data: enriched });
+      await updateAppMetadata(app.id, enriched);
     }
   });
 
@@ -90,9 +82,7 @@ async function main() {
   );
 }
 
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

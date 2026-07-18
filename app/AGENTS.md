@@ -11,10 +11,9 @@ to get its own map: [`src/lib/AGENTS.md`](src/lib/AGENTS.md).
 | --- | --- |
 | `src/app/` | Routes (App Router pages) + `api/**` (REST API) — table below |
 | `src/components/` | React components, one folder per feature area (see below) |
-| `src/lib/` | Business logic, DB access, external integrations — [own AGENTS.md](src/lib/AGENTS.md) |
+| `src/lib/` | Business logic, indexer HTTP client, external integrations — [own AGENTS.md](src/lib/AGENTS.md) |
 | `src/hooks/` | Client hooks wrapping wallet-adapter + `lib/txClient.ts` for on-chain actions (vote, stake, claim, buy) |
-| `prisma/schema.prisma` | The product's Postgres schema (12 models: `App`, `Tag`, `Vote`, `Stake`, `Ad`, `RevenueEpoch`, …) |
-| `scripts/` | One-off/ops scripts (daily snapshot, epoch settlement, NEB launch, dev env setup/teardown) — see the root README's script table |
+| `scripts/` | One-off/ops scripts (daily snapshot, epoch settlement, NEB launch, dev env setup/teardown) — see the root README's script table. These call the indexer's HTTP API too, same as the app itself — no database access here either |
 | `public/` | Static assets |
 
 ### Pages (`src/app/`)

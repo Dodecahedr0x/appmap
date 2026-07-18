@@ -2642,6 +2642,7 @@ dependencies = [
  "env_logger",
  "log",
  "nebulous_world",
+ "rand 0.8.7",
  "reqwest",
  "serde",
  "serde_json",

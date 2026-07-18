@@ -2,7 +2,9 @@
 
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
-import type { AppGraphNode, AppGraphEdge } from "@/lib/appGraph";
+import type { AppGraph } from "@/lib/indexerClient";
+type AppGraphNode = AppGraph["nodes"][number];
+type AppGraphEdge = AppGraph["edges"][number];
 import { ForceMap, type MapLink, type MapNode } from "./ForceMap";
 
 // Representative fallback so the map is never empty if the API route is

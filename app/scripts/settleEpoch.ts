@@ -7,7 +7,7 @@ import { readFileSync } from "fs";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Program, Wallet, BN } from "@anchor-lang/core";
 import { getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
-import { prisma } from "../src/lib/prisma";
+import { searchApps, fetchPlatformTraffic } from "../src/lib/indexerClient";
 import { fetchAdsenseEarnings } from "../src/lib/adsense";
 import { allocateByTrafficShare } from "../src/lib/settlement";
 import { config } from "../src/lib/config";
@@ -46,15 +46,14 @@ async function main() {
   const totalEarnings = await fetchAdsenseEarnings({ start, end }, accessToken);
   console.log(`AdSense earnings ${start.toISOString()}–${end.toISOString()}: $${totalEarnings}`);
 
-  const apps = await prisma.app.findMany({ select: { id: true, slug: true } });
-  const traffic = await Promise.all(
-    apps.map(async (app) => ({
-      appId: app.id,
-      eligibleViews: await prisma.pageView.count({
-        where: { appId: app.id, revenueEligible: true, createdAt: { gte: start, lt: end } },
-      }),
-    })),
-  );
+  // pageSize is set well beyond any realistic catalog size — this script
+  // needs every app, not a paginated slice.
+  const { apps } = await searchApps({ q: "", tags: [], fuzzy: "", sort: "rank", page: 1, pageSize: 100_000 });
+  const trafficByApp = await fetchPlatformTraffic(start, end);
+  const traffic = apps.map((app) => ({
+    appId: app.id,
+    eligibleViews: trafficByApp[app.id] ?? 0,
+  }));
   const allocations = allocateByTrafficShare(totalEarnings, traffic);
 
   const treasuryKeypair = Keypair.fromSecretKey(
@@ -83,18 +82,14 @@ async function main() {
     const app = apps.find((a) => a.id === alloc.appId)!;
     console.log(`Settling ${app.slug}: gross $${alloc.gross}`);
 
-    const votePositions = await prisma.vote.findMany({
-      where: { appId: app.id, active: true },
-      select: { amount: true },
-    });
-    const tagPositions = await prisma.stake.findMany({
-      where: { appTag: { appId: app.id }, active: true },
-      select: { amount: true },
-    });
-    const dbVoteTotal = votePositions.reduce((sum, v) => sum + v.amount, 0);
-    const dbTagTotal = tagPositions.reduce((sum, s) => sum + s.amount, 0);
-    const hasVoters = votePositions.length > 0;
-    const hasTaggers = tagPositions.length > 0;
+    // App.voteWeight/stakeTotal are cached aggregates kept in sync after
+    // every vote/stake mutation (see indexer/src/handlers/engine.rs's
+    // refresh_app) — reading them here avoids re-summing the raw Vote/Stake
+    // tables the way the original Prisma version did.
+    const dbVoteTotal = app.voteWeight;
+    const dbTagTotal = app.stakeTotal;
+    const hasVoters = app.voteWeight > 0;
+    const hasTaggers = app.stakeTotal > 0;
 
     const fee = alloc.gross * PROTOCOL_FEE;
     const distributable = alloc.gross - fee;

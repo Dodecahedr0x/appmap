@@ -12,24 +12,27 @@ app nested inside it:
 
 | Path | What | Docs |
 | --- | --- | --- |
-| [`app/`](app/) | Next.js 14 (App Router) product — UI, API routes, Prisma/Postgres, business logic | [`app/AGENTS.md`](app/AGENTS.md) |
+| [`app/`](app/) | Next.js 14 (App Router) product — UI + API routes, all backed by the indexer's HTTP API, no direct database connection | [`app/AGENTS.md`](app/AGENTS.md) |
 | [`programs/nebulous_world/`](programs/nebulous_world/) | The on-chain Anchor program (votes, tag stakes, reward accrual/claims) | [`programs/nebulous_world/AGENTS.md`](programs/nebulous_world/AGENTS.md) |
-| [`indexer/`](indexer/) | Rust service: indexes the program's accounts/instructions into Postgres, and is the app's **only** path to Solana RPC (no direct `Connection` anywhere in `app/`) | [`indexer/README.md`](indexer/README.md) (thorough — architecture diagram included) |
+| [`indexer/`](indexer/) | Rust service: owns the whole Postgres database (schema + every query), indexes the program's accounts/instructions, and is the app's **only** path to Solana RPC (no direct `Connection` anywhere in `app/`) | [`indexer/README.md`](indexer/README.md) (thorough — architecture diagram included) |
 | [`tests/nebulous_world.ts`](tests/nebulous_world.ts) | Anchor/TS integration test entry (`anchor test`); the bulk of program tests are Rust, under `programs/nebulous_world/tests/` | — |
 | [`migrations/deploy.ts`](migrations/deploy.ts) | Anchor deploy migration script | — |
 | [`docs/plans/`](docs/plans/) | Point-in-time design/implementation planning docs (historical, not living docs) | — |
 | [`DESIGN.md`](DESIGN.md) | Visual design tokens (colors, type scale, spacing, shadows) backing `app/tailwind.config.ts` | — |
 
-**The database is owned by the indexer, not the app.** `indexer/migrations/`
-is the one source of DDL for the whole product's Postgres schema (the
-on-chain-derived tables it always had, plus — as of `005_app_schema.sql` —
-the product schema that used to be pushed from `app/prisma/schema.prisma`),
-applied automatically at indexer startup (`sqlx::migrate!()`, see
-`indexer/src/db.rs`). `app/prisma/schema.prisma` still exists as the typed
-Prisma Client codegen input the app's API routes read/write through
-(`prisma generate`, run as part of `npm run build`), but the app never runs
-`prisma db push`/`migrate` — its shape must be kept in sync with
-`indexer/migrations/`'s CREATE TABLE statements by hand.
+**The database is owned by the indexer, not the app — and the app has no
+database client at all.** `app/` has no `@prisma/client`/`pg`/any other
+Postgres driver dependency; every read and write goes through the indexer's
+HTTP API (`app/src/lib/indexerClient.ts`), the same pattern already used for
+on-chain reads. `indexer/migrations/` is the one source of DDL for the
+whole product's Postgres schema (the on-chain-derived tables it always had,
+plus — as of `005_app_schema.sql` — the product schema that used to be a
+separate Prisma schema pushed from `app/`), applied automatically at
+indexer startup (`sqlx::migrate!()`, see `indexer/src/db.rs`). Query logic
+that used to be Prisma calls in `app/src/lib/**` now lives in
+`indexer/src/handlers/**` (search/ranking, revenue distribution, votes/
+stakes, ads, page-view tracking, auth user lookups, ...) as plain SQL via
+`sqlx`.
 
 There is no seed script anywhere in this repo. `App`/`Tag`/`AppTag` rows are
 created exclusively by the indexer's account/instruction pipeline
@@ -39,7 +42,7 @@ replaying program history, kept current by the live crawler/subscription
 after that. App creation itself is on-chain-first: the client builds and
 signs an `init_app` (+ `suggest_tag`) transaction directly (see
 `components/discover/CreateAppForm.tsx`, `POST /api/tx/create-app`) rather
-than the app writing a Prisma row.
+than the app writing a database row.
 
 ## Running things
 
