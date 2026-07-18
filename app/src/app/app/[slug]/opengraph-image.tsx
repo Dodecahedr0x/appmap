@@ -7,15 +7,15 @@ export const alt = "App preview";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const bg = "linear-gradient(180deg, #faf9f7 0%, #d5ecff 100%)";
-const hairline = "#efefef";
-const ivory = "#fbfaf7";
-const mist = "#f4f0ff";
-const ink = "#121722";
-const slate = "#777c86";
-const violet = "#6736eb";
-const cobalt = "#0068f9";
-const forest = "#046645";
+const bgColor = "#1f232e";
+const bg = "radial-gradient(circle at 50% 0%, rgba(50, 69, 255, 0.3) 0%, rgba(31, 35, 46, 0) 60%)";
+const hairline = "#545864";
+const ivory = "#17191e";
+const mist = "#0c0f19";
+const ink = "#f2f6fa";
+const slate = "#858b98";
+const violet = "#acafff";
+const forest = "#4bf3c8";
 
 export default async function Image({
   params,
@@ -35,6 +35,7 @@ export default async function Image({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            backgroundColor: bgColor,
             backgroundImage: bg,
             color: ink,
             fontSize: 56,
@@ -59,6 +60,7 @@ export default async function Image({
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
+          backgroundColor: bgColor,
           backgroundImage: bg,
           padding: 72,
         }}
@@ -171,9 +173,7 @@ export default async function Image({
               alignItems: "center",
               fontSize: 28,
               fontWeight: 700,
-              backgroundImage: `linear-gradient(135deg, ${violet} 0%, ${cobalt} 100%)`,
-              backgroundClip: "text",
-              color: "transparent",
+              color: ink,
             }}
           >
             {SITE_NAME}

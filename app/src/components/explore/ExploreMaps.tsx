@@ -14,7 +14,7 @@ import type { MapNode } from "./ForceMap";
 // shared `.chip`/`.chip-active` classes are tuned for (e.g. Discover).
 const DARK_CHIP =
   "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
-const DARK_CHIP_ACTIVE = "border-[#9dc6ff]/60 bg-[#9dc6ff]/15 text-white";
+const DARK_CHIP_ACTIVE = "border-[#54b9ff]/60 bg-[#54b9ff]/15 text-white";
 
 type TabKey = "apps" | "tags";
 
@@ -97,7 +97,7 @@ export function ExploreMaps() {
 
   return (
     <div>
-      <section className="relative isolate overflow-hidden rounded-card border border-white/10 bg-gradient-to-b from-[#0b0d1a] to-[#141225] p-4 shadow-lg sm:p-6">
+      <section className="relative isolate overflow-hidden rounded-card border border-white/10 bg-gradient-to-b from-[#0c0f19] to-[#060913] p-4 sm:p-6">
         {/* WebGL2 nebula/starfield — a purely decorative enhancement. If
             WebGL2 is unavailable or the shader fails, NebulaField renders
             nothing and this gradient (set on the section itself, not
@@ -119,7 +119,7 @@ export function ExploreMaps() {
                 onClick={() => switchTab(t.key)}
                 className={cn(
                   "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.96]",
-                  tab === t.key ? "bg-white/15 text-white shadow-subtle" : "text-white/50 hover:text-white/80",
+                  tab === t.key ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80",
                 )}
               >
                 {t.label}

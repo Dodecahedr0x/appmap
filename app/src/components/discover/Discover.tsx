@@ -160,7 +160,7 @@ export function Discover({ initial }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-balance text-heading-lg font-semibold leading-[1.15] tracking-tight text-ink">
+        <h1 className="font-display text-balance text-heading-lg font-normal leading-[1.15] tracking-tight text-ink">
           Discover the best apps
         </h1>
         <p className="mt-2 text-pretty text-body text-slate">

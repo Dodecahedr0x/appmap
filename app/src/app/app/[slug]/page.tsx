@@ -77,14 +77,14 @@ export default async function AppDetailPage({ params }: Props) {
         <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-card bg-ivory text-2xl font-bold text-cobalt">
           {app.iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={app.iconUrl} alt="" className="h-full w-full object-cover ring-1 ring-inset ring-black/10" />
+            <img src={app.iconUrl} alt="" className="h-full w-full object-cover ring-1 ring-inset ring-white/10" />
           ) : (
             app.name.charAt(0).toUpperCase()
           )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-balance text-2xl font-bold text-ink">{app.name}</h1>
+            <h1 className="font-display text-balance text-2xl font-bold text-ink">{app.name}</h1>
             <span className="chip capitalize">{app.category}</span>
             <span className="chip capitalize">{app.chain}</span>
           </div>

@@ -72,12 +72,12 @@ export function Toaster({ children }: { children: ReactNode }) {
             key={t.id}
             role="status"
             className={cn(
-              "pointer-events-auto rounded-card border bg-white px-4 py-3 text-sm shadow-lg transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
+              "pointer-events-auto rounded-card border border-hairline bg-ivory px-4 py-3 text-sm transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
               t.leaving ? "translate-y-1 opacity-0" : "animate-fade-in translate-y-0 opacity-100",
               t.kind === "success" &&
                 "border-forest/30 bg-forest/5 text-forest",
               t.kind === "error" &&
-                "border-red-500/30 bg-red-50 text-red-600",
+                "border-red-400/30 bg-red-400/10 text-red-400",
               t.kind === "info" &&
                 "border-hairline text-ink",
             )}

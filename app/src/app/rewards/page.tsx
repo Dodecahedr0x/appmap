@@ -18,7 +18,7 @@ export default async function RewardsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-heading-lg font-semibold text-ink">Rewards</h1>
+        <h1 className="font-display text-heading-lg font-normal text-ink">Rewards</h1>
         <p className="mt-2 text-pretty text-sm text-slate">
           Everything {TOKEN_SYMBOL} lives here: buy {TOKEN_NAME} on the public NEB/USDC pool, watch
           its live indicators, and claim what your votes and tag stakes have earned — without

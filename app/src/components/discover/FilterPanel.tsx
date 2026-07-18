@@ -153,7 +153,7 @@ export function FilterPanel({
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         className={cn(
-          "btn-secondary gap-2 rounded-pill shadow-subtle",
+          "btn-secondary gap-2 rounded-pill",
           panelRendered && "rounded-b-none border-b-0",
         )}
         aria-expanded={isOpen}
@@ -174,7 +174,7 @@ export function FilterPanel({
         </svg>
         Filters
         {hasFilters && (
-          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-cobalt px-1 text-[11px] font-semibold text-white">
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-cobalt px-1 text-[11px] font-semibold text-cream">
             {activeCount}
           </span>
         )}
@@ -184,7 +184,7 @@ export function FilterPanel({
         <div
           id="discover-filter-panel"
           className={cn(
-            "card mt-0 max-h-[75vh] w-72 origin-top-right space-y-5 overflow-y-auto rounded-tr-none p-4 shadow-subtle transition-opacity duration-150 motion-safe:transition-[opacity,transform]",
+            "card mt-0 max-h-[75vh] w-72 origin-top-right space-y-5 overflow-y-auto rounded-tr-none p-4 transition-opacity duration-150 motion-safe:transition-[opacity,transform]",
             panelVisible ? "opacity-100 motion-safe:scale-100" : "opacity-0 motion-safe:scale-95",
           )}
         >

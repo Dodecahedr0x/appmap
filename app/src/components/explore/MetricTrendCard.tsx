@@ -3,6 +3,10 @@
 import { useId } from "react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
+// DESIGN.md tokens (see tailwind.config.ts): mist=abyss, hairline=gunmetal,
+// slate=steel, forest=aurora mint — same values this card used under a
+// component-scoped "astro-" prefix before the whole site adopted them.
+
 export interface TrendPoint {
   x: string;
   y: number;
@@ -22,10 +26,7 @@ function withZeroFloor(data: TrendPoint[]): TrendPoint[] {
 
 /**
  * One Explore-page metric tile: the current value plus a full-bleed filled
- * trend chart underneath. Deliberately a dark "island" card (see DESIGN.md's
- * Astro reference) rather than matching the rest of the still-light Explore
- * page — the same treatment `ExploreMaps`' panel already uses on this same
- * page, so it's not a new pattern here, just applied to a second panel.
+ * trend chart underneath (see DESIGN.md's Astro reference).
  */
 export function MetricTrendCard({
   label,
@@ -46,9 +47,9 @@ export function MetricTrendCard({
   const unit = unitParts.join(" ");
 
   return (
-    <div className="flex flex-col rounded-card border border-astro-gunmetal bg-astro-abyss">
+    <div className="flex flex-col rounded-card border border-hairline bg-mist">
       <div className="min-w-0 p-6 pb-0">
-        <div className="text-caption font-semibold uppercase tracking-wide text-astro-steel">
+        <div className="text-caption font-semibold uppercase tracking-wide text-slate">
           {label}
         </div>
         {/* flex-wrap, not nowrap: a wide value (e.g. "133.96K NEB") wraps
@@ -56,11 +57,11 @@ export function MetricTrendCard({
             clipping it against the chart wrapper's overflow-hidden below
             was the previous bug here. */}
         <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
-          <span className="text-heading-xl font-bold tabular-nums text-astro-mint">
+          <span className="text-heading-xl font-bold tabular-nums text-forest">
             {amount}
           </span>
           {unit && (
-            <span className="text-heading-sm font-semibold text-astro-steel">{unit}</span>
+            <span className="text-heading-sm font-semibold text-slate">{unit}</span>
           )}
         </div>
       </div>

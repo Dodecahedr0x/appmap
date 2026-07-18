@@ -58,20 +58,23 @@ interface ForceMapProps<RawNode, RawLink> {
   emptyMessage?: string;
 }
 
-// Tuned for the dark "nebula" backdrop (see NebulaField) the map now sits
-// on, rather than the light cream/ivory used elsewhere in the app.
-const NODE_FILL = "#7db4ff";
-const NODE_FILL_DIM = "#4b5563";
-const EDGE_STROKE = "#8fb8ff";
-const LABEL_INK = "#f2f4fa";
-const LABEL_DIM = "#6b7280";
-const SELECTED_RING = "#c4b5fd";
+// DESIGN.md tokens (see globals.css/tailwind.config.ts): plasma blue for
+// nodes/edges, ultraviolet for the selection ring, gunmetal/steel for
+// dimmed/muted states — the map already sat on a dark nebula backdrop
+// (see NebulaField) before Astro formalized these as the app-wide palette.
+const NODE_FILL = "#54b9ff";
+const NODE_FILL_DIM = "#545864";
+const EDGE_STROKE = "#3245ff";
+const LABEL_INK = "#f2f6fa";
+const LABEL_DIM = "#858b98";
+const SELECTED_RING = "#acafff";
 // Local dark-glass chip styling for this component's own metric pickers —
-// deliberately not the shared `.chip`/`.chip-active` classes, which are
-// tuned for the light theme used everywhere else (e.g. Discover's facets).
+// deliberately not the shared `.chip`/`.chip-active` classes, which read
+// current-theme tokens but assume an opaque card surface behind them,
+// unlike this canvas overlay's translucent glass panel.
 const DARK_CHIP =
   "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
-const DARK_CHIP_ACTIVE = "border-[#9dc6ff]/60 bg-[#9dc6ff]/15 text-white";
+const DARK_CHIP_ACTIVE = "border-[#54b9ff]/60 bg-[#54b9ff]/15 text-white";
 // A pointer that moved less than this while a node was grabbed (or the
 // background was pressed) still counts as a click/tap, not a drag/pan —
 // real pointers rarely stay perfectly still.
@@ -430,8 +433,8 @@ export function ForceMap<RawNode, RawLink>({
           const pulse =
             isSelected && !reduceMotion ? 1 + 0.12 * Math.sin(performance.now() * 0.003) : 1;
           const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2 * pulse);
-          grad.addColorStop(0, dim ? "rgba(148, 163, 184, 0.25)" : "rgba(125, 180, 255, 0.55)");
-          grad.addColorStop(1, "rgba(140, 100, 255, 0)");
+          grad.addColorStop(0, dim ? "rgba(133, 139, 152, 0.25)" : "rgba(84, 185, 255, 0.55)");
+          grad.addColorStop(1, "rgba(184, 69, 237, 0)");
           ctx.fillStyle = grad;
           ctx.beginPath();
           ctx.arc(n.x, n.y, r * 2 * pulse, 0, Math.PI * 2);
@@ -693,7 +696,7 @@ export function ForceMap<RawNode, RawLink>({
           </div>
         )}
         {hovered && (
-          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-white/10 bg-black/70 px-3 py-2 shadow-lg backdrop-blur-sm">
+          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-white/10 bg-black/70 px-3 py-2 backdrop-blur-sm">
             <div className="text-sm font-semibold text-white">{hovered.label}</div>
             {sizeMetrics.map((m) => (
               <div key={m.key} className="text-caption text-white/60">
@@ -702,7 +705,7 @@ export function ForceMap<RawNode, RawLink>({
             ))}
           </div>
         )}
-        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-white/10 bg-black/50 shadow-lg backdrop-blur-sm">
+        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-white/10 bg-black/50 backdrop-blur-sm">
           <button
             type="button"
             onClick={() => zoomActionsRef.current?.zoomIn()}
@@ -756,7 +759,7 @@ export function ForceMap<RawNode, RawLink>({
         </span>
         <span className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full bg-[#7db4ff]" aria-hidden="true" />
+            <span className="inline-block h-2 w-2 rounded-full bg-[#54b9ff]" aria-hidden="true" />
             size = {activeSizeMetric.label.toLowerCase()}
           </span>
           {hasOptions && (
@@ -765,7 +768,7 @@ export function ForceMap<RawNode, RawLink>({
               onClick={() => setShowCustomize((v) => !v)}
               aria-expanded={showCustomize}
               aria-controls={customizePanelId}
-              className="font-medium text-sky-300 hover:text-sky-200 hover:underline"
+              className="font-medium text-[#54b9ff] hover:text-[#acafff] hover:underline"
             >
               {showCustomize ? "Hide options" : "Customize"}
             </button>

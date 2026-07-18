@@ -42,7 +42,7 @@ export default async function ExplorePage() {
   return (
     <div className="space-y-16">
       <div>
-        <h1 className="text-heading-xl font-semibold text-ink">Explore</h1>
+        <h1 className="font-display text-heading-xl font-normal text-ink">Explore</h1>
         <p className="mt-2 max-w-2xl text-pretty text-subheading text-slate">
           A closer look at what&apos;s happening across nebulous.world: who the community is
           backing, which apps are worth a look, and how it all connects.

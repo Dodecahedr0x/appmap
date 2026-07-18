@@ -9,77 +9,76 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dock style reference — sunlit cream paper, cobalt pulse.
-        cream: "#faf9f7",
-        ivory: "#fbfaf7",
-        mist: "#f4f0ff",
-        powder: "#d6e4f1",
+        // Astro style reference — deep space mission control, purple nebula
+        // glow (see DESIGN.md). Names kept from the old "Dock" palette where
+        // the *role* carries over, so components that only ever reference
+        // these Tailwind classes (bg-cream, text-ink, border-hairline, ...)
+        // repaint for free — see globals.css for the few structural changes
+        // (white-pill primary button, no shadows) that need their own edit.
+        cream: "#1f232e", // was canvas cream → void canvas
+        ivory: "#17191e", // was card surface → carbon (mid-elevation card)
+        mist: "#0c0f19", // was decorative wash → abyss (deep well/backdrop)
+        powder: "#545864", // was outline border → gunmetal
         ink: {
-          DEFAULT: "#121722",
-          deep: "#1d1d1d",
-          graphite: "#2d2d2d",
+          DEFAULT: "#f2f6fa", // was near-black text → lunar white (now light-on-dark)
+          deep: "#060913", // was dark surface fill → singularity
+          graphite: "#0c0f19", // was dark surface fill → abyss
         },
         slate: {
-          DEFAULT: "#777c86",
-          steel: "#a5a5a5",
+          DEFAULT: "#858b98", // was secondary text → steel
+          steel: "#bfc1c9", // was muted/placeholder text → mist
         },
-        hairline: "#efefef",
-        faint: "#cccccc",
+        hairline: "#545864", // gunmetal — hairline borders on the dark canvas
+        faint: "#e5e7eb", // was subdued icon strokes → platinum
         cobalt: {
-          DEFAULT: "#0068f9",
-          deep: "#024bb1",
+          DEFAULT: "#54b9ff", // was primary interactive blue → plasma blue
+          deep: "#acafff", // was hover/pressed → ultraviolet
         },
-        cerulean: "#0074dd",
-        violet: "#6736eb",
-        forest: "#046645",
-        // Astro style reference (DESIGN.md) — deep space, single mint accent.
-        // Scoped to the Explore metric cards for now (the "astro-" prefix
-        // keeps it from colliding with Dock's own `mist` token, a different
-        // color under the same name), not a site-wide theme swap.
-        astro: {
-          abyss: "#0c0f19",
-          gunmetal: "#545864",
-          lunar: "#f2f6fa",
-          steel: "#858b98",
-          mint: "#4bf3c8",
-        },
+        cerulean: "#00daef", // electric cyan
+        violet: "#acafff", // ultraviolet
+        forest: "#4bf3c8", // aurora mint
+        amber: "#ffd493",
+        "signal-blue": "#61dafb",
       },
       fontFamily: {
-        sans: ["var(--font-roobert)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-ui-sans-serif)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-obviously)", "var(--font-ui-sans-serif)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       fontSize: {
-        caption: ["13px", { lineHeight: "1.5", letterSpacing: "0.077px" }],
-        body: ["16px", { lineHeight: "1.56" }],
-        subheading: ["18px", { lineHeight: "1.5" }],
-        "heading-sm": ["20px", { lineHeight: "1.38" }],
-        heading: ["24px", { lineHeight: "1.33" }],
-        "heading-lg": ["40px", { lineHeight: "1.25" }],
-        "heading-xl": ["48px", { lineHeight: "1.2" }],
-        display: ["57px", { lineHeight: "1.09" }],
-        "display-lg": ["84px", { lineHeight: "1.06" }],
+        caption: ["12px", { lineHeight: "1.5", letterSpacing: "0.3px" }],
+        "body-sm": ["14px", { lineHeight: "1.65" }],
+        body: ["16px", { lineHeight: "1.5" }],
+        subheading: ["20px", { lineHeight: "1.4" }],
+        "heading-sm": ["30px", { lineHeight: "1.2" }],
+        heading: ["36px", { lineHeight: "1.11" }],
+        "heading-lg": ["36px", { lineHeight: "1.11" }],
+        "heading-xl": ["48px", { lineHeight: "1.1" }],
+        display: ["48px", { lineHeight: "1.1" }],
+        "display-lg": ["48px", { lineHeight: "1.1" }],
       },
       spacing: {
         18: "72px",
+        68: "68px",
         88: "88px",
+        144: "144px",
+        160: "160px",
+        224: "224px",
       },
       borderRadius: {
         card: "16px",
-        icon: "60px",
-        pill: "100px",
-        image: "16px",
-        button: "48px",
-        navitem: "48px",
-      },
-      boxShadow: {
-        subtle:
-          "rgba(0, 0, 0, 0.07) 0px 1px 1px 0px, rgba(0, 0, 0, 0.04) 0px -1px 1px 0px inset, rgba(0, 0, 0, 0.14) 0px 0px 0px 0.5px inset",
-        lg: "rgba(0, 0, 0, 0.04) 0px 20px 20px -8px",
+        icon: "48px",
+        pill: "9999px",
+        image: "12px",
+        button: "9999px",
+        navitem: "9999px",
       },
       backgroundImage: {
-        "hero-gradient": "linear-gradient(180deg, #faf9f7 0%, #d5ecff 100%)",
-        "cta-gradient":
-          "linear-gradient(135deg, #faf9f7 0%, #c8dcf5 60%, #0068f9 100%)",
+        "hero-gradient":
+          "radial-gradient(circle at 50% 0%, rgba(50, 69, 255, 0.3) 0%, rgba(31, 35, 46, 0) 60%)",
+        "cta-gradient": "linear-gradient(83.21deg, #3245ff 0%, #b845ed 100%)",
+        "nebula-gradient": "linear-gradient(83.21deg, #3245ff 0%, #b845ed 100%)",
+        "plasma-gradient": "linear-gradient(66.77deg, #d83333 0%, #f041ff 100%)",
       },
       keyframes: {
         "fade-in": {
