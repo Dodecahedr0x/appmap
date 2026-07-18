@@ -32,6 +32,17 @@ const config: Config = {
         cerulean: "#0074dd",
         violet: "#6736eb",
         forest: "#046645",
+        // Astro style reference (DESIGN.md) — deep space, single mint accent.
+        // Scoped to the Explore metric cards for now (the "astro-" prefix
+        // keeps it from colliding with Dock's own `mist` token, a different
+        // color under the same name), not a site-wide theme swap.
+        astro: {
+          abyss: "#0c0f19",
+          gunmetal: "#545864",
+          lunar: "#f2f6fa",
+          steel: "#858b98",
+          mint: "#4bf3c8",
+        },
       },
       fontFamily: {
         sans: ["var(--font-roobert)", "ui-sans-serif", "system-ui", "sans-serif"],

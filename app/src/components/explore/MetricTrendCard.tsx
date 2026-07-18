@@ -1,25 +1,31 @@
 "use client";
 
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useId } from "react";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
 export interface TrendPoint {
   x: string;
   y: number;
 }
 
+// A chart with fewer than 2 points can't draw a line at all. Rather than
+// swap in a text fallback (which would make an empty-history card a
+// different shape from its neighbors), pad up to this many flat zero
+// points — a flat baseline at 0 reads as "nothing here yet" on its own,
+// no caption needed, and every card keeps the same layout.
+const MIN_POINTS = 7;
+
+function withZeroFloor(data: TrendPoint[]): TrendPoint[] {
+  if (data.length >= 2) return data;
+  return Array.from({ length: MIN_POINTS }, (_, i) => ({ x: String(i), y: 0 }));
+}
+
 /**
- * One Explore-page metric tile: the current value plus a compact line
- * chart of how it evolved over time. Replaces the old bare-number
- * StatTile — same card shell, same label/value styling, with a trend line
- * underneath instead of nothing. Mirrors app/TrendChart.tsx's recharts
- * setup, just shorter (one series, no legend) to fit five side by side.
+ * One Explore-page metric tile: the current value plus a full-bleed filled
+ * trend chart underneath. Deliberately a dark "island" card (see DESIGN.md's
+ * Astro reference) rather than matching the rest of the still-light Explore
+ * page — the same treatment `ExploreMaps`' panel already uses on this same
+ * page, so it's not a new pattern here, just applied to a second panel.
  */
 export function MetricTrendCard({
   label,
@@ -30,36 +36,57 @@ export function MetricTrendCard({
   value: string;
   data: TrendPoint[];
 }) {
+  const gradientId = useId();
+  const chartData = withZeroFloor(data);
+  // Split "1.23M NEB" -> ["1.23M", "NEB"] so the unit renders smaller and
+  // muted next to the bolded figure, matching the reference's "123 Mil"
+  // treatment. Values with no unit (plain formatNumber output) just render
+  // as the one bolded span.
+  const [amount, ...unitParts] = value.split(" ");
+  const unit = unitParts.join(" ");
+
   return (
-    <div className="card p-6">
-      <div className="text-caption font-semibold uppercase tracking-wide text-slate">
-        {label}
+    <div className="flex flex-col rounded-card border border-astro-gunmetal bg-astro-abyss">
+      <div className="min-w-0 p-6 pb-0">
+        <div className="text-caption font-semibold uppercase tracking-wide text-astro-steel">
+          {label}
+        </div>
+        {/* flex-wrap, not nowrap: a wide value (e.g. "133.96K NEB") wraps
+            the unit to its own line instead of overflowing the card —
+            clipping it against the chart wrapper's overflow-hidden below
+            was the previous bug here. */}
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+          <span className="text-heading-xl font-bold tabular-nums text-astro-mint">
+            {amount}
+          </span>
+          {unit && (
+            <span className="text-heading-sm font-semibold text-astro-steel">{unit}</span>
+          )}
+        </div>
       </div>
-      <div className="mt-1 text-heading-xl font-bold tabular-nums text-ink">{value}</div>
-      <div className="mt-3 h-16">
-        {data.length < 2 ? (
-          <div className="flex h-full items-center text-xs text-slate-steel">
-            Not enough history yet
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-              <XAxis dataKey="x" hide />
-              <YAxis hide domain={["auto", "auto"]} />
-              <Tooltip
-                contentStyle={{
-                  background: "#ffffff",
-                  border: "1px solid #efefef",
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
-                labelFormatter={(x) => new Date(x as string).toLocaleString()}
-                formatter={(y: number) => [y.toLocaleString(), label]}
-              />
-              <Line type="monotone" dataKey="y" stroke="#0068f9" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+      {/* No padding/margin here — the chart bleeds flush to the card's own
+          edges (the reference's defining trait). `overflow-hidden` +
+          matching `rounded-b-card` are scoped to just this chart strip
+          (not the whole card) so a wide value above never gets clipped. */}
+      <div className="mt-4 h-16 overflow-hidden rounded-b-card">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#4bf3c8" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#4bf3c8" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area
+              type="monotone"
+              dataKey="y"
+              stroke="#4bf3c8"
+              strokeWidth={2}
+              fill={`url(#${gradientId})`}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
