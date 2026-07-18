@@ -27,8 +27,8 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
  * Shared WebGL2 lifecycle for a fullscreen-triangle fragment shader that
  * only needs `u_resolution`/`u_time` — compile/link, DPR-capped resize,
  * pause-when-off-screen, and prefers-reduced-motion all live here once so
- * every decorative shader background (NebulaField, ConstellationField, ...)
- * doesn't reimplement it. Fails silently (draws nothing) if WebGL2 is
+ * every decorative shader background (ConstellationField, ...) doesn't
+ * reimplement it. Fails silently (draws nothing) if WebGL2 is
  * unavailable or `fragmentSrc` doesn't compile/link — the caller's own CSS
  * background is expected to carry the look on its own in that case.
  */

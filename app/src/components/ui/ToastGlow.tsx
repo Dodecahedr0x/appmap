@@ -2,17 +2,17 @@
 
 import { useEffect, useRef } from "react";
 
-// Not built on lib/useShaderBackground.ts (the shared lifecycle NebulaField/
-// ConstellationField use): that hook creates its WebGL2 context with
+// Not built on lib/useShaderBackground.ts (the shared lifecycle
+// ConstellationField uses): that hook creates its WebGL2 context with
 // `alpha: false`, correct for a full-bleed opaque background but wrong
 // here — this canvas is a translucent glow composited *over* the toast
 // card's own background, not a replacement for it, so it needs its own
 // alpha-blended context (see the `alpha`/`premultipliedAlpha`/`BLEND`
 // setup below).
 //
-// Fullscreen-triangle trick (see explore/NebulaField.tsx) — 3 hardcoded
-// clip-space vertices via gl_VertexID, covering the whole canvas with no
-// vertex buffer needed.
+// Fullscreen-triangle trick (see about/ConstellationField.tsx) — 3
+// hardcoded clip-space vertices via gl_VertexID, covering the whole canvas
+// with no vertex buffer needed.
 const VERTEX_SRC = `#version 300 es
 void main() {
   vec2 pos[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));

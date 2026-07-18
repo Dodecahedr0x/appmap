@@ -3,9 +3,10 @@
 import { useId } from "react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
-// DESIGN.md tokens (see tailwind.config.ts): mist=abyss, hairline=gunmetal,
-// slate=steel, forest=aurora mint — same values this card used under a
-// component-scoped "astro-" prefix before the whole site adopted them.
+// DESIGN.md tokens (see tailwind.config.ts): ivory=carbon, hairline=gunmetal,
+// slate=steel, ink=lunar white, forest=aurora mint — same values this card
+// used under a component-scoped "astro-" prefix before the whole site
+// adopted them.
 
 export interface TrendPoint {
   x: string;
@@ -47,7 +48,7 @@ export function MetricTrendCard({
   const unit = unitParts.join(" ");
 
   return (
-    <div className="flex flex-col rounded-card border border-hairline bg-mist">
+    <div className="card flex flex-col">
       <div className="min-w-0 p-6 pb-0">
         <div className="text-caption font-semibold uppercase tracking-wide text-slate">
           {label}
@@ -55,13 +56,18 @@ export function MetricTrendCard({
         {/* flex-wrap, not nowrap: a wide value (e.g. "133.96K NEB") wraps
             the unit to its own line instead of overflowing the card —
             clipping it against the chart wrapper's overflow-hidden below
-            was the previous bug here. */}
+            was the previous bug here. Value stays achromatic (text-ink,
+            not a chromatic accent) and within the documented type scale at
+            heading-sm — DESIGN.md's whole system spends color sparingly
+            ("every chromatic pixel is doing real work"), and text-heading-xl
+            here tied visually with the page's own H1 at the same size. The
+            trend line below is the one deliberate accent per card instead. */}
         <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
-          <span className="text-heading-xl font-bold tabular-nums text-forest">
+          <span className="text-heading-sm font-semibold tabular-nums text-ink">
             {amount}
           </span>
           {unit && (
-            <span className="text-heading-sm font-semibold text-slate">{unit}</span>
+            <span className="text-subheading font-medium text-slate">{unit}</span>
           )}
         </div>
       </div>

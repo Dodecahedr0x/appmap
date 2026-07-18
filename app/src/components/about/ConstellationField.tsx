@@ -3,9 +3,9 @@
 import { useRef } from "react";
 import { useShaderBackground } from "@/lib/useShaderBackground";
 
-// The About hero's signature visual: the same deep-space/nebula wash as
-// NebulaField (domain-warped fbm nebula in DESIGN.md's gradient colors, no
-// star grid), plus a GPU-driven "constellation" layer — a small set of
+// The About hero's signature visual: a domain-warped fbm nebula wash in
+// DESIGN.md's gradient colors (no star grid), plus a GPU-driven
+// "constellation" layer — a small set of
 // nodes that drift and connect to their nearest neighbors, redrawing every
 // frame. Purely procedural (no per-node JS state, no data), but it's the
 // clearest one-shader illustration of what the product actually is: a
@@ -134,9 +134,9 @@ void main() {
 
 /**
  * The About page hero's WebGL2 backdrop — see the module comment above for
- * what it's actually drawing. Same graceful-degradation contract as
- * NebulaField: aria-hidden, and if WebGL2/compilation fails it draws
- * nothing, leaving the hero's CSS gradient to carry the look alone.
+ * what it's actually drawing. Graceful degradation: aria-hidden, and if
+ * WebGL2/compilation fails it draws nothing, leaving the hero's CSS
+ * gradient to carry the look alone.
  */
 export function ConstellationField({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
