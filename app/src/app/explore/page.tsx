@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { getPlatformStats } from "@/lib/explore";
+import { getPlatformStats, getPlatformViewsTrend } from "@/lib/explore";
+import { fetchPlatformMetricsHistory } from "@/lib/indexerClient";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
+import { config } from "@/lib/config";
 import { ExploreMaps } from "@/components/explore/ExploreMaps";
+import { MetricTrendCard, type TrendPoint } from "@/components/explore/MetricTrendCard";
 
 export const dynamic = "force-dynamic";
 
@@ -11,17 +14,30 @@ export const metadata: Metadata = {
   description: "See what's happening across nebulous.world — top apps, tag trends, and how apps and tags relate to each other.",
 };
 
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card p-6">
-      <div className="text-caption font-semibold uppercase tracking-wide text-slate">{label}</div>
-      <div className="mt-1 text-heading-xl font-bold tabular-nums text-ink">{value}</div>
-    </div>
-  );
-}
-
 export default async function ExplorePage() {
-  const stats = await getPlatformStats();
+  // The on-chain-derived series (apps/tags/votes/stake) comes from the
+  // indexer, which is a separate service that can be unreachable in some
+  // environments — degrade to an empty trend rather than failing the whole
+  // page over a chart that isn't this page's only content (unlike
+  // app/rewards/page.tsx, where the indexer status *is* the page).
+  const [stats, onchainHistory, viewsTrend] = await Promise.all([
+    getPlatformStats(),
+    fetchPlatformMetricsHistory().catch(() => []),
+    getPlatformViewsTrend(),
+  ]);
+
+  const scale = 10 ** config.solana.voteTokenDecimals;
+  const appsTrend: TrendPoint[] = onchainHistory.map((p) => ({ x: p.capturedAt, y: p.appCount }));
+  const tagsTrend: TrendPoint[] = onchainHistory.map((p) => ({ x: p.capturedAt, y: p.tagCount }));
+  const votesTrend: TrendPoint[] = onchainHistory.map((p) => ({
+    x: p.capturedAt,
+    y: Number(p.totalVoteStake) / scale,
+  }));
+  const stakeTrend: TrendPoint[] = onchainHistory.map((p) => ({
+    x: p.capturedAt,
+    y: Number(p.totalTagStake) / scale,
+  }));
+  const viewsTrendPoints: TrendPoint[] = viewsTrend.map((p) => ({ x: p.date, y: p.totalViews }));
 
   return (
     <div className="space-y-16">
@@ -35,11 +51,23 @@ export default async function ExplorePage() {
 
       <section>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <StatTile label="Apps" value={formatNumber(stats.totalApps)} />
-          <StatTile label="Tags" value={formatNumber(stats.totalTags)} />
-          <StatTile label="Votes cast" value={formatToken(stats.totalVoteWeight, TOKEN_SYMBOL)} />
-          <StatTile label="Staked" value={formatToken(stats.totalStake, TOKEN_SYMBOL)} />
-          <StatTile label="Page views" value={formatNumber(stats.totalViews)} />
+          <MetricTrendCard label="Apps" value={formatNumber(stats.totalApps)} data={appsTrend} />
+          <MetricTrendCard label="Tags" value={formatNumber(stats.totalTags)} data={tagsTrend} />
+          <MetricTrendCard
+            label="Votes cast"
+            value={formatToken(stats.totalVoteWeight, TOKEN_SYMBOL)}
+            data={votesTrend}
+          />
+          <MetricTrendCard
+            label="Staked"
+            value={formatToken(stats.totalStake, TOKEN_SYMBOL)}
+            data={stakeTrend}
+          />
+          <MetricTrendCard
+            label="Page views"
+            value={formatNumber(stats.totalViews)}
+            data={viewsTrendPoints}
+          />
         </div>
       </section>
 

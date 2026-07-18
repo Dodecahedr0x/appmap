@@ -86,6 +86,7 @@ pub fn router(state: Arc<ApiState>) -> Router {
         )
         .route("/balances/:owner/:mint", get(get_balance))
         .route("/pool", get(get_pool))
+        .route("/metrics/platform-history", get(get_platform_metrics_history))
         .route("/tx/vote", post(build_vote))
         .route("/tx/withdraw-vote", post(build_withdraw_vote))
         .route("/tx/stake-tag", post(build_stake_tag))
@@ -777,6 +778,59 @@ async fn submit_tx(
     Ok(Json(SubmitDto {
         signature: signature.to_string(),
     }))
+}
+
+// ---------------------------------------------------------------------
+// Platform metrics history — the time series behind the Explore page's
+// metric trend charts (src/platform_metrics.rs writes the rows this reads).
+// ---------------------------------------------------------------------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlatformMetricsPointDto {
+    captured_at: chrono::DateTime<chrono::Utc>,
+    app_count: i64,
+    tag_count: i64,
+    /// Raw on-chain u64 amounts as decimal strings (see indexerClient.ts's
+    /// convention) — the app scales these by the vote token's decimals.
+    total_vote_stake: String,
+    total_tag_stake: String,
+}
+
+async fn get_platform_metrics_history(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<Vec<PlatformMetricsPointDto>>, ApiError> {
+    let rows: Vec<(chrono::DateTime<chrono::Utc>, i64, i64, i64, i64)> = sqlx::query_as(
+        r#"
+        SELECT captured_at, app_count, tag_count, total_vote_stake, total_tag_stake
+        FROM (
+            SELECT captured_at, app_count, tag_count, total_vote_stake, total_tag_stake
+            FROM platform_metrics_snapshot
+            ORDER BY captured_at DESC
+            LIMIT 2000
+        ) recent
+        ORDER BY captured_at ASC
+        "#,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(internal)?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(
+                |(captured_at, app_count, tag_count, total_vote_stake, total_tag_stake)| {
+                    PlatformMetricsPointDto {
+                        captured_at,
+                        app_count,
+                        tag_count,
+                        total_vote_stake: total_vote_stake.to_string(),
+                        total_tag_stake: total_tag_stake.to_string(),
+                    }
+                },
+            )
+            .collect(),
+    ))
 }
 
 #[cfg(test)]

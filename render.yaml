@@ -131,6 +131,8 @@ services:
         value: "60"
       - key: CRAWLER_POLL_INTERVAL_SECS
         value: "15"
+      - key: PLATFORM_METRICS_INTERVAL_SECS
+        value: "3600"
       - key: INDEXER_API_PORT
         value: "8090"
 

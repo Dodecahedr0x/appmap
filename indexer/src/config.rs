@@ -26,6 +26,12 @@ pub struct Config {
     /// seconds — see src/crawler.rs for why this is polled rather than
     /// streamed.
     pub crawler_poll_interval_secs: u64,
+    /// How often the platform-wide metrics snapshot (src/platform_metrics.rs)
+    /// recomputes, in seconds — the time series behind the Explore page's
+    /// metric trend charts. Hourly by default: frequent enough for a
+    /// meaningful trend line, infrequent enough that the table doesn't grow
+    /// unreasonably fast.
+    pub platform_metrics_interval_secs: u64,
     /// SPL mint used for voting & staking — needed to derive `user_token_account`
     /// ATAs when building vote/stake/claim transactions (see src/api.rs).
     /// Empty in simulation mode (no mint configured yet); tx-build endpoints
@@ -76,6 +82,10 @@ impl Config {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(15);
+        let platform_metrics_interval_secs = std::env::var("PLATFORM_METRICS_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(3600);
         let vote_token_mint = env_non_empty("NEXT_PUBLIC_VOTE_TOKEN_MINT")
             .map(|s| Pubkey::from_str(&s))
             .transpose()
@@ -97,6 +107,7 @@ impl Config {
             program_id,
             rollup_interval_secs,
             crawler_poll_interval_secs,
+            platform_metrics_interval_secs,
             vote_token_mint,
             api_port,
             dlmm_bridge_url,

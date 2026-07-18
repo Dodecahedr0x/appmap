@@ -35,3 +35,29 @@ export async function getPlatformStats(): Promise<PlatformStats> {
     totalViews: totals._sum.viewCount ?? 0,
   };
 }
+
+export interface ViewsTrendPoint {
+  date: string;
+  totalViews: number;
+}
+
+/**
+ * Platform-wide daily page-view trend for the Explore page's chart — page
+ * views never touch the chain, so unlike the vote/stake/app/tag metrics
+ * (collected by the indexer from on-chain state, see
+ * lib/indexerClient.ts's fetchPlatformMetricsHistory), this one's sourced
+ * from the existing daily AppStatsSnapshot rows (see lib/snapshot.ts).
+ */
+export async function getPlatformViewsTrend(): Promise<ViewsTrendPoint[]> {
+  const rows = await prisma.appStatsSnapshot.groupBy({
+    by: ["date"],
+    where: { app: { status: AppStatus.APPROVED } },
+    _sum: { viewCount: true },
+    orderBy: { date: "asc" },
+  });
+
+  return rows.map((r) => ({
+    date: r.date.toISOString(),
+    totalViews: r._sum.viewCount ?? 0,
+  }));
+}
