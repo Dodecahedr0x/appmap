@@ -240,5 +240,8 @@ Local dev environment is ready:
 
 Next steps:
   - Run 'npm run dev' to start the app (http://localhost:3000)
+  - Run 'npm run db:seed:onchain' to buy real NEB from the pool and place
+    real on-chain votes/stakes across the seeded apps/tags (prisma/seed.ts's
+    votes/stakes are fake DB rows only, not real transactions)
   - Run 'npm run teardown:dev' to stop surfpool, the indexer, and local Postgres
 EOF
