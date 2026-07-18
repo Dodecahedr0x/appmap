@@ -57,12 +57,14 @@ const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfc
 const MAX_ID_LEN = 32;
 // Mirrors MAX_URL_LEN.
 const MAX_URL_LEN = 200;
-// Keeps each transaction comfortably under Solana's ~1232-byte limit —
-// init_app + a memo + this many suggest_tag instructions (each needs 2
-// fresh accounts) fits with room to spare. Extra tags can always be added
-// later via a separate suggest_tag transaction (see TagStakePanel's "add a
-// tag" flow), so truncating here loses nothing permanently.
-const MAX_TAGS_PER_APP = 5;
+// Keeps the initial creation transaction comfortably under Solana's
+// ~1232-byte limit — init_app + a memo + this many suggest_tag instructions
+// (each needs 2 fresh accounts) fits with room to spare. This is not a cap
+// on how many tags an app can have: any tags beyond this bundle into the
+// atomic create tx, and the rest go out right after as one suggest_tag
+// transaction each (same shape as TagStakePanel's "add a tag" flow), so an
+// app ends up with every tag from its entry regardless of count.
+const TAGS_PER_TX = 5;
 
 export interface AppEntry {
   url: string;
@@ -159,12 +161,10 @@ async function createApp(
     );
 
     const tags = [...new Set((entry.tags ?? []).map((t) => slugify(t).slice(0, MAX_ID_LEN)).filter(Boolean))];
-    const usedTags = tags.slice(0, MAX_TAGS_PER_APP);
-    if (tags.length > usedTags.length) {
-      console.warn(`  ⚠ ${label}: ${tags.length} tags given, only creating the first ${MAX_TAGS_PER_APP} on-chain`);
-    }
+    const initialTags = tags.slice(0, TAGS_PER_TX);
+    const extraTags = tags.slice(TAGS_PER_TX);
 
-    for (const tagId of usedTags) {
+    for (const tagId of initialTags) {
       const tag = tagPda(program.programId, tagId);
       const appTagStake = appTagStakePda(program.programId, app, tag);
       instructions.push(
@@ -183,6 +183,26 @@ async function createApp(
 
     const tx = new Transaction().add(...instructions);
     const sig = await provider.sendAndConfirm(tx, [payer]);
+
+    if (extraTags.length > 0) {
+      console.log(`  … ${label}: sending ${extraTags.length} additional tag(s) as separate transactions`);
+    }
+    for (const tagId of extraTags) {
+      const tag = tagPda(program.programId, tagId);
+      const appTagStake = appTagStakePda(program.programId, app, tag);
+      const extraIx = await program.methods
+        .suggestTag(appId, tagId)
+        .accountsPartial({
+          app,
+          tag,
+          appTagStake,
+          payer: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+      await provider.sendAndConfirm(new Transaction().add(extraIx), [payer]);
+    }
+
     return { status: "created", appId, sig };
   } catch (err) {
     return { status: "failed", appId, error: err instanceof Error ? err.message : String(err) };
