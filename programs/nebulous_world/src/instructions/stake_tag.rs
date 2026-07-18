@@ -6,6 +6,7 @@ use crate::constants::{APP_SEED, APP_TAG_STAKE_SEED, CONFIG_SEED, STAKE_POSITION
 use crate::error::ErrorCode;
 use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
 use crate::state::{AppAccount, AppTagStake, Config, StakePosition};
+use crate::unstake_fee::weighted_avg_timestamp;
 
 /// The tag-staking mirror of `Vote`. Both the pending-reward payout and the
 /// principal-in leg move through the single global vault, signed (for the
@@ -110,11 +111,15 @@ pub fn handler(ctx: Context<StakeTag>, amount: u64) -> Result<()> {
         amount,
     )?;
 
+    let now = Clock::get()?.unix_timestamp;
     let app_tag_stake_key = ctx.accounts.app_tag_stake.key();
     let app = &mut ctx.accounts.app;
     let app_tag_stake = &mut ctx.accounts.app_tag_stake;
     let position = &mut ctx.accounts.position;
 
+    // Must run BEFORE `position.amount` is updated below — see the matching
+    // comment in vote.rs.
+    position.staked_at = weighted_avg_timestamp(position.staked_at, position.amount, now, amount);
     position.amount = position
         .amount
         .checked_add(amount)

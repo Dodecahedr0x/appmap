@@ -4,8 +4,9 @@ use anchor_spl::token::{Token, TokenAccount};
 
 use crate::constants::{APP_SEED, CONFIG_SEED, VOTE_POSITION_SEED};
 use crate::error::ErrorCode;
-use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
+use crate::reward_math::{bump_accumulator, reward_debt_for, settle_pending, transfer_from_vault};
 use crate::state::{AppAccount, Config, VotePosition};
+use crate::unstake_fee::{linear_decay_fee_bps, unstake_fee};
 
 #[derive(Accounts)]
 pub struct WithdrawVote<'info> {
@@ -48,6 +49,15 @@ pub struct WithdrawVote<'info> {
 /// unconditional rather than guarded by `position.amount > 0`: a
 /// `WithdrawVote` can only ever run against an existing position, and an
 /// existing position always has `amount > 0`.
+///
+/// Charges a linearly-decaying unstake fee (see `unstake_fee.rs`) on the
+/// withdrawn `amount` — 1% right after staking, decaying to 0% over the
+/// following week — deducted from what's paid out, not from the `amount`
+/// recorded as unstaked (`position.amount`/`app.total_vote_stake` both still
+/// move by the full `amount`, keeping the accumulator math exactly as before).
+/// The fee itself is redistributed to whoever remains in the vote pool via
+/// the same `bump_accumulator` mechanism `fund_app_rewards` uses, so it
+/// isn't a burn or a treasury skim — it accrues to other vote-stakers.
 pub fn handler(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
     require!(amount > 0, ErrorCode::ZeroAmount);
     require!(
@@ -69,6 +79,10 @@ pub fn handler(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
         pending,
     )?;
 
+    let now = Clock::get()?.unix_timestamp;
+    let elapsed = now.saturating_sub(ctx.accounts.position.staked_at);
+    let fee = unstake_fee(amount, linear_decay_fee_bps(elapsed))?;
+
     let app = &mut ctx.accounts.app;
     let position = &mut ctx.accounts.position;
 
@@ -77,16 +91,35 @@ pub fn handler(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
         .total_vote_stake
         .checked_sub(amount)
         .ok_or(ErrorCode::MathOverflow)?;
+    // Checkpointed against the accumulator's value BEFORE the fee-funding
+    // bump below, same as every other checkpoint-then-fund ordering in this
+    // program: if this position still holds stake, it starts accruing a
+    // share of the fee just funded from this point forward, like any other
+    // pool member — no special-casing needed for "am I the one who just paid
+    // this fee".
     position.reward_debt = reward_debt_for(position.amount, app.vote_acc_reward_per_share)?;
 
-    // Return principal, signed by `config` — the vault's only authority.
+    // Redistribute the fee to whoever remains in the vote pool. If this
+    // withdrawal empties it (the last staker withdrawing everything), there
+    // is nobody left to receive it — waive the fee rather than strand it in
+    // the vault with no accumulator claim on it.
+    let net_amount = if fee > 0 && app.total_vote_stake > 0 {
+        app.vote_acc_reward_per_share =
+            bump_accumulator(fee, app.total_vote_stake, app.vote_acc_reward_per_share)?;
+        amount - fee
+    } else {
+        amount
+    };
+
+    // Return principal (net of any unstake fee), signed by `config` — the
+    // vault's only authority.
     transfer_from_vault(
         &ctx.accounts.vault,
         &ctx.accounts.user_token_account,
         &ctx.accounts.config.to_account_info(),
         ctx.accounts.config.bump,
         &ctx.accounts.token_program,
-        amount,
+        net_amount,
     )?;
 
     Ok(())

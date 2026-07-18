@@ -5,20 +5,20 @@ use carbon_core::deserialize::CarbonDeserialize;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, borsh::BorshSerialize, CarbonDeserialize, PartialEq)]
-// HAND-PATCHED: `url` was added to the on-chain `AppAccount` struct
-// (programs/nebulous_world/src/state/app.rs) after this file was last
-// generated — see indexer/README.md's note on hand-patched generated code.
-// Field order must match the on-chain struct exactly (Borsh is
-// order-dependent, not name-dependent).
 pub struct AppAccount {
     /// The variable seed used to derive this PDA (seeds: `[APP_SEED,
     /// app_id.as_bytes()]`). Capped at 32 bytes — see `MAX_APP_ID_LEN` —
     /// since it is also used directly as a PDA seed, which has a hard
-    /// 32-byte-per-seed limit. Client-chosen at creation time and reused as
-    /// the Postgres `App.id` once the indexer indexes this account.
+    /// 32-byte-per-seed limit. Chosen client-side before this account is
+    /// created (there is no off-chain row yet to derive it from), and
+    /// reused as the Postgres `App.id` once the indexer indexes this
+    /// account.
     pub app_id: String,
-    /// The app's URL with the `https://` protocol trimmed off. The indexer
-    /// prepends it back when mirroring this into Postgres.
+    /// The app's URL with the `https://` protocol trimmed off to save
+    /// rent-space (every app is assumed to be served over https — see
+    /// `indexer/src/api.rs`'s `init_app_ix`, which does the trimming, and
+    /// the indexer's account processor, which prepends it back when
+    /// mirroring this into Postgres). Capped at `MAX_URL_LEN` bytes.
     pub url: String,
     pub total_vote_stake: u64,
     pub vote_acc_reward_per_share: u128,

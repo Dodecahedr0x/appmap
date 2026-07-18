@@ -11,6 +11,13 @@ pub struct VotePosition {
     pub owner: Pubkey,
     pub amount: u64,
     pub reward_debt: u128,
+    /// Size-weighted-average deposit timestamp (Unix seconds) — see
+    /// `unstake_fee::weighted_avg_timestamp`. Drives `withdraw_vote`'s
+    /// linearly-decaying unstake fee (`unstake_fee.rs`): 1% immediately
+    /// after a deposit, decaying to 0% over the following week. Updated on
+    /// every `vote()` deposit; left unchanged by a withdrawal (a partial
+    /// withdrawal doesn't reset the remaining balance's age).
+    pub staked_at: i64,
     pub bump: u8,
 }
 

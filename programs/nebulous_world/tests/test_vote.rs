@@ -12,6 +12,7 @@ use {
     nebulous_world::constants::{APP_SEED, CONFIG_SEED, REWARD_PRECISION, VOTE_POSITION_SEED},
     litesvm::LiteSVM,
     solana_account::Account,
+    solana_clock::Clock,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
     solana_signer::Signer,
@@ -221,6 +222,23 @@ fn fetch_token_amount(svm: &LiteSVM, pubkey: Pubkey) -> u64 {
     SplTokenAccount::unpack(&raw.data).unwrap().amount
 }
 
+fn fetch_position(svm: &LiteSVM, position: Pubkey) -> nebulous_world::VotePosition {
+    let raw = svm
+        .get_account(&position)
+        .expect("position account must exist");
+    anchor_lang::AccountDeserialize::try_deserialize(&mut raw.data.as_slice()).unwrap()
+}
+
+/// Advances the LiteSVM instance's on-chain clock by `seconds` — LiteSVM's
+/// clock is otherwise frozen at its initial value, which would never
+/// exercise the linearly-decaying unstake fee's time dependency (see
+/// `unstake_fee.rs`) or `staked_at`'s weighted-average top-up behavior.
+fn warp_forward(svm: &mut LiteSVM, seconds: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp += seconds;
+    svm.set_sysvar::<Clock>(&clock);
+}
+
 #[test]
 fn test_vote_locks_principal_and_creates_position() {
     let program_id = nebulous_world::id();
@@ -276,6 +294,14 @@ fn test_vote_locks_principal_and_creates_position() {
     // No rewards were ever funded, so the accumulator is still 0 and the
     // fresh checkpoint must be 0 too.
     assert_eq!(position_account.reward_debt, 0);
+    // A brand-new position's staked_at is exactly `now` (weighted_avg_timestamp
+    // collapses to `now` when the old amount is 0 — see unstake_fee.rs) —
+    // matches the LiteSVM instance's current clock, which this test never
+    // advances.
+    assert_eq!(
+        position_account.staked_at,
+        svm.get_sysvar::<Clock>().unix_timestamp
+    );
 
     // The app's total_vote_stake reflects the new stake.
     let app_raw = svm.get_account(&pdas.app).expect("app account must exist");
@@ -514,5 +540,70 @@ fn test_vote_pays_out_pending_reward_on_second_vote() {
     assert_eq!(
         fetch_token_amount(&svm, pdas.vault),
         first_amount + reward_topup - expected_pending + second_amount
+    );
+}
+
+/// `staked_at` is a size-weighted average across deposits (see
+/// `unstake_fee::weighted_avg_timestamp`), not just "timestamp of the first
+/// deposit" — a large top-up should pull an old, small position's checkpoint
+/// close to the top-up time, not leave it stuck at the original (now stale)
+/// checkpoint. This is what closes the exploit a simpler "first deposit
+/// only" design would leave open: stake a token once, wait out the fee
+/// decay window, then dump an arbitrarily large top-up in and withdraw it
+/// immediately fee-free.
+#[test]
+fn test_vote_staked_at_is_a_weighted_average_across_deposits() {
+    let program_id = nebulous_world::id();
+    let (mut svm, _deployer, vote_mint, pdas) = setup();
+
+    let user = Keypair::new();
+    svm.airdrop(&user.pubkey(), 1_000_000_000).unwrap();
+    let user_token_account = Pubkey::new_unique();
+    fund_token_account(&mut svm, user_token_account, vote_mint, user.pubkey(), 1_000_100);
+
+    let (position, _bump) = Pubkey::find_program_address(
+        &[VOTE_POSITION_SEED, pdas.app.as_ref(), user.pubkey().as_ref()],
+        &program_id,
+    );
+
+    // A tiny first deposit...
+    let first_amount = 100u64;
+    let first_ix = vote_ix(&program_id, &pdas, &position, &user_token_account, &user.pubkey(), first_amount);
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[first_ix], Some(&user.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&user]).unwrap();
+    svm.send_transaction(tx).expect("first vote must succeed");
+    let staked_at_after_first = fetch_position(&svm, position).staked_at;
+
+    // ...then, a week later, a much larger top-up.
+    let elapsed = 7 * 24 * 60 * 60;
+    warp_forward(&mut svm, elapsed);
+    let second_amount = 1_000_000u64;
+    let second_ix = vote_ix(&program_id, &pdas, &position, &user_token_account, &user.pubkey(), second_amount);
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[second_ix], Some(&user.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&user]).unwrap();
+    svm.send_transaction(tx).expect("second vote must succeed");
+
+    let position_account = fetch_position(&svm, position);
+    assert_eq!(position_account.amount, first_amount + second_amount);
+
+    let expected_staked_at = nebulous_world::unstake_fee::weighted_avg_timestamp(
+        staked_at_after_first,
+        first_amount,
+        staked_at_after_first + elapsed,
+        second_amount,
+    );
+    assert_eq!(position_account.staked_at, expected_staked_at);
+    // The top-up so vastly outweighs the tiny first deposit (10_000x, i.e.
+    // the first deposit is ~0.01% of the new total) that the checkpoint
+    // should move at least 99% of the way from the original timestamp
+    // toward the top-up's own timestamp, not stay anywhere near the stale
+    // original one.
+    let moved = position_account.staked_at - staked_at_after_first;
+    assert!(
+        moved >= elapsed * 99 / 100,
+        "a 10_000x top-up should move staked_at at least 99% of the way to the top-up time, \
+         moved {moved}s of {elapsed}s"
     );
 }

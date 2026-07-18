@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toaster";
 import { useVoteProgram } from "@/hooks/useVoteProgram";
 import { isSimulationMode } from "@/lib/config";
 import { TOKEN_SYMBOL } from "@/lib/constants";
+import { estimateUnstakeFee } from "@/lib/unstakeFee";
 import { ConnectButton } from "@/components/ConnectButton";
 
 const PRESETS = [10, 50, 100, 500];
@@ -23,6 +24,11 @@ export function VotePanel({ appId }: { appId: string }) {
   const [amount, setAmount] = useState(50);
   const [busy, setBusy] = useState(false);
   const [myVote, setMyVote] = useState<{ id: string; amount: number } | null>(null);
+  // Unix seconds, from the on-chain VotePosition's `stakedAt` — drives the
+  // unstake-fee estimate shown next to the withdraw button. Fetched
+  // separately from `myVote` (a Postgres row) since only the indexed
+  // on-chain account carries this field.
+  const [stakedAt, setStakedAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -34,6 +40,19 @@ export function VotePanel({ appId }: { appId: string }) {
       .then((json) => setMyVote(json.ok ? json.data.vote : null))
       .catch(() => {});
   }, [appId, user]);
+
+  useEffect(() => {
+    if (!user || !myVote) {
+      setStakedAt(null);
+      return;
+    }
+    fetch(`/api/accounts/vote-position/${appId}?owner=${user.wallet}`)
+      .then((res) => res.json())
+      .then((json) => setStakedAt(json.ok ? (json.data.position?.stakedAt ?? null) : null))
+      .catch(() => setStakedAt(null));
+  }, [appId, user, myVote]);
+
+  const unstakeFee = myVote && stakedAt !== null ? estimateUnstakeFee(myVote.amount, stakedAt) : null;
 
   async function vote() {
     if (amount <= 0) return;
@@ -143,13 +162,22 @@ export function VotePanel({ appId }: { appId: string }) {
             {busy ? "Voting…" : `Vote ${amount} ${TOKEN_SYMBOL}`}
           </button>
           {myVote && (
-            <button
-              className="btn-secondary w-full"
-              disabled={busy}
-              onClick={withdraw}
-            >
-              {busy ? "Withdrawing…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
-            </button>
+            <div className="space-y-1">
+              <button
+                className="btn-secondary w-full"
+                disabled={busy}
+                onClick={withdraw}
+              >
+                {busy ? "Withdrawing…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
+              </button>
+              {unstakeFee && unstakeFee.feeBps > 0 && (
+                <p className="text-center text-xs text-slate-steel">
+                  {(unstakeFee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
+                  receive ~{unstakeFee.net.toFixed(2)} {TOKEN_SYMBOL}. The fee shrinks to 0 over a
+                  week and goes to other stakers, not a treasury.
+                </p>
+              )}
+            </div>
           )}
         </>
       )}

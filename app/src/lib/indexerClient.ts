@@ -82,6 +82,8 @@ export interface PositionData {
   owner: string;
   amount: string;
   rewardDebt: string;
+  /** Unix seconds — see app/src/lib/unstakeFee.ts for what this drives. */
+  stakedAt: number;
   bump: number;
 }
 

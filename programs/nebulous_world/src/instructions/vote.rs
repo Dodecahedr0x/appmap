@@ -6,6 +6,7 @@ use crate::constants::{APP_SEED, CONFIG_SEED, VOTE_POSITION_SEED};
 use crate::error::ErrorCode;
 use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
 use crate::state::{AppAccount, Config, VotePosition};
+use crate::unstake_fee::weighted_avg_timestamp;
 
 #[derive(Accounts)]
 pub struct Vote<'info> {
@@ -81,10 +82,14 @@ pub fn handler(ctx: Context<Vote>, amount: u64) -> Result<()> {
         amount,
     )?;
 
+    let now = Clock::get()?.unix_timestamp;
     let app_key = ctx.accounts.app.key();
     let app = &mut ctx.accounts.app;
     let position = &mut ctx.accounts.position;
 
+    // Must run BEFORE `position.amount` is updated below — the weighted
+    // average needs the OLD amount as the weight for the OLD checkpoint.
+    position.staked_at = weighted_avg_timestamp(position.staked_at, position.amount, now, amount);
     position.amount = position
         .amount
         .checked_add(amount)

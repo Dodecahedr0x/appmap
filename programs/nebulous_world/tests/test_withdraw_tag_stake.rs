@@ -14,6 +14,7 @@ use {
     },
     litesvm::LiteSVM,
     solana_account::Account,
+    solana_clock::Clock,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
     solana_signer::Signer,
@@ -407,6 +408,14 @@ fn fetch_token_amount(svm: &LiteSVM, pubkey: Pubkey) -> u64 {
     SplTokenAccount::unpack(&raw.data).unwrap().amount
 }
 
+/// Advances the LiteSVM instance's on-chain clock by `seconds` — see the
+/// matching helper in `test_vote.rs` for why this is necessary at all.
+fn warp_forward(svm: &mut LiteSVM, seconds: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp += seconds;
+    svm.set_sysvar::<Clock>(&clock);
+}
+
 /// Common fixture: registers an app + tag, funds a fresh user's wallet with
 /// vote tokens, and stakes `initial_stake` in to create a `StakePosition`.
 /// Returns everything a `withdraw_tag_stake` test needs.
@@ -453,6 +462,13 @@ fn setup_with_position(
     (svm, env, app, tag_pdas, user, user_token_account, position)
 }
 
+/// Even though this withdrawal happens at elapsed=0 (fee_bps would be the
+/// full 1% — see `unstake_fee.rs`), `user` is the ONLY tag-staker, so
+/// `app.total_tag_stake` drops to 0 after this full withdrawal — nobody
+/// left in the shared tags pool to redistribute a fee to, so
+/// `withdraw_tag_stake` waives it entirely (mirrors `withdraw_vote`'s
+/// "last staker" behavior — see that handler's doc comment) and the user
+/// gets back exactly what they put in, fee-free.
 #[test]
 fn test_withdraw_tag_stake_full_withdrawal_returns_principal_and_zeroes_position() {
     let initial_stake = 4_000u64;
@@ -482,11 +498,21 @@ fn test_withdraw_tag_stake_full_withdrawal_returns_principal_and_zeroes_position
     assert_eq!(app_tag_stake_account.stake_amount, 0);
     let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, 0);
+    // No fee was distributed — the shared tags pool is empty, nobody to
+    // receive it.
+    assert_eq!(app_account.tags_acc_reward_per_share, 0);
 
     assert_eq!(fetch_token_amount(&svm, env.vault), 0);
     assert_eq!(fetch_token_amount(&svm, user_token_account), wallet_amount);
 }
 
+/// Unlike the full-withdrawal test above, `user` still holds stake after
+/// this withdrawal (`app.total_tag_stake` stays > 0), so the elapsed=0 1%
+/// unstake fee IS charged here — and since `user` is still the only
+/// tag-staker, it's redistributed right back into their own remaining
+/// position via `bump_accumulator` (see `withdraw_vote`'s doc comment on
+/// this exact non-special-cased behavior — `withdraw_tag_stake` mirrors it
+/// against the shared tags-pool accumulator).
 #[test]
 fn test_withdraw_tag_stake_partial_withdrawal_leaves_remaining_stake() {
     let initial_stake = 4_000u64;
@@ -510,6 +536,13 @@ fn test_withdraw_tag_stake_partial_withdrawal_leaves_remaining_stake() {
     );
 
     let remaining = initial_stake - withdraw_amount;
+    // Elapsed=0 (no warp between setup's stake_tag and this withdrawal) =>
+    // the full 1% (100 bps) fee applies to the withdrawn amount.
+    let fee =
+        nebulous_world::unstake_fee::unstake_fee(withdraw_amount, nebulous_world::unstake_fee::linear_decay_fee_bps(0))
+            .unwrap();
+    let net_withdraw_amount = withdraw_amount - fee;
+
     let position_account = fetch_position(&svm, position);
     assert_eq!(position_account.amount, remaining);
 
@@ -518,11 +551,15 @@ fn test_withdraw_tag_stake_partial_withdrawal_leaves_remaining_stake() {
     assert_eq!(app_tag_stake_account.stake_amount, remaining);
     let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, remaining);
+    let expected_acc = nebulous_world::reward_math::bump_accumulator(fee, remaining, 0).unwrap();
+    assert_eq!(app_account.tags_acc_reward_per_share, expected_acc);
 
-    assert_eq!(fetch_token_amount(&svm, env.vault), remaining);
+    // The fee portion of `withdraw_amount` stayed in the vault (backing the
+    // accumulator bump above) instead of leaving with the rest.
+    assert_eq!(fetch_token_amount(&svm, env.vault), remaining + fee);
     assert_eq!(
         fetch_token_amount(&svm, user_token_account),
-        wallet_amount - initial_stake + withdraw_amount
+        wallet_amount - initial_stake + net_withdraw_amount
     );
 }
 
@@ -619,26 +656,40 @@ fn test_withdraw_tag_stake_pays_out_pending_reward_on_partial_withdrawal() {
     let remaining = initial_stake - withdraw_amount;
     let position_account = fetch_position(&svm, position);
     assert_eq!(position_account.amount, remaining);
-    // reward_debt_for(remaining, 1*PRECISION) = remaining
+    // reward_debt_for(remaining, 1*PRECISION) = remaining — checkpointed
+    // against the accumulator's value BEFORE this withdrawal's own
+    // fee-funding bump (see withdraw_vote's doc comment on why that ordering
+    // is correct).
     assert_eq!(position_account.reward_debt, remaining as u128);
+
+    // Elapsed=0 (no warp between setup's stake_tag and this withdrawal) =>
+    // the full 1% (100 bps) fee applies to the withdrawn amount.
+    let fee =
+        nebulous_world::unstake_fee::unstake_fee(withdraw_amount, nebulous_world::unstake_fee::linear_decay_fee_bps(0))
+            .unwrap();
+    let net_withdraw_amount = withdraw_amount - fee;
 
     let app_tag_stake_account = fetch_app_tag_stake(&svm, tag_pdas.app_tag_stake);
     assert_eq!(app_tag_stake_account.stake_amount, remaining);
     let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, remaining);
+    // The fee was funded on top of the manually-set 1.0-per-share accumulator.
+    let expected_acc =
+        nebulous_world::reward_math::bump_accumulator(fee, remaining, acc_reward_per_share).unwrap();
+    assert_eq!(app_account.tags_acc_reward_per_share, expected_acc);
 
-    // User received both the withdrawn principal and the pending reward,
-    // both paid by `config` in the same instruction.
+    // User received the withdrawn principal (net of the unstake fee) and the
+    // pending reward, both paid by `config` in the same instruction.
     assert_eq!(
         fetch_token_amount(&svm, user_token_account),
-        wallet_amount - initial_stake + withdraw_amount + expected_pending
+        wallet_amount - initial_stake + net_withdraw_amount + expected_pending
     );
 
-    // The single shared vault paid out exactly (reward + returned
-    // principal), on top of whatever it held going into this transaction.
+    // The single shared vault paid out (reward + NET returned principal) —
+    // the fee portion stays behind, backing the accumulator bump above.
     assert_eq!(
         fetch_token_amount(&svm, env.vault),
-        vault_before_withdraw - expected_pending - withdraw_amount
+        vault_before_withdraw - expected_pending - net_withdraw_amount
     );
 }
 
@@ -737,4 +788,148 @@ fn test_withdraw_tag_stake_rejects_mismatched_app_and_app_tag_stake() {
     assert_eq!(victim_app_account.total_tag_stake, 0);
     let position_account = fetch_position(&svm, position);
     assert_eq!(position_account.amount, stake_amount);
+}
+
+/// Once `UNSTAKE_FEE_DECAY_SECONDS` (a week) has elapsed since a position's
+/// `staked_at` checkpoint, the fee is exactly 0 — the tag-staking mirror of
+/// `test_withdraw_vote_fee_decays_to_zero_after_the_decay_window`. A PARTIAL
+/// withdrawal (leaves stake behind, so this is genuinely the time-decay
+/// path, not the "last staker" waiver).
+#[test]
+fn test_withdraw_tag_stake_fee_decays_to_zero_after_the_decay_window() {
+    let initial_stake = 4_000u64;
+    let wallet_amount = 10_000u64;
+    let (mut svm, env, app, tag_pdas, user, user_token_account, position) =
+        setup_with_position(initial_stake, wallet_amount);
+
+    warp_forward(&mut svm, nebulous_world::constants::UNSTAKE_FEE_DECAY_SECONDS);
+
+    let withdraw_amount = 1_500u64;
+    let ix = withdraw_tag_stake_ix(
+        &env,
+        &app,
+        &tag_pdas,
+        &position,
+        &user_token_account,
+        &user.pubkey(),
+        withdraw_amount,
+    );
+    assert!(
+        send(&mut svm, ix, &user.pubkey(), &[&user]),
+        "withdraw_tag_stake transaction failed"
+    );
+
+    let remaining = initial_stake - withdraw_amount;
+    let position_account = fetch_position(&svm, position);
+    assert_eq!(position_account.amount, remaining);
+
+    let app_account = fetch_app(&svm, app);
+    assert_eq!(app_account.total_tag_stake, remaining);
+    // No fee was charged at all, so nothing was funded into the accumulator.
+    assert_eq!(app_account.tags_acc_reward_per_share, 0);
+
+    assert_eq!(fetch_token_amount(&svm, env.vault), remaining);
+    assert_eq!(
+        fetch_token_amount(&svm, user_token_account),
+        wallet_amount - initial_stake + withdraw_amount
+    );
+}
+
+/// The unstake fee is redistributed to whoever remains staked on the SAME
+/// tag, not burned or skimmed — the tag-staking mirror of
+/// `test_withdraw_vote_fee_is_redistributed_to_other_stakers`. User A fully
+/// exits and pays a fee; user B, who never withdraws, claims it back out via
+/// a real `claim_tag_reward` call.
+#[test]
+fn test_withdraw_tag_stake_fee_is_redistributed_to_other_stakers() {
+    let (mut svm, _deployer, env, app, tag_pdas) = setup();
+
+    let user_a = Keypair::new();
+    svm.airdrop(&user_a.pubkey(), 1_000_000_000).unwrap();
+    let a_token_account = Pubkey::new_unique();
+    fund_token_account(&mut svm, a_token_account, env.vote_mint, user_a.pubkey(), 10_000);
+    let (a_position, _bump) = Pubkey::find_program_address(
+        &[STAKE_POSITION_SEED, tag_pdas.app_tag_stake.as_ref(), user_a.pubkey().as_ref()],
+        &env.program_id,
+    );
+
+    let user_b = Keypair::new();
+    svm.airdrop(&user_b.pubkey(), 1_000_000_000).unwrap();
+    let b_token_account = Pubkey::new_unique();
+    fund_token_account(&mut svm, b_token_account, env.vote_mint, user_b.pubkey(), 10_000);
+    let (b_position, _bump) = Pubkey::find_program_address(
+        &[STAKE_POSITION_SEED, tag_pdas.app_tag_stake.as_ref(), user_b.pubkey().as_ref()],
+        &env.program_id,
+    );
+
+    // Chosen so `bump_accumulator`/`settle_pending`'s integer division comes
+    // out exact — see the matching comment in
+    // test_withdraw_vote_fee_is_redistributed_to_other_stakers.
+    let a_amount = 4_000u64;
+    let b_amount = 5_000u64;
+    for (position, token_account, user, amount) in [
+        (a_position, a_token_account, &user_a, a_amount),
+        (b_position, b_token_account, &user_b, b_amount),
+    ] {
+        let ix = stake_tag_ix(&env, &app, &tag_pdas, &position, &token_account, &user.pubkey(), amount);
+        assert!(send(&mut svm, ix, &user.pubkey(), &[user]), "stake_tag must succeed in test setup");
+    }
+
+    // User A fully exits at elapsed=0 (full 1% fee), leaving User B as the
+    // shared tags pool's sole remaining staker.
+    let withdraw_ix =
+        withdraw_tag_stake_ix(&env, &app, &tag_pdas, &a_position, &a_token_account, &user_a.pubkey(), a_amount);
+    assert!(
+        send(&mut svm, withdraw_ix, &user_a.pubkey(), &[&user_a]),
+        "withdraw_tag_stake must succeed"
+    );
+
+    let fee =
+        nebulous_world::unstake_fee::unstake_fee(a_amount, nebulous_world::unstake_fee::linear_decay_fee_bps(0))
+            .unwrap();
+    assert!(fee > 0, "test is only meaningful if a nonzero fee was actually charged");
+
+    let app_account = fetch_app(&svm, app);
+    assert_eq!(app_account.total_tag_stake, b_amount);
+    let expected_acc = nebulous_world::reward_math::bump_accumulator(fee, b_amount, 0).unwrap();
+    assert_eq!(app_account.tags_acc_reward_per_share, expected_acc);
+
+    // User B never withdrew or re-staked, so their reward_debt is still the
+    // 0 it was checkpointed at on their original stake — their full pending
+    // balance is exactly their share of User A's fee.
+    let expected_pending_for_b =
+        nebulous_world::reward_math::settle_pending(b_amount, 0, expected_acc).unwrap();
+    assert_eq!(expected_pending_for_b, fee, "B is the sole remaining staker, so ALL of A's fee is theirs");
+
+    let b_balance_before_claim = fetch_token_amount(&svm, b_token_account);
+    let claim_ix = Instruction::new_with_bytes(
+        env.program_id,
+        &nebulous_world::instruction::ClaimTagReward {}.data(),
+        nebulous_world::accounts::ClaimTagReward {
+            app,
+            app_tag_stake: tag_pdas.app_tag_stake,
+            position: b_position,
+            config: env.config,
+            vault: env.vault,
+            user_token_account: b_token_account,
+            user: user_b.pubkey(),
+            token_program: TOKEN_PROGRAM_ID,
+        }
+        .to_account_metas(None),
+    );
+    assert!(
+        send(&mut svm, claim_ix, &user_b.pubkey(), &[&user_b]),
+        "claim_tag_reward transaction failed"
+    );
+
+    assert_eq!(
+        fetch_token_amount(&svm, b_token_account),
+        b_balance_before_claim + expected_pending_for_b,
+        "User B actually received User A's unstake fee via a real claim_tag_reward call"
+    );
+    let b_position_account = fetch_position(&svm, b_position);
+    assert_eq!(
+        b_position_account.reward_debt,
+        nebulous_world::reward_math::reward_debt_for(b_amount, expected_acc).unwrap()
+    );
 }

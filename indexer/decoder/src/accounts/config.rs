@@ -9,6 +9,16 @@ use solana_pubkey::Pubkey;
 pub struct Config {
     pub authority: Pubkey,
     pub vote_mint: Pubkey,
+    /// Set once at `initialize` and validated (`<= 10_000`) there, but not
+    /// read by any instruction in this program — no instruction here ever
+    /// skims a fee off a transfer. The actual protocol fee is computed and
+    /// deducted OFF-CHAIN, on gross ad revenue, before `fund_app_rewards` is
+    /// ever called: see `PROTOCOL_FEE` in `app/scripts/settleEpoch.ts` and
+    /// `REVENUE_CONFIG.protocolFee` in `app/src/lib/revenue.ts` (the two
+    /// must be kept in sync with each other, and this field is not the
+    /// source of truth for either). Kept on-chain as a recorded/auditable
+    /// parameter of the deployment, not as an enforcement point — do not
+    /// assume changing this value would change the effective fee.
     pub protocol_fee_bps: u16,
     pub bump: u8,
 }

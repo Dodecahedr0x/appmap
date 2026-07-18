@@ -3,6 +3,7 @@ pub mod error;
 pub mod instructions;
 pub mod reward_math;
 pub mod state;
+pub mod unstake_fee;
 
 use anchor_lang::prelude::*;
 

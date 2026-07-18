@@ -14,6 +14,7 @@ use {
     },
     litesvm::LiteSVM,
     solana_account::Account,
+    solana_clock::Clock,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
     solana_signer::Signer,
@@ -376,6 +377,14 @@ fn fetch_token_amount(svm: &LiteSVM, pubkey: Pubkey) -> u64 {
     SplTokenAccount::unpack(&raw.data).unwrap().amount
 }
 
+/// Advances the LiteSVM instance's on-chain clock by `seconds` — see the
+/// matching helper in `test_vote.rs` for why this is necessary at all.
+fn warp_forward(svm: &mut LiteSVM, seconds: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp += seconds;
+    svm.set_sysvar::<Clock>(&clock);
+}
+
 fn send(svm: &mut LiteSVM, ix: Instruction, payer: &Pubkey, signers: &[&Keypair]) -> bool {
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix], Some(payer), &blockhash);
@@ -428,6 +437,9 @@ fn test_stake_tag_locks_principal_and_creates_position() {
     assert_eq!(position_account.reward_debt, 0);
     // New field: the position now records its own derivation seed.
     assert_eq!(position_account.app_tag_stake, tag_pdas.app_tag_stake);
+    // A brand-new position's staked_at is exactly `now` (weighted_avg_timestamp
+    // collapses to `now` when the old amount is 0 — see unstake_fee.rs).
+    assert_eq!(position_account.staked_at, svm.get_sysvar::<Clock>().unix_timestamp);
 
     // Both counters moved in lockstep.
     let app_tag_stake_account = fetch_app_tag_stake(&svm, tag_pdas.app_tag_stake);
@@ -530,6 +542,55 @@ fn test_stake_tag_accumulates_across_two_deposits() {
     assert_eq!(app_tag_stake_account.stake_amount, 3_500);
     let app_account = fetch_app(&svm, app);
     assert_eq!(app_account.total_tag_stake, 3_500);
+}
+
+/// `staked_at` is a size-weighted average across deposits (see
+/// `unstake_fee::weighted_avg_timestamp`) — the tag-staking mirror of
+/// `test_vote_staked_at_is_a_weighted_average_across_deposits` in
+/// `test_vote.rs`; see that test's doc comment for the full rationale
+/// (a "first deposit only" checkpoint would let a stale, fully-decayed
+/// timestamp cover an arbitrarily large later top-up fee-free).
+#[test]
+fn test_stake_tag_staked_at_is_a_weighted_average_across_deposits() {
+    let (mut svm, _deployer, env, app, tag_pdas) = setup();
+
+    let user = Keypair::new();
+    svm.airdrop(&user.pubkey(), 1_000_000_000).unwrap();
+    let user_token_account = Pubkey::new_unique();
+    fund_token_account(&mut svm, user_token_account, env.vote_mint, user.pubkey(), 1_000_100);
+
+    let (position, _bump) = Pubkey::find_program_address(
+        &[STAKE_POSITION_SEED, tag_pdas.app_tag_stake.as_ref(), user.pubkey().as_ref()],
+        &env.program_id,
+    );
+
+    let first_amount = 100u64;
+    let first_ix = stake_tag_ix(&env, &app, &tag_pdas, &position, &user_token_account, &user.pubkey(), first_amount);
+    assert!(send(&mut svm, first_ix, &user.pubkey(), &[&user]), "first stake_tag must succeed");
+    let staked_at_after_first = fetch_position(&svm, position).staked_at;
+
+    let elapsed = 7 * 24 * 60 * 60;
+    warp_forward(&mut svm, elapsed);
+    let second_amount = 1_000_000u64;
+    let second_ix = stake_tag_ix(&env, &app, &tag_pdas, &position, &user_token_account, &user.pubkey(), second_amount);
+    assert!(send(&mut svm, second_ix, &user.pubkey(), &[&user]), "second stake_tag must succeed");
+
+    let position_account = fetch_position(&svm, position);
+    assert_eq!(position_account.amount, first_amount + second_amount);
+
+    let expected_staked_at = nebulous_world::unstake_fee::weighted_avg_timestamp(
+        staked_at_after_first,
+        first_amount,
+        staked_at_after_first + elapsed,
+        second_amount,
+    );
+    assert_eq!(position_account.staked_at, expected_staked_at);
+    let moved = position_account.staked_at - staked_at_after_first;
+    assert!(
+        moved >= elapsed * 99 / 100,
+        "a 10_000x top-up should move staked_at at least 99% of the way to the top-up time, \
+         moved {moved}s of {elapsed}s"
+    );
 }
 
 /// Exercises the reward-payout CPI leg of `stake_tag()` end-to-end — the

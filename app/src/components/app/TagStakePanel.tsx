@@ -8,6 +8,7 @@ import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
 import { useCreateAppProgram } from "@/hooks/useCreateAppProgram";
 import { cn, formatToken, slugify } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
+import { estimateUnstakeFee } from "@/lib/unstakeFee";
 import type { TagDTO } from "@/lib/types";
 
 /**
@@ -39,6 +40,11 @@ export function TagStakePanel({
   const [newTag, setNewTag] = useState("");
   // appTagId -> the current user's active stake on that tag.
   const [myStakes, setMyStakes] = useState<Record<string, { id: string; amount: number }>>({});
+  // appTagId -> the on-chain StakePosition's `stakedAt` (Unix seconds) —
+  // drives the unstake-fee estimate shown next to each tag's withdraw
+  // button. Fetched per-tag since only the indexed on-chain account (not
+  // the Postgres `myStakes` row) carries this field.
+  const [stakedAtByTag, setStakedAtByTag] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (stakingId) {
@@ -68,6 +74,40 @@ export function TagStakePanel({
       })
       .catch(() => {});
   }, [appId, user]);
+
+  useEffect(() => {
+    const tagIds = Object.keys(myStakes);
+    if (!user || tagIds.length === 0) {
+      setStakedAtByTag({});
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      tagIds.map(async (tagId) => {
+        const tag = tags.find((t) => t.id === tagId);
+        if (!tag) return null;
+        try {
+          const res = await fetch(
+            `/api/accounts/stake-position/${appId}/${tag.slug}?owner=${user.wallet}`,
+          );
+          const json = await res.json();
+          return json.ok && json.data.position
+            ? ([tagId, json.data.position.stakedAt as number] as const)
+            : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const map: Record<string, number> = {};
+      for (const entry of entries) if (entry) map[entry[0]] = entry[1];
+      setStakedAtByTag(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, user, myStakes, tags]);
 
   async function stake(appTagId: string, tagSlug: string) {
     if (stakeAmount <= 0) return;
@@ -196,6 +236,19 @@ export function TagStakePanel({
                   </button>
                 )}
               </div>
+              {user &&
+                myStakes[t.id] &&
+                stakedAtByTag[t.id] !== undefined &&
+                (() => {
+                  const fee = estimateUnstakeFee(myStakes[t.id]!.amount, stakedAtByTag[t.id]!);
+                  if (fee.feeBps === 0) return null;
+                  return (
+                    <p className="mt-1 text-xs text-slate-steel">
+                      {(fee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
+                      receive ~{fee.net.toFixed(2)} {TOKEN_SYMBOL}. Shrinks to 0 over a week.
+                    </p>
+                  );
+                })()}
               {revealRendered === t.id && (
                 <div
                   className={cn(

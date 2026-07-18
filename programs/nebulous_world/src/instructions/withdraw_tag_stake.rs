@@ -4,8 +4,9 @@ use anchor_spl::token::{Token, TokenAccount};
 
 use crate::constants::{APP_SEED, APP_TAG_STAKE_SEED, CONFIG_SEED, STAKE_POSITION_SEED};
 use crate::error::ErrorCode;
-use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
+use crate::reward_math::{bump_accumulator, reward_debt_for, settle_pending, transfer_from_vault};
 use crate::state::{AppAccount, AppTagStake, Config, StakePosition};
+use crate::unstake_fee::{linear_decay_fee_bps, unstake_fee};
 
 /// The tag-staking mirror of `WithdrawVote`. Unlike the pre-global-vault
 /// design, there is only ONE signing authority involved here (`config`, for
@@ -55,6 +56,12 @@ pub struct WithdrawTagStake<'info> {
 /// `withdraw_vote()`'s checkpoint-before-size-change requirement,
 /// unconditional here for the same reason documented there (an existing
 /// position always has `amount > 0`).
+///
+/// Charges the same linearly-decaying unstake fee as `withdraw_vote`'s
+/// (1% -> 0% over a week — see `unstake_fee.rs`), redistributed to whoever
+/// remains staked on this tag via `bump_accumulator` against the SHARED
+/// tags-pool accumulator (`app.tags_acc_reward_per_share`) — the same pool
+/// `stake_tag`/`claim_tag_reward` already read/write, not anything per-tag.
 pub fn handler(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
     require!(amount > 0, ErrorCode::ZeroAmount);
     require!(
@@ -76,6 +83,10 @@ pub fn handler(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
         pending,
     )?;
 
+    let now = Clock::get()?.unix_timestamp;
+    let elapsed = now.saturating_sub(ctx.accounts.position.staked_at);
+    let fee = unstake_fee(amount, linear_decay_fee_bps(elapsed))?;
+
     let app = &mut ctx.accounts.app;
     let app_tag_stake = &mut ctx.accounts.app_tag_stake;
     let position = &mut ctx.accounts.position;
@@ -89,16 +100,30 @@ pub fn handler(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
         .total_tag_stake
         .checked_sub(amount)
         .ok_or(ErrorCode::MathOverflow)?;
+    // Checkpointed against the pre-fee-bump accumulator — see the matching
+    // comment in withdraw_vote.rs for why that's the correct order.
     position.reward_debt = reward_debt_for(position.amount, app.tags_acc_reward_per_share)?;
 
-    // Return principal, signed by `config`.
+    // Redistribute the fee across the shared tags pool. If this withdrawal
+    // empties it (the last tag-staker withdrawing everything, across ALL of
+    // this app's tags — see the design note on `AppTagStake`), waive the fee
+    // rather than strand it with no accumulator claim on it.
+    let net_amount = if fee > 0 && app.total_tag_stake > 0 {
+        app.tags_acc_reward_per_share =
+            bump_accumulator(fee, app.total_tag_stake, app.tags_acc_reward_per_share)?;
+        amount - fee
+    } else {
+        amount
+    };
+
+    // Return principal (net of any unstake fee), signed by `config`.
     transfer_from_vault(
         &ctx.accounts.vault,
         &ctx.accounts.user_token_account,
         &ctx.accounts.config.to_account_info(),
         ctx.accounts.config.bump,
         &ctx.accounts.token_program,
-        amount,
+        net_amount,
     )?;
 
     Ok(())

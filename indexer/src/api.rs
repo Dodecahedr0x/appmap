@@ -345,6 +345,10 @@ struct PositionRow {
     owner: Pubkey,
     amount: u64,
     reward_debt: u128,
+    /// Unix seconds — see `VotePosition::staked_at`/`StakePosition::staked_at`'s
+    /// doc comments in the program crate. Drives the client-side unstake-fee
+    /// estimate (`app/src/lib/unstakeFee.ts` mirrors the same decay constants).
+    staked_at: i64,
     bump: u8,
 }
 
@@ -382,6 +386,11 @@ struct PositionDto {
     owner: String,
     amount: String,
     reward_debt: String,
+    /// Unix seconds (not milliseconds, not an ISO string) — the raw on-chain
+    /// `staked_at` checkpoint. Small enough to be a safe JS number (current
+    /// Unix time is ~10 digits, nowhere near `Number.MAX_SAFE_INTEGER`), so
+    /// unlike the u64/u128 fields above this isn't a decimal string.
+    staked_at: i64,
     bump: u8,
 }
 
@@ -468,6 +477,7 @@ async fn get_vote_position(
         owner: row.owner.to_string(),
         amount: row.amount.to_string(),
         reward_debt: row.reward_debt.to_string(),
+        staked_at: row.staked_at,
         bump: row.bump,
     }))
 }
@@ -491,6 +501,7 @@ async fn get_stake_position(
         owner: row.owner.to_string(),
         amount: row.amount.to_string(),
         reward_debt: row.reward_debt.to_string(),
+        staked_at: row.staked_at,
         bump: row.bump,
     }))
 }

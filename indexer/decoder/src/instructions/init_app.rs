@@ -7,10 +7,6 @@ use carbon_core::deserialize::CarbonDeserialize;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, borsh::BorshSerialize, CarbonDeserialize, PartialEq)]
-// HAND-PATCHED: `url` was added to `init_app`'s args (programs/nebulous_world/
-// src/instructions/init_app.rs) after this file was last generated — see
-// indexer/README.md's note on hand-patched generated code. Field order must
-// match the instruction's argument order exactly.
 pub struct InitApp {
     pub app_id: String,
     pub url: String,

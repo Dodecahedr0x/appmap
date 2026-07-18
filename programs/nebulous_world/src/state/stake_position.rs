@@ -18,9 +18,14 @@ pub struct StakePosition {
     pub owner: Pubkey,
     pub amount: u64,
     pub reward_debt: u128,
+    /// Size-weighted-average deposit timestamp (Unix seconds) — see
+    /// `unstake_fee::weighted_avg_timestamp`. Drives `withdraw_tag_stake`'s
+    /// linearly-decaying unstake fee (`unstake_fee.rs`), the tag-staking
+    /// mirror of `VotePosition::staked_at` — see that field's doc comment.
+    pub staked_at: i64,
     pub bump: u8,
 }
 
 impl StakePosition {
-    pub const SPACE: usize = 32 + 32 + 8 + 16 + 1;
+    pub const SPACE: usize = 32 + 32 + 8 + 16 + 8 + 1;
 }

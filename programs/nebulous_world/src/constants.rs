@@ -51,3 +51,14 @@ pub const MAX_URL_LEN: u16 = 200;
 /// `REWARD_PRECISION` is pure on-chain math, never used as a seed or needed
 /// by clients, so a plain `pub const` is the right fit here.
 pub const REWARD_PRECISION: u128 = 1_000_000_000_000;
+
+/// The unstake fee (see `unstake_fee.rs`) starts here — 100 bps = 1% — the
+/// instant a position is opened/topped-up, and decays linearly to 0 over
+/// `UNSTAKE_FEE_DECAY_SECONDS`. Same bps-out-of-10_000 convention as
+/// `Config::protocol_fee_bps`.
+pub const UNSTAKE_FEE_START_BPS: u16 = 100;
+
+/// One week, in seconds — how long it takes `UNSTAKE_FEE_START_BPS` to decay
+/// to 0. Not a `#[constant]`: pure on-chain math, never a PDA seed or a
+/// value a client needs to derive an address from.
+pub const UNSTAKE_FEE_DECAY_SECONDS: i64 = 7 * 24 * 60 * 60;

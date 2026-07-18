@@ -18,6 +18,21 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",
 );
 
+// Mirrors programs/nebulous_world/src/constants.rs's UNSTAKE_FEE_START_BPS —
+// the ceiling the unstake fee (see unstake_fee.rs) can never exceed. The
+// withdraw_vote/withdraw_tag_stake tests below can't assume "elapsed ~= 0"
+// (unlike the Rust/LiteSVM tests, which fully control the clock — see
+// test_withdraw_vote.rs): a fresh, single-node local validator's Clock
+// sysvar can jump non-monotonically relative to wall-clock/RPC timing early
+// in its life, with no other validators' vote timestamps to smooth the
+// estimate against. So instead of predicting the fee from an assumed
+// elapsed time, these tests derive the ACTUAL fee the program charged from
+// the observed vault outflow, then check that the SAME fee is what got
+// funded into the reward-per-share accumulator — the invariant this
+// instruction must uphold regardless of what the fee bps happened to be at
+// the moment it ran.
+const UNSTAKE_FEE_START_BPS = 100;
+
 describe("nebulous_world: config", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -830,6 +845,10 @@ describe("nebulous_world: withdraw_vote", () => {
 
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalVoteStake.toString(), "0");
+    // This withdrawal empties the vote pool (the fixture's user is the only
+    // staker), so the unstake fee is waived rather than funded into an
+    // accumulator nobody remains to claim from — see withdraw_vote.rs.
+    assert.equal(appAccount.voteAccRewardPerShare.toString(), "0");
 
     const vaultAfter = await getAccount(provider.connection, vault);
     assert.equal(
@@ -841,7 +860,7 @@ describe("nebulous_world: withdraw_vote", () => {
     assert.equal(userTokenAfter.amount.toString(), walletAmount.toString());
   });
 
-  it("leaves remaining stake on a partial withdrawal", async () => {
+  it("leaves remaining stake on a partial withdrawal, net of the unstake fee", async () => {
     const initialStake = 4_000;
     const walletAmount = 10_000;
     const { app, user, userTokenAccount, position } =
@@ -863,28 +882,42 @@ describe("nebulous_world: withdraw_vote", () => {
       .signers([user])
       .rpc();
 
-    const positionAccount = await program.account.votePosition.fetch(position);
-    assert.equal(
-      positionAccount.amount.toString(),
-      (initialStake - withdrawAmount).toString(),
-    );
-
-    const appAccount = await program.account.appAccount.fetch(app);
-    assert.equal(
-      appAccount.totalVoteStake.toString(),
-      (initialStake - withdrawAmount).toString(),
-    );
+    // `amount`/`total_vote_stake` move by the FULL withdrawAmount; only the
+    // token PAYOUT is net of the fee (derived below from the observed vault
+    // outflow — see the top-of-file comment on why this test can't assume
+    // "elapsed ~= 0" the way the LiteSVM-backed Rust tests can).
+    const remainingStake = initialStake - withdrawAmount;
 
     const vaultAfter = await getAccount(provider.connection, vault);
-    assert.equal(
-      (vaultBefore.amount - vaultAfter.amount).toString(),
-      withdrawAmount.toString(),
+    const netWithdrawAmount = Number(vaultBefore.amount - vaultAfter.amount);
+    const fee = withdrawAmount - netWithdrawAmount;
+    assert.isAtLeast(fee, 0, "fee must not be negative");
+    assert.isAtMost(
+      fee,
+      Math.floor((withdrawAmount * UNSTAKE_FEE_START_BPS) / 10_000),
+      "fee must never exceed the 1% starting rate",
     );
+    const rewardPrecision = new BN("1000000000000");
+    const expectedAcc =
+      fee > 0
+        ? new BN(fee).mul(rewardPrecision).div(new BN(remainingStake))
+        : new BN(0);
+
+    const positionAccount = await program.account.votePosition.fetch(position);
+    assert.equal(positionAccount.amount.toString(), remainingStake.toString());
+    assert.equal(positionAccount.rewardDebt.toString(), "0");
+
+    const appAccount = await program.account.appAccount.fetch(app);
+    assert.equal(appAccount.totalVoteStake.toString(), remainingStake.toString());
+    // The fee actually withheld from the payout (above) must be exactly
+    // what got funded into the accumulator — the invariant this instruction
+    // must uphold no matter what the fee bps was at the moment it ran.
+    assert.equal(appAccount.voteAccRewardPerShare.toString(), expectedAcc.toString());
 
     const userTokenAfter = await getAccount(provider.connection, userTokenAccount);
     assert.equal(
       userTokenAfter.amount.toString(),
-      (walletAmount - initialStake + withdrawAmount).toString(),
+      (walletAmount - initialStake + netWithdrawAmount).toString(),
     );
   });
 
@@ -2002,6 +2035,9 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     assert.equal(appTagStakeAccount.stakeAmount.toString(), "0");
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), "0");
+    // This withdrawal empties the (single, shared) tags pool, so the unstake
+    // fee is waived — see withdraw_tag_stake.rs.
+    assert.equal(appAccount.tagsAccRewardPerShare.toString(), "0");
 
     const vaultAfter = await getAccount(provider.connection, vault);
     assert.equal(
@@ -2016,7 +2052,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     assert.equal(userTokenAfter.amount.toString(), walletAmount.toString());
   });
 
-  it("leaves remaining stake on a partial withdrawal, keeping stake_amount and total_tag_stake in sync", async () => {
+  it("leaves remaining stake on a partial withdrawal, net of the unstake fee, keeping stake_amount and total_tag_stake in sync", async () => {
     const initialStake = 4_000;
     const walletAmount = 10_000;
     const { app, appTagStake, user, userTokenAccount, position } =
@@ -2039,7 +2075,27 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       .signers([user])
       .rpc();
 
+    // Same self-consistency approach as withdraw_vote's partial-withdrawal
+    // test — `amount`/`stake_amount`/`total_tag_stake` still move by the
+    // FULL withdrawAmount; only the token payout is net of the fee (derived
+    // below from the observed vault outflow).
     const remaining = initialStake - withdrawAmount;
+
+    const vaultAfter = await getAccount(provider.connection, vault);
+    const netWithdrawAmount = Number(vaultBefore.amount - vaultAfter.amount);
+    const fee = withdrawAmount - netWithdrawAmount;
+    assert.isAtLeast(fee, 0, "fee must not be negative");
+    assert.isAtMost(
+      fee,
+      Math.floor((withdrawAmount * UNSTAKE_FEE_START_BPS) / 10_000),
+      "fee must never exceed the 1% starting rate",
+    );
+    const rewardPrecision = new BN("1000000000000");
+    const expectedAcc =
+      fee > 0
+        ? new BN(fee).mul(rewardPrecision).div(new BN(remaining))
+        : new BN(0);
+
     const positionAccount = await program.account.stakePosition.fetch(
       position,
     );
@@ -2051,12 +2107,9 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     assert.equal(appTagStakeAccount.stakeAmount.toString(), remaining.toString());
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), remaining.toString());
-
-    const vaultAfter = await getAccount(provider.connection, vault);
-    assert.equal(
-      (vaultBefore.amount - vaultAfter.amount).toString(),
-      withdrawAmount.toString(),
-    );
+    // The fee actually withheld from the payout (above) must be exactly
+    // what got funded into the accumulator.
+    assert.equal(appAccount.tagsAccRewardPerShare.toString(), expectedAcc.toString());
 
     const userTokenAfter = await getAccount(
       provider.connection,
@@ -2064,7 +2117,7 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     );
     assert.equal(
       userTokenAfter.amount.toString(),
-      (walletAmount - initialStake + withdrawAmount).toString(),
+      (walletAmount - initialStake + netWithdrawAmount).toString(),
     );
   });
 
@@ -2240,6 +2293,8 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     // since no other tag/app has staked in this test run's isolated apps).
     const expectedPending = fundAmount;
 
+    const vaultBeforeWithdraw = await getAccount(provider.connection, vault);
+
     const withdrawAmount = 400;
     await program.methods
       .withdrawTagStake(new BN(withdrawAmount))
@@ -2255,7 +2310,32 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       .signers([user])
       .rpc();
 
+    // The pending-reward leg above settles/pays out against the accumulator
+    // BEFORE the unstake fee is funded into it (position.reward_debt is
+    // checkpointed pre-bump — see withdraw_tag_stake.rs), so `expectedPending`
+    // and `positionAccount.rewardDebt` below are unaffected by the fee. The
+    // fee itself is derived from the observed vault outflow (this tx moves
+    // BOTH the pending reward and the net principal, so subtract out the
+    // already-known `expectedPending` leg first) — see the top-of-file
+    // comment on why this test can't assume "elapsed ~= 0".
     const remaining = initialStake - withdrawAmount;
+    const vaultAfterWithdraw = await getAccount(provider.connection, vault);
+    const totalPaidOut = Number(vaultBeforeWithdraw.amount - vaultAfterWithdraw.amount);
+    const netWithdrawAmount = totalPaidOut - expectedPending;
+    const fee = withdrawAmount - netWithdrawAmount;
+    assert.isAtLeast(fee, 0, "fee must not be negative");
+    assert.isAtMost(
+      fee,
+      Math.floor((withdrawAmount * UNSTAKE_FEE_START_BPS) / 10_000),
+      "fee must never exceed the 1% starting rate",
+    );
+    const rewardPrecision = new BN("1000000000000");
+    const accBeforeFee = new BN(fundAmount).mul(rewardPrecision).div(new BN(initialStake));
+    const expectedAcc =
+      fee > 0
+        ? accBeforeFee.add(new BN(fee).mul(rewardPrecision).div(new BN(remaining)))
+        : accBeforeFee;
+
     const positionAccount = await program.account.stakePosition.fetch(
       position,
     );
@@ -2272,8 +2352,12 @@ describe("nebulous_world: withdraw_tag_stake", () => {
     assert.equal(appTagStakeAccount.stakeAmount.toString(), remaining.toString());
     const appAccount = await program.account.appAccount.fetch(app);
     assert.equal(appAccount.totalTagStake.toString(), remaining.toString());
+    // The just-charged unstake fee was redistributed into the same shared
+    // tags-pool accumulator the fund_app_rewards call above already bumped.
+    assert.equal(appAccount.tagsAccRewardPerShare.toString(), expectedAcc.toString());
 
-    // User received both the withdrawn principal and the pending reward.
+    // User received the pending reward plus the withdrawn principal, net of
+    // the unstake fee.
     const userTokenAfter = await getAccount(
       provider.connection,
       userTokenAccount,
@@ -2283,20 +2367,21 @@ describe("nebulous_world: withdraw_tag_stake", () => {
       (
         walletAmount -
         initialStake +
-        withdrawAmount +
+        netWithdrawAmount +
         expectedPending
       ).toString(),
     );
 
     // Net effect on the single global vault since before funding:
     // +fundAmount in, -expectedPending back out (the reward leg),
-    // -withdrawAmount back out (the principal leg) — since expectedPending
-    // == fundAmount here (100% pool ownership), the fund/reward legs cancel
-    // and only the withdrawn principal is left as a net outflow.
-    const vaultAfterWithdraw = await getAccount(provider.connection, vault);
+    // -netWithdrawAmount back out (the principal leg, net of the fee — the
+    // fee itself never leaves the vault, it's just re-attributed to the
+    // accumulator) — since expectedPending == fundAmount here (100% pool
+    // ownership), the fund/reward legs cancel and only the net withdrawn
+    // principal is left as a net outflow.
     assert.equal(
       (vaultBeforeFund.amount - vaultAfterWithdraw.amount).toString(),
-      withdrawAmount.toString(),
+      netWithdrawAmount.toString(),
     );
   });
 });

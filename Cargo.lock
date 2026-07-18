@@ -1725,6 +1725,7 @@ dependencies = [
  "bincode",
  "litesvm",
  "solana-account",
+ "solana-clock",
  "solana-keypair",
  "solana-message",
  "solana-signer",
