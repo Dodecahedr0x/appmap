@@ -1,0 +1,282 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { hierarchy, pack, type HierarchyCircularNode, type HierarchyNode } from "d3-hierarchy";
+import { formatToken, formatNumber } from "@/lib/utils";
+import { TOKEN_SYMBOL } from "@/lib/constants";
+import { buildTagPackTree, type PackNode, type PackTagNode, type PackAppNode } from "@/lib/tagPack";
+import type { TagPack } from "@/lib/indexerClient";
+import type { MapSelection } from "./RelatedApps";
+
+// Representative fallback so the map is never empty if the API route is
+// unreachable — same idea as TagMap/AppMap's FALLBACK_NODES.
+const FALLBACK_PACK: TagPack = {
+  tags: [
+    { slug: "defi", name: "defi", appCount: 3, stake: 42000 },
+    { slug: "nft", name: "nft", appCount: 2, stake: 18500 },
+    { slug: "gaming", name: "gaming", appCount: 1, stake: 26000 },
+    { slug: "wallet", name: "wallet", appCount: 1, stake: 22000 },
+    { slug: "marketplace", name: "marketplace", appCount: 1, stake: 14300 },
+  ],
+  apps: [
+    { slug: "jupiter", name: "Jupiter", stake: 38000, tagSlugs: ["defi"] },
+    { slug: "kamino", name: "Kamino", stake: 29500, tagSlugs: ["defi", "wallet"] },
+    { slug: "marinade", name: "Marinade", stake: 24100, tagSlugs: ["defi"] },
+    { slug: "tensor", name: "Tensor", stake: 17600, tagSlugs: ["nft", "marketplace"] },
+    { slug: "magic-eden", name: "Magic Eden", stake: 16200, tagSlugs: ["nft"] },
+    { slug: "star-atlas", name: "Star Atlas", stake: 12400, tagSlugs: ["gaming"] },
+  ],
+};
+
+// Same dark-map palette ForceMap uses (see DESIGN.md's nebula gradient /
+// plasma blue tokens) — tag circles tint from the nebula gradient's blue
+// stop toward its magenta stop as they nest deeper, app leaves get a solid
+// plasma-blue dot so they always read as distinct from their container.
+const TAG_FILL_SHALLOW: [number, number, number] = [50, 69, 255];
+const TAG_FILL_DEEP: [number, number, number] = [184, 69, 237];
+const APP_FILL = "#54b9ff";
+const SELECTED_RING = "#acafff";
+const LABEL_INK = "#f2f6fa";
+const LABEL_DIM = "#c7cbd6";
+const MAX_SIBLINGS = 6;
+const MIN_LABEL_RADIUS_TAG = 20;
+const MIN_LABEL_RADIUS_APP = 16;
+
+function tagFill(depth: number, maxDepth: number): string {
+  const t = maxDepth > 0 ? depth / maxDepth : 0;
+  const [r1, g1, b1] = TAG_FILL_SHALLOW;
+  const [r2, g2, b2] = TAG_FILL_DEEP;
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return `rgba(${r}, ${g}, ${b}, ${0.16 + t * 0.12})`;
+}
+
+type PackedNode = HierarchyCircularNode<PackNode>;
+
+// A tag slug can legitimately appear at more than one depth in the tree —
+// e.g. "wallet" both as its own top-level bucket (apps tagged only wallet)
+// and nested under "defi" (apps tagged defi+wallet) — so `data.id` alone
+// isn't a unique React key or a safe hover/selection identity. The full
+// root-to-node path of ids is.
+function nodeKey(n: PackedNode): string {
+  return n
+    .ancestors()
+    .reverse()
+    .map((a) => a.data.id)
+    .join(">");
+}
+
+function selectionFor(node: PackedNode): MapSelection | null {
+  if (node.data.type === "app") {
+    const app = node.data;
+    const siblings = (node.parent?.children ?? [])
+      .filter((c) => c.data.type === "app" && c.data.id !== app.id)
+      .map((c) => (c.data as PackAppNode).id)
+      .slice(0, MAX_SIBLINGS);
+    return { kind: "app", label: app.name, slugs: [app.id, ...siblings], selectedSlug: app.id };
+  }
+  // A tag slug can appear at more than one node in the tree (e.g. "wallet"
+  // both on its own and nested under "defi" — see nodeKey's comment), so
+  // /api/apps/related's tagSlugs= (an OR match against every app carrying
+  // that slug ANYWHERE) would over-select here, pulling in apps from a
+  // sibling node that happens to share the tag but not the rest of this
+  // node's ancestor path. GroupMap already knows the exact app set for this
+  // circle locally — its leaves — so it resolves apps by exact slug instead
+  // of asking the server to re-derive an ambiguous one. This also covers
+  // the synthetic "untagged" bucket for free, which isn't a real Tag row
+  // tagSlugs= could look up in the first place.
+  const leafIds = node.leaves().map((l) => (l.data as PackAppNode).id);
+  return leafIds.length > 0 ? { kind: "tag", label: node.data.name, slugs: leafIds } : null;
+}
+
+/**
+ * Static D3 circle-packing view of the tag hierarchy synthesized in
+ * tagPack.ts: outer circles are each app's most globally-common tag, inner
+ * circles nest one tag deeper, and full (leaf) circles are individual apps.
+ * Inspired by https://observablehq.com/@d3/pack/2. Unlike AppMap/TagMap,
+ * this has no physics step, so it's plain SVG rather than a reuse of
+ * ForceMap's canvas force simulation.
+ */
+export function GroupMap({ onSelect }: { onSelect?: (selection: MapSelection | null) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [source, setSource] = useState<"live" | "sample">("sample");
+  const [loading, setLoading] = useState(true);
+  const [isEmpty, setIsEmpty] = useState(false);
+  const [pkg, setPkg] = useState<TagPack>(FALLBACK_PACK);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setIsEmpty(false);
+    fetch("/api/tags/pack")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((body: { data?: TagPack }) => {
+        if (cancelled) return;
+        const data = body.data;
+        if (!data?.apps) {
+          setLoading(false);
+          setSource("sample");
+          setPkg(FALLBACK_PACK);
+          return;
+        }
+        if (data.apps.length === 0) {
+          setSource("live");
+          setLoading(false);
+          setIsEmpty(true);
+          setPkg(data);
+          return;
+        }
+        setSource("live");
+        setLoading(false);
+        setPkg(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoading(false);
+        setSource("sample");
+        setPkg(FALLBACK_PACK);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const rect = el.getBoundingClientRect();
+      setSize({ width: rect.width, height: rect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const tree = buildTagPackTree(pkg);
+  const root: PackTagNode = { type: "tag", id: "__root__", name: "", children: tree.children };
+  const width = Math.max(1, size.width);
+  const height = Math.max(1, size.height);
+  const h = hierarchy<PackNode>(root, (d) => (d.type === "tag" ? d.children : undefined))
+    .sum((d) => (d.type === "app" ? Math.max(1, d.stake) : 0))
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  const packed = pack<PackNode>().size([width, height]).padding(3)(h as HierarchyNode<PackNode>) as PackedNode;
+  const nodes = packed.descendants().filter((d) => d.depth > 0);
+  const maxDepth = nodes.reduce((m, d) => Math.max(m, d.depth), 1);
+  const hovered = hoveredId ? nodes.find((n) => nodeKey(n) === hoveredId) ?? null : null;
+  const leafNodes = nodes.filter((n): n is PackedNode & { data: PackAppNode } => n.data.type === "app");
+
+  function select(node: PackedNode) {
+    const key = nodeKey(node);
+    const deselecting = selectedId === key;
+    setSelectedId(deselecting ? null : key);
+    onSelect?.(deselecting ? null : selectionFor(node));
+  }
+
+  return (
+    <div>
+      <div className="relative">
+        <div
+          ref={containerRef}
+          className="relative h-[24rem] w-full overflow-hidden rounded-card border border-white/10 sm:h-[30rem]"
+        >
+          <svg
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label="Circle-packing map of nebulous.world tags and apps. Outer circles are the most common tags; inner circles nest one tag deeper; small filled circles are individual apps. Click a circle to select it and see matching apps below."
+            onClick={(e) => {
+              if (e.target === e.currentTarget && selectedId) {
+                setSelectedId(null);
+                onSelect?.(null);
+              }
+            }}
+          >
+            {nodes.map((n) => {
+              const key = nodeKey(n);
+              const isApp = n.data.type === "app";
+              const isSelected = selectedId === key;
+              const isHovered = hoveredId === key;
+              const showLabel = isApp ? n.r >= MIN_LABEL_RADIUS_APP : n.r >= MIN_LABEL_RADIUS_TAG;
+              return (
+                <g
+                  key={key}
+                  transform={`translate(${n.x}, ${n.y})`}
+                  onPointerEnter={() => setHoveredId(key)}
+                  onPointerLeave={() => setHoveredId((id) => (id === key ? null : id))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    select(n);
+                  }}
+                  className={onSelect ? "cursor-pointer" : undefined}
+                >
+                  <circle
+                    r={n.r}
+                    fill={isApp ? APP_FILL : tagFill(n.depth, maxDepth)}
+                    fillOpacity={isApp ? (isHovered || isSelected ? 0.95 : 0.75) : undefined}
+                    stroke={isSelected ? SELECTED_RING : isHovered ? "#ffffff" : "rgba(255,255,255,0.15)"}
+                    strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1}
+                  />
+                  {showLabel && (
+                    <text
+                      textAnchor="middle"
+                      y={isApp ? 4 : -n.r + 14}
+                      fontSize={isApp ? 11 : 12}
+                      fontWeight={isApp ? 500 : 600}
+                      fill={isApp ? LABEL_INK : LABEL_DIM}
+                      className="pointer-events-none select-none"
+                    >
+                      {isApp ? n.data.name : `#${n.data.name}`}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        {isEmpty && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
+            <p className="text-sm text-white/50">No approved apps to group yet.</p>
+          </div>
+        )}
+        {loading && !isEmpty && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <p className="text-sm text-white/50">Loading…</p>
+          </div>
+        )}
+        {hovered && (
+          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-white/10 bg-black/70 px-3 py-2 backdrop-blur-sm">
+            <div className="text-sm font-semibold text-white">
+              {hovered.data.type === "app" ? hovered.data.name : `#${hovered.data.name}`}
+            </div>
+            {hovered.data.type === "app" ? (
+              <div className="text-caption text-white/60">{formatToken(hovered.data.stake, TOKEN_SYMBOL)} staked</div>
+            ) : (
+              <div className="text-caption text-white/60">{formatNumber(hovered.leaves().length)} apps</div>
+            )}
+          </div>
+        )}
+      </div>
+      <ul className="sr-only">
+        {leafNodes.map((n) => (
+          <li key={n.data.id}>
+            {onSelect ? (
+              <button type="button" onClick={() => select(n)}>
+                {n.data.name}: {formatToken(n.data.stake, TOKEN_SYMBOL)} staked
+              </button>
+            ) : (
+              `${n.data.name}: ${formatToken(n.data.stake, TOKEN_SYMBOL)} staked`
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 text-caption text-white/50">
+        {source === "live" ? "Live tags & apps." : "Sample tags & apps."} Click a circle to select it.
+      </div>
+    </div>
+  );
+}

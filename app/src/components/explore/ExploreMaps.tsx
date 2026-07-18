@@ -6,6 +6,7 @@ import type { TagGraph } from "@/lib/indexerClient";
 type TagGraphNode = TagGraph["nodes"][number];
 import { AppMap } from "./AppMap";
 import { TagMap } from "./TagMap";
+import { GroupMap } from "./GroupMap";
 import { NebulaField } from "./NebulaField";
 import { RelatedApps, type MapSelection } from "./RelatedApps";
 import type { MapNode } from "./ForceMap";
@@ -17,7 +18,7 @@ const DARK_CHIP =
   "inline-flex items-center gap-1 rounded-pill border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition-[color,background-color,border-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]";
 const DARK_CHIP_ACTIVE = "border-[#54b9ff]/60 bg-[#54b9ff]/15 text-white";
 
-type TabKey = "apps" | "tags";
+type TabKey = "apps" | "tags" | "group";
 
 const TABS: { key: TabKey; label: string; description: string }[] = [
   {
@@ -31,6 +32,12 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
     label: "Tags",
     description:
       "Bigger circles have more stake behind them. Tags placed close together tend to show up on the same apps — a way to browse by theme instead of by keyword.",
+  },
+  {
+    key: "group",
+    label: "Group",
+    description:
+      "Apps nested by tag, from the most common tag down to the most specific. Outer circles are broad themes, inner circles narrow them down, and the smallest filled circles are individual apps.",
   },
 ];
 
@@ -92,6 +99,13 @@ export function ExploreMaps() {
       return;
     }
     setSelection({ kind: "tag", label: node.label, tagSlugs: [node.id, ...neighborIds] });
+  }
+
+  // Unlike AppMap/TagMap (which hand back a raw MapNode + neighbor ids for
+  // this component to interpret), GroupMap already knows its own tree
+  // structure well enough to build the MapSelection itself.
+  function handleGroupSelect(next: MapSelection | null) {
+    setSelection(next);
   }
 
   const active = TABS.find((t) => t.key === tab)!;
@@ -163,8 +177,10 @@ export function ExploreMaps() {
           <div key={tab} className="animate-fade-in-fast">
             {tab === "apps" ? (
               <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} />
-            ) : (
+            ) : tab === "tags" ? (
               <TagMap onSelect={handleTagSelect} />
+            ) : (
+              <GroupMap onSelect={handleGroupSelect} />
             )}
           </div>
         </div>
