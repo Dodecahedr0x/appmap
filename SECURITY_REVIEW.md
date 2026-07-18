@@ -98,7 +98,7 @@ checklist is ticked off as each lands.
       real, cheap-to-fix inconsistency. **Fix:** round the fee *up*
       (`div_ceil`), matching the rest of the codebase's protocol-favoring
       direction.
-- [ ] **2. No mint pinned on caller-supplied token accounts** (`vote.rs`,
+- [x] **2. No mint pinned on caller-supplied token accounts** (`vote.rs`,
       `withdraw_vote.rs`, `stake_tag.rs`, `withdraw_tag_stake.rs`,
       `claim_vote_reward.rs`, `claim_tag_reward.rs`, `fund_app_rewards.rs`) —
       SOL-036-adjacent. `user_token_account`/`funder_token_account` have no

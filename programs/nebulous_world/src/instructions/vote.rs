@@ -30,7 +30,16 @@ pub struct Vote<'info> {
         address = get_associated_token_address(&config.key(), &config.vote_mint),
     )]
     pub vault: Account<'info, TokenAccount>,
-    #[account(mut)]
+    /// `token::mint =` isn't independently load-bearing — the SPL Token
+    /// program's own `Transfer` instruction already rejects any cross-mint
+    /// transfer against `vault`, on both legs, so a wrong-mint account can
+    /// only ever fail closed. It's here for a clear, typed Anchor error
+    /// instead of an opaque SPL-level one on the same class of mistake. Same
+    /// constraint, same reasoning, on every other caller-supplied token
+    /// account in this program (`withdraw_vote`, `stake_tag`,
+    /// `withdraw_tag_stake`, `claim_vote_reward`, `claim_tag_reward`,
+    /// `fund_app_rewards`).
+    #[account(mut, token::mint = config.vote_mint)]
     pub user_token_account: Account<'info, TokenAccount>,
     #[account(mut)]
     pub user: Signer<'info>,
