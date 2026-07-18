@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import type { TagDTO } from "./types";
 
 /** Tailwind-friendly className combiner. */
 export function cn(...inputs: ClassValue[]): string {
@@ -45,6 +46,14 @@ export function hostname(url: string): string {
   } catch {
     return url;
   }
+}
+
+/** The app's tag with the most stake behind it, or null if it has no tags
+    at all — apps have no onchain "category", so this is what stands in for
+    one anywhere a card previously showed `app.category`. */
+export function topStakedTag(tags: TagDTO[]): TagDTO | null {
+  if (tags.length === 0) return null;
+  return tags.reduce((top, t) => (t.stakeTotal > top.stakeTotal ? t : top));
 }
 
 export function formatDate(d: Date | string): string {

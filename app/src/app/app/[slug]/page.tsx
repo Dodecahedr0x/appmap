@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchAppBySlug } from "@/lib/indexerClient";
-import { formatToken, shortAddress, timeAgo, hostname } from "@/lib/utils";
+import { formatToken, shortAddress, timeAgo, hostname, topStakedTag } from "@/lib/utils";
 import { TOKEN_SYMBOL, SITE_URL, SITE_NAME } from "@/lib/constants";
 import { VotePanel } from "@/components/app/VotePanel";
 import { TagStakePanel } from "@/components/app/TagStakePanel";
@@ -51,6 +51,7 @@ export default async function AppDetailPage({ params }: Props) {
   if (!detail) notFound();
 
   const { app, recentVotes, topStakers, snapshots } = detail;
+  const topTag = topStakedTag(app.tags);
 
   return (
     <div className="space-y-6">
@@ -62,7 +63,7 @@ export default async function AppDetailPage({ params }: Props) {
       </Link>
 
       {/* Header — an OpenGraph link-preview card (hero image, domain strip,
-          title, description, category/chain), the same shape a shared link
+          title, description, top tag/chain), the same shape a shared link
           unfurls into. This is also the app's "About": its description
           lives here instead of a separate panel. */}
       <div className="card overflow-hidden p-0">
@@ -80,9 +81,11 @@ export default async function AppDetailPage({ params }: Props) {
             </div>
           )}
           <div className="absolute right-3 top-3 flex gap-2">
-            <span className="chip border-none bg-white/90 capitalize shadow-subtle">
-              {app.category}
-            </span>
+            {topTag && (
+              <span className="chip border-none bg-white/90 shadow-subtle">
+                #{topTag.name}
+              </span>
+            )}
             <span className="chip border-none bg-white/90 capitalize shadow-subtle">
               {app.chain}
             </span>
