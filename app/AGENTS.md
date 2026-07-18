@@ -41,6 +41,7 @@ guards (`requireUser`).
 | Rewards | `rewards/positions` | A signed-in user's vote/stake positions, for the Rewards page's claim list |
 | Ads/traffic | `ads/serve`, `ads/click`, `track` | Serve an ad impression, record a click, record a page view (Turnstile-gated for revenue eligibility) |
 | Auth | `auth/challenge`, `auth/verify`, `auth/me`, `auth/logout` | Sign-In-With-Solana: issue a nonce, verify the signed message, session cookie, logout |
+| Data API (x402-priced) | `data/platform-stats`, `data/platform-history`, `data/tags`, `data/traffic` | A separate, [x402](https://www.x402.org)-gated data API for third-party/agent consumers — priced per request in NEB, see [`src/lib/x402.ts`](src/lib/x402.ts) and the About page's "Data API" section. Distinct from the free routes above, which this app's own UI depends on directly |
 
 ### Components (`src/components/`)
 

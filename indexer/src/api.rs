@@ -39,7 +39,7 @@ use nebulous_world::constants::{
     TAG_SEED, VOTE_POSITION_SEED,
 };
 
-const TOKEN_PROGRAM_ID: Pubkey =
+pub(crate) const TOKEN_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const SYSTEM_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("11111111111111111111111111111111111111");
@@ -121,6 +121,7 @@ pub fn router(state: Arc<ApiState>) -> Router {
         .merge(crate::handlers::ads::routes())
         .merge(crate::handlers::track::routes())
         .merge(crate::handlers::revenue::routes())
+        .merge(crate::handlers::x402::routes())
         .with_state(state)
 }
 
@@ -236,7 +237,7 @@ fn stake_position_pda(program_id: &Pubkey, app_tag_stake: &Pubkey, user: &Pubkey
     .0
 }
 
-fn associated_token_address(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
+pub(crate) fn associated_token_address(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(
         &[owner.as_ref(), TOKEN_PROGRAM_ID.as_ref(), mint.as_ref()],
         &ASSOCIATED_TOKEN_PROGRAM_ID,

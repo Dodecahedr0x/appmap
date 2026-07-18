@@ -12,7 +12,7 @@ app nested inside it:
 
 | Path | What | Docs |
 | --- | --- | --- |
-| [`app/`](app/) | Next.js 14 (App Router) product — UI + API routes, all backed by the indexer's HTTP API, no direct database connection | [`app/AGENTS.md`](app/AGENTS.md) |
+| [`app/`](app/) | Next.js 14 (App Router) product — UI + API routes, all backed by the indexer's HTTP API, no direct database connection. Also serves a separate [x402](https://www.x402.org)-priced data API (`/api/data/*`) for third-party/agent consumers, priced per request in NEB — see [`app/src/lib/x402.ts`](app/src/lib/x402.ts) | [`app/AGENTS.md`](app/AGENTS.md) |
 | [`programs/nebulous_world/`](programs/nebulous_world/) | The on-chain Anchor program (votes, tag stakes, reward accrual/claims) | [`programs/nebulous_world/AGENTS.md`](programs/nebulous_world/AGENTS.md) |
 | [`indexer/`](indexer/) | Rust service: owns the whole Postgres database (schema + every query), indexes the program's accounts/instructions, and is the app's **only** path to Solana RPC (no direct `Connection` anywhere in `app/`) | [`indexer/README.md`](indexer/README.md) (thorough — architecture diagram included) |
 | [`tests/nebulous_world.ts`](tests/nebulous_world.ts) | Anchor/TS integration test entry (`anchor test`); the bulk of program tests are Rust, under `programs/nebulous_world/tests/` | — |

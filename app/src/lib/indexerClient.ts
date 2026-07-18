@@ -510,3 +510,15 @@ export async function updateAppMetadata(
 ): Promise<void> {
   await patch(`/apps/${encodeURIComponent(id)}/metadata`, fields);
 }
+
+export interface X402SettleInput {
+  signedTransaction: string;
+  expectedAmountRaw: string;
+  expectedMint: string;
+  expectedPayTo: string;
+}
+
+/** Verifies + submits an x402 payment transaction — see indexer/src/handlers/x402.rs and app/src/lib/x402.ts. Throws (via post()'s error handling) if the transaction doesn't match what was expected or fails to land. */
+export async function settleX402Payment(input: X402SettleInput): Promise<{ settled: boolean; transaction: string }> {
+  return (await post("/x402/settle", input)) as { settled: boolean; transaction: string };
+}
