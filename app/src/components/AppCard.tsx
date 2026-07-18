@@ -4,6 +4,12 @@ import type { AppDTO } from "@/lib/types";
 import { formatToken, formatNumber, hostname, cn, topStakedTag } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 
+// Caps the chips shown on a card — an app can carry arbitrarily many tags
+// (see scripts/createAppsOnchain.ts), but the card itself has room for a
+// handful. Highest-stake tags win the cut, sorted below rather than trusting
+// callers to have already ordered `app.tags` that way.
+const MAX_VISIBLE_TAGS = 5;
+
 /** Compact metric with a label. */
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -86,7 +92,10 @@ export function AppCard({
 
       {app.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-4 py-2">
-          {app.tags.map((t) => (
+          {[...app.tags]
+            .sort((a, b) => b.stakeTotal - a.stakeTotal)
+            .slice(0, MAX_VISIBLE_TAGS)
+            .map((t) => (
             <span
               key={t.id}
               className={cn(
