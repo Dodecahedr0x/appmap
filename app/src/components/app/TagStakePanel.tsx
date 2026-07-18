@@ -83,6 +83,7 @@ export function TagStakePanel({
         simulated
           ? `Staked ${stakeAmount} ${TOKEN_SYMBOL} (simulated)`
           : `Staked ${stakeAmount} ${TOKEN_SYMBOL}`,
+        txSig ? { txSig } : undefined,
       );
       setStakingId(null);
       router.refresh();
@@ -98,7 +99,7 @@ export function TagStakePanel({
     if (!mine) return;
     setBusy(true);
     try {
-      const { simulated } = await withdrawTagStake(appId, tagSlug, mine.amount);
+      const { txSig, simulated } = await withdrawTagStake(appId, tagSlug, mine.amount);
 
       const res = await fetch("/api/stake/withdraw", {
         method: "POST",
@@ -110,6 +111,7 @@ export function TagStakePanel({
 
       toast.success(
         simulated ? "Stake withdrawn (simulated)" : "Stake withdrawn — tokens returned",
+        txSig ? { txSig } : undefined,
       );
       setMyStakes((prev) => {
         const next = { ...prev };

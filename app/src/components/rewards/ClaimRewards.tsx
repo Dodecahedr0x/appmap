@@ -155,7 +155,7 @@ export function ClaimRewards() {
   async function claim(row: ClaimRow) {
     setClaimingKey(row.key);
     try {
-      const { simulated } =
+      const { txSig, simulated } =
         row.kind === "vote"
           ? await claimVoteReward(row.appId)
           : await claimTagReward(row.appId, row.tagSlug!);
@@ -164,6 +164,7 @@ export function ClaimRewards() {
         simulated
           ? "Claimed (simulated) — running without a live deployment"
           : `Claimed your ${row.appName} reward`,
+        txSig ? { txSig } : undefined,
       );
       setRows((prev) =>
         prev?.map((r) => (r.key === row.key ? { ...r, pending: 0 } : r)) ?? null,
