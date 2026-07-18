@@ -9,6 +9,7 @@ import { TagStakePanel } from "@/components/app/TagStakePanel";
 import { TrafficBeacon } from "@/components/app/TrafficBeacon";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { AppMetricsPanel } from "@/components/app/AppMetricsPanel";
+import { JsonLd } from "@/components/JsonLd";
 
 export const dynamic = "force-dynamic";
 
@@ -53,8 +54,37 @@ export default async function AppDetailPage({ params }: Props) {
   const { app, recentVotes, topStakers, snapshots } = detail;
   const topTag = topStakedTag(app.tags);
 
+  // Structured data for search engines — the crowd-sourced stats behind the
+  // OpenGraph card (vote/view counts) expressed via schema.org's
+  // InteractionCounter rather than aggregateRating: these are engagement
+  // tallies, not a 1-5 star review system, and misrepresenting one as the
+  // other risks a Google structured-data manual action.
+  const appLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: app.name,
+    description: app.tagline || app.description,
+    url: `${SITE_URL}/app/${app.slug}`,
+    ...(app.iconUrl ? { image: app.iconUrl } : {}),
+    applicationCategory: app.category,
+    operatingSystem: "Web",
+    interactionStatistic: [
+      {
+        "@type": "InteractionCounter",
+        interactionType: "https://schema.org/LikeAction",
+        userInteractionCount: app.voteCount,
+      },
+      {
+        "@type": "InteractionCounter",
+        interactionType: "https://schema.org/ViewAction",
+        userInteractionCount: app.viewCount,
+      },
+    ],
+  };
+
   return (
     <div className="space-y-6">
+      <JsonLd data={appLd} />
       {/* Records a page view for traffic analytics & revenue attribution. */}
       <TrafficBeacon appId={app.id} path={`/app/${app.slug}`} />
 
