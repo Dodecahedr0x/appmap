@@ -57,11 +57,13 @@ export default async function ExplorePage() {
             label="Votes cast"
             value={formatToken(stats.totalVoteWeight, TOKEN_SYMBOL)}
             data={votesTrend}
+            valueKind="token"
           />
           <MetricTrendCard
             label="Staked"
             value={formatToken(stats.totalStake, TOKEN_SYMBOL)}
             data={stakeTrend}
+            valueKind="token"
           />
           <MetricTrendCard
             label="Page views"
