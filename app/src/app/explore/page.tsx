@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPlatformStats, getPlatformViewsTrend } from "@/lib/explore";
+import { fetchPlatformStats, fetchPlatformViewsTrend } from "@/lib/indexerClient";
 import { fetchPlatformMetricsHistory } from "@/lib/indexerClient";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
@@ -21,9 +21,9 @@ export default async function ExplorePage() {
   // page over a chart that isn't this page's only content (unlike
   // app/rewards/page.tsx, where the indexer status *is* the page).
   const [stats, onchainHistory, viewsTrend] = await Promise.all([
-    getPlatformStats(),
+    fetchPlatformStats(),
     fetchPlatformMetricsHistory().catch(() => []),
-    getPlatformViewsTrend(),
+    fetchPlatformViewsTrend(),
   ]);
 
   const scale = 10 ** config.solana.voteTokenDecimals;

@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { getAppDetail } from "@/lib/queries";
+import { fetchAppBySlug } from "@/lib/indexerClient";
 import { formatToken, formatNumber } from "@/lib/utils";
 import { SITE_NAME } from "@/lib/constants";
 
@@ -23,7 +23,7 @@ export default async function Image({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const detail = await getAppDetail(slug);
+  const detail = await fetchAppBySlug(slug);
 
   if (!detail) {
     return new ImageResponse(

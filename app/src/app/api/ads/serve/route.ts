@@ -1,10 +1,8 @@
 import { NextRequest } from "next/server";
-import { handler, ok, ApiError } from "@/lib/api";
+import { handler, ok } from "@/lib/api";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { getOrCreatePageView } from "@/lib/pageview";
-import { pickWeightedAd } from "@/lib/ads";
-import { revenuePerImpression } from "@/lib/revenue";
+import { serveAd } from "@/lib/indexerClient";
+import { resolveVisitor } from "@/lib/tracking";
 
 const schema = z.object({
   appId: z.string().min(1),
@@ -15,44 +13,20 @@ const schema = z.object({
 //
 // The impression is attached to the visitor's page view and credited with
 // revenue (cpm / 1000). That revenue accrues to the app and is later
-// distributed to its stakers when the current epoch settles.
+// distributed to its stakers when the current epoch settles. Visitor
+// identity is resolved here (needs the tracking secret + raw headers, see
+// tracking.ts) and passed to the indexer already-derived.
 export const POST = handler(async (req: NextRequest) => {
   const body = schema.parse(await req.json());
+  const visitor = resolveVisitor(req.headers);
+  if (visitor.isBot) return ok({ ad: null, reason: "bot" });
 
-  const app = await prisma.app.findUnique({
-    where: { id: body.appId },
-    select: { id: true },
-  });
-  if (!app) throw new ApiError("App not found", 404);
-
-  const ads = await prisma.ad.findMany({ where: { active: true } });
-  const ad = pickWeightedAd(ads);
-  if (!ad) return ok({ ad: null });
-
-  // Attach to the visitor's page view (bots get nothing).
-  const pv = await getOrCreatePageView(app.id, req.headers, {
+  const result = await serveAd(body.appId, {
+    visitorId: visitor.visitorId,
+    sessionId: visitor.sessionId,
+    userAgent: visitor.userAgent,
     path: body.path,
+    referrer: req.headers.get("referer"),
   });
-  if (!pv) return ok({ ad: null, reason: "bot" });
-
-  const revenue = revenuePerImpression(ad.cpm);
-  const impression = await prisma.adImpression.create({
-    data: {
-      adId: ad.id,
-      appId: app.id,
-      pageViewId: pv.id,
-      revenue,
-    },
-  });
-
-  return ok({
-    ad: {
-      id: ad.id,
-      title: ad.title,
-      body: ad.body,
-      imageUrl: ad.imageUrl,
-      targetUrl: ad.targetUrl,
-    },
-    impressionId: impression.id,
-  });
+  return ok(result);
 });

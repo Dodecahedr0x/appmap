@@ -1,8 +1,8 @@
-import { writeDailySnapshot } from "../src/lib/snapshot";
+import { writeDailySnapshot } from "../src/lib/indexerClient";
 
 writeDailySnapshot()
-  .then((count) => {
-    console.log(`Wrote ${count} snapshot rows.`);
+  .then(({ written }) => {
+    console.log(`Wrote ${written} snapshot rows.`);
     process.exit(0);
   })
   .catch((err) => {

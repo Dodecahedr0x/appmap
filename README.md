@@ -23,7 +23,7 @@ sharing**.
 | ---------- | -------------------------------------------------- |
 | Framework  | Next.js 14 (App Router) + TypeScript               |
 | Styling    | Tailwind CSS                                        |
-| Database   | Prisma ORM + Postgres                               |
+| Database   | Postgres, owned entirely by the indexer (Rust/`sqlx`) — the app has no DB client of its own |
 | Wallet     | `@solana/wallet-adapter` (Phantom, Solflare, …)     |
 | Auth       | Sign-In-With-Solana (ed25519 signature, no passwords) |
 | Charts     | Recharts                                            |
@@ -115,9 +115,8 @@ Runnable from the repo root or from `app/` — identical either way.
 | `npm run teardown:dev` | Stop surfpool, the indexer, and local Postgres started by `setup:dev` |
 | `npm run dev:all`   | `setup:dev` + `dev` in one command; Ctrl-C runs `teardown:dev` automatically |
 | `npm run dev`       | Start the dev server                        |
-| `npm run build`     | Production build (runs `prisma generate`, never touches DB schema — the indexer owns that) |
-| `npm run db:studio` | Open Prisma Studio                          |
-| `npm run test`      | Run unit tests                              |
+| `npm run build`     | Production build — no DB schema/client involved, the indexer owns that entirely |
+| `npm run test`      | Run unit tests (pure logic only — no database needed)  |
 | `npm run typecheck` | Type-check without emitting (needs `anchor build` first) |
 | `npm run lint`       | ESLint |
 | `npm run test:anchor` | Run the Anchor program's Rust test suite |

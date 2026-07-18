@@ -2,7 +2,9 @@
 
 import { formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
-import type { TagGraphNode, TagGraphEdge } from "@/lib/tagGraph";
+import type { TagGraph } from "@/lib/indexerClient";
+type TagGraphNode = TagGraph["nodes"][number];
+type TagGraphEdge = TagGraph["edges"][number];
 import { ForceMap, type MapLink, type MapNode } from "./ForceMap";
 
 // Representative fallback so the map is never empty if the API route is

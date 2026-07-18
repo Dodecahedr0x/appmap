@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getPlatformStats } from "@/lib/explore";
+import { fetchPlatformStats } from "@/lib/indexerClient";
 import { formatNumber, formatToken } from "@/lib/utils";
 import { SITE_NAME, TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 import { ConstellationField } from "@/components/about/ConstellationField";
@@ -107,7 +107,7 @@ const STEPS = [
 ];
 
 export default async function AboutPage() {
-  const stats = await getPlatformStats();
+  const stats = await fetchPlatformStats();
 
   return (
     <div className="space-y-24 pb-8">

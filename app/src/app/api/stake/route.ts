@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { handler, ok, requireUser, ApiError } from "@/lib/api";
 import { stakeSchema } from "@/lib/validation";
-import { prisma } from "@/lib/prisma";
-import { refreshAppTag, refreshApp } from "@/lib/engine";
+import { fetchStakes, createStake } from "@/lib/indexerClient";
 import { isSimulationMode } from "@/lib/config";
 import { getSession } from "@/lib/session";
 
@@ -16,10 +15,7 @@ export const GET = handler(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) return ok({ stakes: [] });
 
-  const stakes = await prisma.stake.findMany({
-    where: { userId: session.userId, active: true, appTag: { appId } },
-    select: { id: true, amount: true, appTagId: true },
-  });
+  const stakes = await fetchStakes(appId, session.userId);
   return ok({ stakes });
 });
 
@@ -31,33 +27,13 @@ export const POST = handler(async (req: NextRequest) => {
   const user = await requireUser();
   const body = stakeSchema.parse(await req.json());
 
-  const appTag = await prisma.appTag.findUnique({
-    where: { id: body.appTagId },
-  });
-  if (!appTag) throw new ApiError("Tag not found", 404);
-
-  if (!isSimulationMode() && !body.txSig) {
-    throw new ApiError("A confirmed transaction signature is required", 400);
-  }
-  if (body.txSig) {
-    const existing = await prisma.stake.findUnique({
-      where: { txSig: body.txSig },
-    });
-    if (existing) throw new ApiError("This transaction was already recorded", 409);
-  }
-
-  const stake = await prisma.stake.create({
-    data: {
-      appTagId: body.appTagId,
-      userId: user.id,
-      amount: body.amount,
-      txSig: body.txSig ?? null,
-      active: true,
-    },
+  const result = await createStake({
+    appTagId: body.appTagId,
+    userId: user.id,
+    amount: body.amount,
+    txSig: body.txSig ?? null,
+    simulationMode: isSimulationMode(),
   });
 
-  await refreshAppTag(body.appTagId);
-  await refreshApp(appTag.appId);
-
-  return ok({ stake: { id: stake.id, amount: stake.amount } }, { status: 201 });
+  return ok(result, { status: 201 });
 });
