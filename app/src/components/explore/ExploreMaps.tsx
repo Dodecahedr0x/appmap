@@ -36,7 +36,7 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
     key: "group",
     label: "Group",
     description:
-      "Apps nested by tag, from the most common tag down to the most specific. Outer circles are broad themes, inner circles narrow them down, and the smallest filled circles are individual apps.",
+      "Apps nested by tag, from the most common tag down to the most specific. Outer circles are broad themes, inner circles narrow them down, and the smallest filled circles are individual apps. Click a circle to zoom in, drag to pan, and scroll to zoom.",
   },
 ];
 
