@@ -13,6 +13,8 @@ pub enum ErrorCode {
     AppIdTooLong,
     #[msg("tag_id must not exceed 32 bytes")]
     TagIdTooLong,
+    #[msg("url must not exceed MAX_URL_LEN bytes (protocol trimmed)")]
+    UrlTooLong,
     #[msg("Amount must be greater than zero")]
     ZeroAmount,
     #[msg("Arithmetic overflow")]

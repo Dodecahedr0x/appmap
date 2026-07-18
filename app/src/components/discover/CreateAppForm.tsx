@@ -6,6 +6,8 @@ import { useToast } from "@/components/ui/Toaster";
 import { ConnectButton } from "@/components/ConnectButton";
 import { AppCard } from "@/components/AppCard";
 import { cn } from "@/lib/utils";
+import { pollUntilIndexed } from "@/lib/txClient";
+import { useCreateAppProgram } from "@/hooks/useCreateAppProgram";
 import { CATEGORIES, CHAINS } from "@/lib/constants";
 import type { AppDTO } from "@/lib/types";
 
@@ -20,15 +22,19 @@ interface Props {
 }
 
 /**
- * The app-submission form — collects exactly what POST /api/apps'
- * submitAppSchema accepts. Only name/url are required; tagline/description/
- * iconUrl are auto-filled from the URL's own OpenGraph data server-side if
- * left blank (see enrichWithOpenGraph), so leaving them blank is a normal,
- * supported path, not a shortcut.
+ * The app-submission form. Only name/url are required; everything else is
+ * optional. Submitting builds a single on-chain transaction (`init_app` +
+ * one `suggest_tag` per initial tag, see useCreateAppProgram) which the
+ * connected wallet signs directly — there is no Prisma write here any
+ * more. The `App`/`Tag`/`AppTag` rows (and any OpenGraph-derived
+ * tagline/description/icon left blank here) only exist once the indexer
+ * observes the confirmed transaction and, later, `og:backfill` fills in
+ * imagery — see AGENTS.md.
  */
 export function CreateAppForm({ onSuccess }: Props) {
   const { user } = useAuth();
   const toast = useToast();
+  const { createApp } = useCreateAppProgram();
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -66,9 +72,9 @@ export function CreateAppForm({ onSuccess }: Props) {
     }, CHIP_EXIT_MS);
   }
 
-  // Mirrors what the API will actually store — same tagline/description
-  // fallback (see submitAppSchema) — so the preview never lies about what
-  // the real card will show once OpenGraph enrichment fills in the blanks.
+  // Mirrors what the indexer will eventually store (see
+  // useCreateAppProgram/buildCreateAppTxSchema) so the preview never lies
+  // about what the real card will show once the transaction is indexed.
   const previewApp: AppDTO = useMemo(
     () => ({
       id: "preview",
@@ -107,23 +113,30 @@ export function CreateAppForm({ onSuccess }: Props) {
     if (!canSubmit) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/apps", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          url: url.trim(),
-          tagline: tagline.trim(),
-          description: description.trim(),
-          iconUrl: iconUrl.trim(),
-          category,
-          chain,
-          tags,
-        }),
+      // Client-chosen, since it seeds the on-chain AppAccount PDA before
+      // any Postgres row exists — see MAX_APP_ID_LEN (32 bytes). A v4 UUID
+      // with its dashes stripped is exactly 32 hex characters, so it fits
+      // with no truncation/collision-retry logic needed.
+      const appId = crypto.randomUUID().replace(/-/g, "");
+      const txSig = await createApp({
+        appId,
+        url: url.trim(),
+        tags,
+        name: name.trim() || undefined,
+        tagline: tagline.trim() || undefined,
+        description: description.trim() || undefined,
+        iconUrl: iconUrl.trim() || undefined,
+        category,
+        chain,
       });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Could not create the app");
-      toast.success(`${json.data.app.name} is live`);
+
+      const indexed = await pollUntilIndexed<{ app: { name: string } }>(
+        `/api/apps/by-id/${appId}`,
+      );
+      toast.success(
+        indexed ? `${indexed.app.name} is live` : "App created — indexing…",
+        { txSig },
+      );
       onSuccess();
     } catch (err) {
       toast.error(

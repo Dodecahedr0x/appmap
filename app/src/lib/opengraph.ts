@@ -111,7 +111,7 @@ export async function fetchOpenGraph(pageUrl: string): Promise<OpenGraphData | n
   }
 }
 
-// Keep in sync with submitAppSchema's tagline/description limits (src/lib/validation.ts).
+// Keep in sync with buildCreateAppTxSchema's tagline/description limits (src/lib/validation.ts).
 const TAGLINE_MAX = 140;
 const DESCRIPTION_MAX = 4000;
 

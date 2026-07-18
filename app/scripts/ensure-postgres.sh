@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Ensures a local Postgres role + database exist so `prisma db push` works
-# out of the box, mirroring how setup-dev.sh auto-starts surfpool.
+# Ensures a local Postgres role + database exist so the indexer's own
+# `sqlx::migrate!()` (indexer/src/db.rs) — or, for tests, scripts/apply-schema.sh
+# running the same migration files directly — has somewhere to apply the
+# schema, mirroring how setup-dev.sh auto-starts surfpool.
 # No-op when DATABASE_URL points at a non-local host (e.g. a managed
 # Render/Neon database) — nothing to provision there.
 set -euo pipefail

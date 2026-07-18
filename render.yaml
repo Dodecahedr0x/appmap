@@ -8,7 +8,11 @@ services:
     region: oregon
     branch: main
     autoDeploy: true
-    buildCommand: npm ci && npx prisma db push --skip-generate && npm run build
+    # Schema is applied by the indexer service (below), not here — no `prisma
+    # db push`/`migrate` in this app's build any more (see AGENTS.md). `npm
+    # run build` still runs `prisma generate` for the typed client, just
+    # never touches the database's actual DDL.
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -87,6 +91,15 @@ services:
   # (see indexer/README.md). Private — no public HTTP surface, only
   # reachable on Render's internal network, since nothing outside this
   # deployment (i.e. no browser) ever calls it directly.
+  #
+  # This service also OWNS the database schema (indexer/src/db.rs runs
+  # `sqlx::migrate!()` against every file in indexer/migrations/, including
+  # the product schema mirrored from app/prisma/schema.prisma) and is the
+  # only writer of App/Tag/AppTag rows — the app service above never runs
+  # `prisma db push`/`migrate` and has no seed script (see AGENTS.md). On a
+  # brand-new database, the app service may serve briefly before this
+  # service's first successful migration; nothing in the app's own read
+  # paths creates tables, so this settles itself once the indexer comes up.
   - type: pserv
     name: nebulous-world-indexer
     runtime: docker

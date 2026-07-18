@@ -12,7 +12,7 @@ describe("getPlatformStats", () => {
   it("only counts approved apps in totalApps and the summed metrics", async () => {
     await prisma.app.create({
       data: {
-        slug: "approved-app",
+        id: "approved-app", slug: "approved-app",
         name: "Approved",
         url: "https://example.com",
         status: "approved",
@@ -23,7 +23,7 @@ describe("getPlatformStats", () => {
     });
     await prisma.app.create({
       data: {
-        slug: "pending-app",
+        id: "pending-app", slug: "pending-app",
         name: "Pending",
         url: "https://example.com",
         status: "pending",
@@ -43,13 +43,13 @@ describe("getPlatformStats", () => {
 
   it("only counts tags actually used by an approved app, not every suggested tag", async () => {
     const approved = await prisma.app.create({
-      data: { slug: "approved-app", name: "Approved", url: "https://example.com", status: "approved" },
+      data: { id: "approved-app", slug: "approved-app", name: "Approved", url: "https://example.com", status: "approved" },
     });
     const pending = await prisma.app.create({
-      data: { slug: "pending-app", name: "Pending", url: "https://example.com", status: "pending" },
+      data: { id: "pending-app", slug: "pending-app", name: "Pending", url: "https://example.com", status: "pending" },
     });
-    const usedTag = await prisma.tag.create({ data: { slug: "used", name: "Used" } });
-    const orphanTag = await prisma.tag.create({ data: { slug: "orphan", name: "Orphan" } });
+    const usedTag = await prisma.tag.create({ data: { id: "used", slug: "used", name: "Used" } });
+    const orphanTag = await prisma.tag.create({ data: { id: "orphan", slug: "orphan", name: "Orphan" } });
     await prisma.appTag.create({ data: { appId: approved.id, tagId: usedTag.id } });
     // Suggested, but only ever attached to a non-approved app.
     await prisma.appTag.create({ data: { appId: pending.id, tagId: orphanTag.id } });
@@ -61,12 +61,12 @@ describe("getPlatformStats", () => {
 
   it("counts a tag once even if it's attached to multiple approved apps", async () => {
     const appA = await prisma.app.create({
-      data: { slug: "app-a", name: "App A", url: "https://example.com", status: "approved" },
+      data: { id: "app-a", slug: "app-a", name: "App A", url: "https://example.com", status: "approved" },
     });
     const appB = await prisma.app.create({
-      data: { slug: "app-b", name: "App B", url: "https://example.com", status: "approved" },
+      data: { id: "app-b", slug: "app-b", name: "App B", url: "https://example.com", status: "approved" },
     });
-    const sharedTag = await prisma.tag.create({ data: { slug: "shared", name: "Shared" } });
+    const sharedTag = await prisma.tag.create({ data: { id: "shared", slug: "shared", name: "Shared" } });
     await prisma.appTag.create({ data: { appId: appA.id, tagId: sharedTag.id } });
     await prisma.appTag.create({ data: { appId: appB.id, tagId: sharedTag.id } });
 

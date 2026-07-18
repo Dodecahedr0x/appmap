@@ -25,8 +25,8 @@ product; the app never talks to it directly — see
 | Account | Key fields | Notes |
 | --- | --- | --- |
 | `Config` | `authority`, `vote_mint`, `protocol_fee_bps` | Singleton, seed `CONFIG_SEED`. |
-| `AppAccount` | `app_id`, three vaults (`vote_vault`, `vote_reward_vault`, `tags_reward_vault`), `total_vote_stake` + `vote_acc_reward_per_share`, `total_tag_stake` + `tags_acc_reward_per_share` | One per app, keyed by an off-chain (Prisma) `app_id` used directly as a PDA seed — see `MAX_APP_ID_LEN`. Holds **both** reward accumulators; the tags one is shared across all of an app's tags. |
-| `AppTagAccount` | `app`, `tag_id`, `principal_vault`, `stake_amount` | One per (app, tag). Principal is tracked per-tag, but reward checkpointing for stakes on it uses `AppAccount`'s *shared* `tags_acc_reward_per_share`, not a per-tag accumulator. |
+| `AppAccount` | `app_id`, `url`, `total_vote_stake` + `vote_acc_reward_per_share`, `total_tag_stake` + `tags_acc_reward_per_share` | One per app. `app_id` is a client-chosen id (≤32 bytes) used directly as a PDA seed — see `MAX_APP_ID_LEN` — and reused as the Postgres `App.id` once the indexer indexes this account; `url` has its `https://` protocol trimmed off (see `MAX_URL_LEN`). No vault fields of its own — every app shares `Config`'s single global vault. Holds **both** reward accumulators; the tags one is shared across all of an app's tags. |
+| `Tag` / `AppTagStake` | `Tag`: `tag_id`. `AppTagStake`: `app`, `tag`, `stake_amount` | `Tag` is one GLOBAL account per unique `tag_id` (seeded by the tag string alone). `AppTagStake` is the per-(app, tag) stake accounting, created alongside it by `suggest_tag`. Reward checkpointing for stakes on a tag uses `AppAccount`'s *shared* `tags_acc_reward_per_share`, not a per-tag accumulator. |
 | `VotePosition` / `StakePosition` | `owner`, `amount`, `reward_debt` | One per (app, user) / (app_tag, user). `reward_debt` is the accumulator checkpoint `reward_math.rs` reads/writes. |
 | `RewardPool` (enum) | `Vote \| Tags` | Selects which of `AppAccount`'s two pools `fund_app_rewards` operates on. |
 

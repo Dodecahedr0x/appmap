@@ -30,9 +30,15 @@ model User {
   @@index([wallet])
 }
 
-/// A crowd-sourced application listing.
+/// A crowd-sourced application listing. Rows are created exclusively by the
+/// indexer (see indexer/src/processors/instruction.rs), once it observes a
+/// confirmed `init_app` instruction on-chain — there is no app-owned
+/// "create app" write path and no seed script. `id` is therefore NOT a
+/// generated cuid: it is the same client-chosen `app_id` string used to
+/// derive the on-chain `AppAccount` PDA (see `programs/nebulous_world/src/
+/// state/app.rs`), reused as-is so the two stay trivially joinable.
 model App {
-  id          String  @id @default(cuid())
+  id          String  @id
   slug        String  @unique
   name        String
   tagline     String  @default("")
@@ -69,9 +75,14 @@ model App {
   @@index([rankScore])
 }
 
-/// A globally unique tag (label). Tags are shared across apps.
+/// A globally unique tag (label), shared across apps. Rows are created
+/// exclusively by the indexer when it observes a confirmed `suggest_tag`
+/// instruction on-chain (see indexer/src/processors/instruction.rs) — same
+/// on-chain-first, no-seed-script rule as `App`. `id` is the on-chain
+/// `tag_id` string (seeds the global `Tag` PDA — see `programs/
+/// nebulous_world/src/state/tag.rs`), not a generated cuid.
 model Tag {
-  id        String   @id @default(cuid())
+  id        String   @id
   slug      String   @unique
   name      String
   createdAt DateTime @default(now())
@@ -84,6 +95,10 @@ model Tag {
 /// The association of a Tag to an App. Anyone can suggest a tag for an app,
 /// creating one of these rows. Users then stake tokens against it. The total
 /// stake determines how strongly the tag applies and how revenue is split.
+/// Rows are created exclusively by the indexer from the on-chain
+/// `AppTagStake` account (same PDA-per-(app,tag) key) — `id` is deterministic
+/// (`"{appId}_{tagId}"`), not a generated cuid, so the indexer's upserts stay
+/// idempotent without a round-trip lookup.
 model AppTag {
   id    String @id @default(cuid())
   appId String

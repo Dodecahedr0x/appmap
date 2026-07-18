@@ -34,10 +34,10 @@ guards (`requireUser`).
 
 | Group | Routes | Purpose |
 | --- | --- | --- |
-| Apps | `apps` (GET search / POST submit), `apps/[slug]`, `apps/graph`, `apps/related` | Search/facets, submission, app detail, the Explore "Apps" similarity graph, related-apps lookups |
-| Tags | `tags`, `tags/graph`, `tags/suggest` | Tag facets, the Explore "Tags" co-occurrence graph, suggesting a new tag |
+| Apps | `apps` (GET search only), `apps/[slug]`, `apps/by-id/[appId]`, `apps/graph`, `apps/related` | Search/facets, app detail, polling for the indexer to have caught up right after creation, the Explore "Apps" similarity graph, related-apps lookups. No POST — creation is on-chain-first, see `tx/create-app` below |
+| Tags | `tags`, `tags/graph` | Tag facets, the Explore "Tags" co-occurrence graph. No POST — adding a tag is on-chain-first, see `tx/suggest-tag` below |
 | Voting/staking (DB) | `vote`, `vote/withdraw`, `stake`, `stake/withdraw` | Record a vote/stake *after* the on-chain tx confirms (simulation mode: the whole effect) |
-| Transactions | `tx/vote`, `tx/withdraw-vote`, `tx/stake-tag`, `tx/withdraw-tag-stake`, `tx/claim-vote-reward`, `tx/claim-tag-reward`, `tx/buy-neb`, `tx/submit` | The `tx/*` build routes each construct one unsigned instruction (via the indexer) for the wallet to sign; `tx/submit` relays the signed result back through the indexer. Full flow behind `src/hooks/*`: build → wallet signs → `tx/submit` |
+| Transactions | `tx/create-app`, `tx/suggest-tag`, `tx/vote`, `tx/withdraw-vote`, `tx/stake-tag`, `tx/withdraw-tag-stake`, `tx/claim-vote-reward`, `tx/claim-tag-reward`, `tx/buy-neb`, `tx/submit` | The `tx/*` build routes each construct one unsigned transaction (via the indexer) for the wallet to sign; `tx/submit` relays the signed result back through the indexer. Full flow behind `src/hooks/*`: build → wallet signs → `tx/submit`. Unlike the others, `tx/create-app`/`tx/suggest-tag` have no DB-record step afterward — the indexer creates the `App`/`Tag`/`AppTag` rows itself once it observes the confirmed transaction (see root `AGENTS.md`) |
 | On-chain reads | `accounts/app/[appId]`, `accounts/app-tag/[appId]/[tagSlug]`, `accounts/vote-position/[appId]`, `accounts/stake-position/[appId]/[tagSlug]`, `balances/[owner]/[mint]`, `pool` | Read-through proxies to the indexer (never a direct RPC call) |
 | Rewards | `rewards/positions` | A signed-in user's vote/stake positions, for the Rewards page's claim list |
 | Ads/traffic | `ads/serve`, `ads/click`, `track` | Serve an ad impression, record a click, record a page view (Turnstile-gated for revenue eligibility) |

@@ -111,10 +111,21 @@ fn setup() -> (LiteSVM, Keypair, Pubkey) {
 }
 
 fn init_app_ix(program_id: &Pubkey, payer: &Pubkey, app_id: &str, app: &Pubkey) -> Instruction {
+    init_app_ix_with_url(program_id, payer, app_id, "example.com/app", app)
+}
+
+fn init_app_ix_with_url(
+    program_id: &Pubkey,
+    payer: &Pubkey,
+    app_id: &str,
+    url: &str,
+    app: &Pubkey,
+) -> Instruction {
     Instruction::new_with_bytes(
         *program_id,
         &nebulous_world::instruction::InitApp {
             app_id: app_id.to_string(),
+            url: url.to_string(),
         }
         .data(),
         nebulous_world::accounts::InitApp {
@@ -155,6 +166,7 @@ fn test_init_app() {
         anchor_lang::AccountDeserialize::try_deserialize(&mut app_account_raw.data.as_slice())
             .unwrap();
     assert_eq!(app_account.app_id, app_id);
+    assert_eq!(app_account.url, "example.com/app");
     assert_eq!(app_account.total_vote_stake, 0);
     assert_eq!(app_account.vote_acc_reward_per_share, 0);
     assert_eq!(app_account.total_tag_stake, 0);
@@ -194,5 +206,32 @@ fn test_init_app_rejects_app_id_over_32_bytes() {
     assert!(
         res.is_err(),
         "expected init_app to reject an app_id longer than 32 bytes, but it succeeded"
+    );
+}
+
+#[test]
+fn test_init_app_rejects_url_over_max_len() {
+    let program_id = nebulous_world::id();
+    let (mut svm, _deployer, _vote_mint) = setup();
+
+    let payer = Keypair::new();
+    svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+
+    let app_id = "cid_test_app_0000000002".to_string();
+    let (app, _bump) = Pubkey::find_program_address(&[APP_SEED, app_id.as_bytes()], &program_id);
+    // 201 bytes exceeds MAX_URL_LEN (200); unlike app_id, url isn't a PDA
+    // seed, so this is rejected by the handler's `require!`, not a panic
+    // during account resolution.
+    let url = "a".repeat(201);
+    let instruction = init_app_ix_with_url(&program_id, &payer.pubkey(), &app_id, &url, &app);
+
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[instruction], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+
+    let res = svm.send_transaction(tx);
+    assert!(
+        res.is_err(),
+        "expected init_app to reject a url longer than MAX_URL_LEN, but it succeeded"
     );
 }

@@ -35,6 +35,13 @@ pub const MAX_APP_ID_LEN: u8 = 32;
 #[constant]
 pub const MAX_TAG_ID_LEN: u8 = 32;
 
+/// `AppAccount::url` is not a PDA seed (only `app_id` is), so it isn't bound
+/// by the 32-byte-per-seed limit — this is purely a rent/space budget cap.
+/// 200 bytes comfortably fits any realistic URL once the `https://` prefix
+/// is trimmed off before storage (see `indexer/src/api.rs`'s `init_app_ix`).
+#[constant]
+pub const MAX_URL_LEN: u16 = 200;
+
 /// Fixed-point scale for the reward-per-share accumulator math (see
 /// `reward_math.rs`). 1e12 gives ample precision for token amounts with up to
 /// ~9 decimals without overflowing u128 arithmetic at realistic scales.

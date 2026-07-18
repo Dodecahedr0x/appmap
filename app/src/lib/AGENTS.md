@@ -59,7 +59,7 @@ the fastest way to understand a function's edge cases. See
 | File | What |
 | --- | --- |
 | [`api.ts`](api.ts) | `handler`/`ok`/`fail`/`ApiError`/`requireUser` — every `api/**/route.ts` is built on these for consistent JSON responses and auth guards. |
-| [`validation.ts`](validation.ts) | Zod request schemas (`submitAppSchema`, `voteSchema`, `stakeSchema`, `searchSchema`, …). |
+| [`validation.ts`](validation.ts) | Zod request schemas (`buildCreateAppTxSchema`, `voteSchema`, `stakeSchema`, `searchSchema`, …). |
 
 ## Shared / misc
 

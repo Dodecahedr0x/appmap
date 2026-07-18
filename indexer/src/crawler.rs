@@ -1,7 +1,9 @@
 use crate::processors::instruction::index_instruction;
+use crate::processors::product;
 use anyhow::Result;
 use carbon_core::instruction::{InstructionDecoder, InstructionMetadata};
 use carbon_core::transaction::TransactionMetadata;
+use carbon_nebulous_world_decoder::instructions::NebulousWorldInstruction;
 use carbon_nebulous_world_decoder::NebulousWorldDecoder;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
@@ -179,6 +181,23 @@ async fn crawl_transaction(
     let account_keys = versioned_tx.message.static_account_keys();
     let block_time = response.block_time;
 
+    // A companion SPL Memo instruction carries the crowd-submitted app
+    // metadata that has no on-chain `AppAccount` field of its own (name,
+    // tagline, description, ...) — see processors/product.rs's doc comment.
+    // Scanned once per transaction rather than per-instruction below since
+    // it's cheap and only ever consumed by `init_app`.
+    let memo_text = versioned_tx
+        .message
+        .instructions()
+        .iter()
+        .find_map(|compiled| {
+            let program_id = account_keys.get(compiled.program_id_index as usize)?;
+            if !product::is_memo_program(program_id) {
+                return None;
+            }
+            Some(String::from_utf8_lossy(&compiled.data).into_owned())
+        });
+
     // A minimal `TransactionMetadata` — only the fields `index_instruction`
     // actually reads (signature, slot, block_time) are populated; the rest
     // carry harmless defaults since nothing downstream of this hand-rolled
@@ -241,6 +260,49 @@ async fn crawl_transaction(
 
         if let Err(e) = index_instruction(pool, &metadata, &decoded).await {
             log::error!("crawler: failed to index instruction in {signature}: {e}");
+        }
+
+        // `App`/`Tag`/`AppTag` are populated exclusively from here — see
+        // processors/product.rs's doc comment for why this, rather than a
+        // seed script or an app-owned write path, is "the database" for
+        // these tables. Failures are logged, not propagated: one
+        // malformed/unexpected transaction shouldn't stop the whole batch
+        // from being marked processed (the cursor still advances past it).
+        match &decoded.data {
+            NebulousWorldInstruction::InitApp(init_app) => {
+                match product::init_app_payer(&decoded.accounts) {
+                    Some(payer) => {
+                        if let Err(e) = product::sync_app_from_init(
+                            pool,
+                            init_app,
+                            &payer,
+                            memo_text.as_deref(),
+                        )
+                        .await
+                        {
+                            log::error!("crawler: failed to sync App from {signature}: {e}");
+                        }
+                    }
+                    None => log::warn!(
+                        "crawler: init_app in {signature} has an unexpected account layout, skipping App sync"
+                    ),
+                }
+            }
+            NebulousWorldInstruction::SuggestTag(suggest_tag) => {
+                match product::suggest_tag_payer(&decoded.accounts) {
+                    Some(payer) => {
+                        if let Err(e) =
+                            product::sync_tag_from_suggest(pool, suggest_tag, &payer).await
+                        {
+                            log::error!("crawler: failed to sync Tag from {signature}: {e}");
+                        }
+                    }
+                    None => log::warn!(
+                        "crawler: suggest_tag in {signature} has an unexpected account layout, skipping Tag sync"
+                    ),
+                }
+            }
+            _ => {}
         }
     }
 

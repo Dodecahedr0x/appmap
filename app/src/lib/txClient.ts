@@ -30,6 +30,30 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return json.data as T;
 }
 
+/**
+ * Polls `apiGet(path)` until it resolves (rather than 404ing) or `attempts`
+ * is exhausted — used right after an on-chain transaction confirms, while
+ * waiting for the indexer to catch up and create the corresponding Postgres
+ * row (there is no synchronous DB write in that path — see AGENTS.md).
+ * Returns `null` on timeout rather than throwing: the on-chain transaction
+ * already succeeded either way, so the caller just degrades the UI (e.g.
+ * "still indexing, refresh shortly") instead of treating it as an error.
+ */
+export async function pollUntilIndexed<T>(
+  path: string,
+  { attempts = 10, delayMs = 1500 }: { attempts?: number; delayMs?: number } = {},
+): Promise<T | null> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await apiGet<T>(path);
+    } catch {
+      // Not indexed yet — wait and retry.
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
 /** Signs an indexer-built unsigned transaction and submits it, returning the confirmed signature. */
 export async function signAndSubmit(
   wallet: WalletContextState,

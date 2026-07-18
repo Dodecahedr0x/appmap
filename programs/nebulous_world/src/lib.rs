@@ -20,8 +20,8 @@ pub mod nebulous_world {
         initialize::handler(ctx, protocol_fee_bps)
     }
 
-    pub fn init_app(ctx: Context<InitApp>, app_id: String) -> Result<()> {
-        init_app::handler(ctx, app_id)
+    pub fn init_app(ctx: Context<InitApp>, app_id: String, url: String) -> Result<()> {
+        init_app::handler(ctx, app_id, url)
     }
 
     pub fn suggest_tag(ctx: Context<SuggestTag>, app_id: String, tag_id: String) -> Result<()> {

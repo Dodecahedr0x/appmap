@@ -114,6 +114,17 @@ no explicit setting).
 
 ## Tables
 
-All tables live in the same database as the app's Prisma-managed schema,
-under names that don't collide with it — see the doc comments in
-`migrations/001_indexer_tables.sql` for what each one is for and why.
+This service owns the WHOLE database schema now, not just its own raw
+on-chain tables — `migrations/` is the single source of DDL, applied via
+`sqlx::migrate!()` at startup (`src/db.rs`). `001_indexer_tables.sql` through
+`004_platform_metrics_snapshot.sql` are this indexer's own raw on-chain
+tables (see their doc comments for what each is for); `005_app_schema.sql`
+is the product schema mirrored from `app/prisma/schema.prisma` (`App`,
+`Vote`, `Stake`, ...) — that file used to be pushed directly by the app via
+`prisma db push`, but isn't any more (see root `AGENTS.md`).
+
+`src/processors/product.rs` is the only writer of `App`/`Tag`/`AppTag` rows:
+it populates them from confirmed `init_app`/`suggest_tag` instructions
+(backfilled by the crawler replaying program history on a fresh database,
+kept current live afterward) — there is no seed script anywhere in this
+repo.

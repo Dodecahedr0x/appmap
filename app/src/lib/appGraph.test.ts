@@ -3,11 +3,11 @@ import { prisma } from "./prisma";
 import { buildAppGraph } from "./appGraph";
 
 async function makeTag(slug: string) {
-  return prisma.tag.create({ data: { slug, name: slug } });
+  return prisma.tag.create({ data: { id: slug, slug, name: slug } });
 }
 async function makeApp(slug: string, overrides: Partial<{ stakeTotal: number; viewCount: number; voteWeight: number }> = {}) {
   return prisma.app.create({
-    data: { slug, name: slug, url: "https://example.com", status: "approved", ...overrides },
+    data: { id: slug, slug, name: slug, url: "https://example.com", status: "approved", ...overrides },
   });
 }
 

@@ -12,7 +12,7 @@ describe("refreshApp", () => {
     await prisma.user.deleteMany();
     const user = await prisma.user.create({ data: { wallet: "test-wallet-1" } });
     const app = await prisma.app.create({
-      data: { slug: "test-app", name: "Test App", url: "https://example.com" },
+      data: { id: "test-app", slug: "test-app", name: "Test App", url: "https://example.com" },
     });
     userId = user.id;
     appId = app.id;
@@ -47,11 +47,11 @@ describe("settleEpoch", () => {
     const voter = await prisma.user.create({ data: { wallet: "voter-1" } });
     const tagger = await prisma.user.create({ data: { wallet: "tagger-1" } });
     const app = await prisma.app.create({
-      data: { slug: "settle-app", name: "Settle App", url: "https://example.com" },
+      data: { id: "settle-app", slug: "settle-app", name: "Settle App", url: "https://example.com" },
     });
     await prisma.vote.create({ data: { appId: app.id, userId: voter.id, amount: 10, active: true } });
 
-    const tag = await prisma.tag.create({ data: { slug: "defi", name: "DeFi" } });
+    const tag = await prisma.tag.create({ data: { id: "defi", slug: "defi", name: "DeFi" } });
     const appTag = await prisma.appTag.create({ data: { appId: app.id, tagId: tag.id } });
     await prisma.stake.create({ data: { appTagId: appTag.id, userId: tagger.id, amount: 10, active: true } });
 
@@ -98,7 +98,7 @@ describe("settleEpoch", () => {
     const tagger = await prisma.user.create({ data: { wallet: "tagger-only" } });
     const overlap = await prisma.user.create({ data: { wallet: "both-pools" } });
     const app = await prisma.app.create({
-      data: { slug: "overlap-app", name: "Overlap App", url: "https://example.com" },
+      data: { id: "overlap-app", slug: "overlap-app", name: "Overlap App", url: "https://example.com" },
     });
 
     // Vote pool: voter and overlap each hold half the active vote weight.
@@ -106,7 +106,7 @@ describe("settleEpoch", () => {
     await prisma.vote.create({ data: { appId: app.id, userId: overlap.id, amount: 10, active: true } });
 
     // Tag pool: tagger and overlap each hold half the active stake.
-    const tag = await prisma.tag.create({ data: { slug: "defi-2", name: "DeFi 2" } });
+    const tag = await prisma.tag.create({ data: { id: "defi-2", slug: "defi-2", name: "DeFi 2" } });
     const appTag = await prisma.appTag.create({ data: { appId: app.id, tagId: tag.id } });
     await prisma.stake.create({ data: { appTagId: appTag.id, userId: tagger.id, amount: 10, active: true } });
     await prisma.stake.create({ data: { appTagId: appTag.id, userId: overlap.id, amount: 10, active: true } });

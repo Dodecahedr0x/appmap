@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::{APP_SEED, MAX_APP_ID_LEN};
+use crate::constants::{APP_SEED, MAX_APP_ID_LEN, MAX_URL_LEN};
 use crate::error::ErrorCode;
 use crate::state::AppAccount;
 
@@ -15,7 +15,7 @@ use crate::state::AppAccount;
 /// shares the single global vault documented on `Config`, so registering a
 /// new app costs no token-account rent at all.
 #[derive(Accounts)]
-#[instruction(app_id: String)]
+#[instruction(app_id: String, url: String)]
 pub struct InitApp<'info> {
     #[account(
         init,
@@ -30,7 +30,7 @@ pub struct InitApp<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitApp>, app_id: String) -> Result<()> {
+pub fn handler(ctx: Context<InitApp>, app_id: String, url: String) -> Result<()> {
     // NOTE on ordering: this check cannot actually prevent the failure mode
     // it names. Anchor's generated `try_accounts` resolves every `init`
     // field (including `app`'s PDA derivation via
@@ -41,15 +41,20 @@ pub fn handler(ctx: Context<InitApp>, app_id: String) -> Result<()> {
     // as an opaque runtime failure rather than `AppIdTooLong`. This
     // `require!` is kept as documentation of the invariant and a backstop
     // against future refactors — not worth hand-rolling `app`'s account
-    // creation instead of using `init` for an edge case Prisma cuids (~25
-    // bytes) don't hit in practice.
+    // creation instead of using `init` for an edge case a client-chosen
+    // id (≤32 bytes) doesn't hit in practice.
     require!(
         app_id.len() <= MAX_APP_ID_LEN as usize,
         ErrorCode::AppIdTooLong
     );
+    // `url` is not a PDA seed, so unlike `app_id` above this check is the
+    // only thing standing between an oversized string and a failed/expensive
+    // account allocation — not just documentation.
+    require!(url.len() <= MAX_URL_LEN as usize, ErrorCode::UrlTooLong);
 
     let app = &mut ctx.accounts.app;
     app.app_id = app_id;
+    app.url = url;
     app.total_vote_stake = 0;
     app.vote_acc_reward_per_share = 0;
     app.total_tag_stake = 0;

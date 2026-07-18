@@ -2,27 +2,10 @@ import { z } from "zod";
 
 // Shared request validation schemas.
 
-export const submitAppSchema = z.object({
-  name: z.string().min(2).max(80),
-  url: z.string().url().max(300),
-  tagline: z.string().max(140).optional().default(""),
-  description: z.string().max(4000).optional().default(""),
-  iconUrl: z.string().url().max(300).optional().or(z.literal("")),
-  category: z.string().min(1).max(40).optional().default("other"),
-  chain: z.string().min(1).max(40).optional().default("solana"),
-  tags: z.array(z.string().min(1).max(40)).max(10).optional().default([]),
-});
-export type SubmitAppInput = z.infer<typeof submitAppSchema>;
-
 export const voteSchema = z.object({
   appId: z.string().min(1),
   amount: z.number().positive().max(1_000_000_000),
   txSig: z.string().min(32).max(128).optional(),
-});
-
-export const suggestTagSchema = z.object({
-  appId: z.string().min(1),
-  tag: z.string().min(1).max(40),
 });
 
 export const stakeSchema = z.object({
@@ -53,6 +36,32 @@ export const trackViewSchema = z.object({
 // can exceed JS's safe integer range.
 const pubkeyString = z.string().min(32).max(44);
 const rawAmountString = z.string().regex(/^[0-9]+$/, "must be a raw integer amount");
+
+// App/tag ids are on-chain PDA seeds now (MAX_APP_ID_LEN/MAX_TAG_ID_LEN in
+// programs/nebulous_world/src/constants.rs), capped at 32 bytes.
+const seedIdString = z.string().min(1).max(32);
+
+export const buildCreateAppTxSchema = z.object({
+  appId: seedIdString,
+  url: z.string().url().max(300),
+  user: pubkeyString,
+  tags: z.array(seedIdString).max(10).optional().default([]),
+  // Metadata with no on-chain AppAccount field (see state/app.rs) — carried
+  // through as a memo instruction by indexer/src/api.rs's build_create_app,
+  // not written to Postgres directly by this app. All optional.
+  name: z.string().max(80).optional(),
+  tagline: z.string().max(140).optional(),
+  description: z.string().max(4000).optional(),
+  iconUrl: z.string().url().max(300).optional().or(z.literal("")),
+  category: z.string().max(40).optional(),
+  chain: z.string().max(40).optional(),
+});
+
+export const buildSuggestTagTxSchema = z.object({
+  appId: seedIdString,
+  tagSlug: seedIdString,
+  user: pubkeyString,
+});
 
 export const buildVoteTxSchema = z.object({
   appId: z.string().min(1),
