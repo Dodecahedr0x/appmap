@@ -9,35 +9,38 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Astro style reference — deep space mission control, purple nebula
-        // glow (see DESIGN.md). Names kept from the old "Dock" palette where
-        // the *role* carries over, so components that only ever reference
-        // these Tailwind classes (bg-cream, text-ink, border-hairline, ...)
-        // repaint for free — see globals.css for the few structural changes
-        // (white-pill primary button, no shadows) that need their own edit.
-        cream: "#1f232e", // was canvas cream → void canvas
-        ivory: "#17191e", // was card surface → carbon (mid-elevation card)
-        mist: "#0c0f19", // was decorative wash → abyss (deep well/backdrop)
-        powder: "#545864", // was outline border → gunmetal
+        // nebulous.world style reference — a living constellation, not a
+        // landing page (see DESIGN.md). Names kept stable across the
+        // Astro-reference rework so every component that only ever
+        // references these Tailwind classes (bg-cream, text-ink,
+        // border-hairline, ...) repaints for free — only the underlying hex
+        // values moved, deepened for higher contrast against the new
+        // near-black void canvas. See globals.css for the reactive
+        // hover/press treatment (lift + glow + spring easing) layered on
+        // top of these on .btn/.card/.chip.
+        cream: "#10121a", // void canvas — deepened from #1f232e
+        ivory: "#0d0f16", // carbon — card surface, one step darker than canvas
+        mist: "#080911", // abyss — deep well/backdrop
+        powder: "#666c7a", // gunmetal — lightened from #545864 for crisper structure
         ink: {
-          DEFAULT: "#f2f6fa", // was near-black text → lunar white (now light-on-dark)
-          deep: "#060913", // was dark surface fill → singularity
-          graphite: "#0c0f19", // was dark surface fill → abyss
+          DEFAULT: "#f2f6fa", // lunar white — unchanged, already max contrast
+          deep: "#040509", // singularity — deepest surface
+          graphite: "#080911", // abyss
         },
         slate: {
-          DEFAULT: "#858b98", // was secondary text → steel
-          steel: "#bfc1c9", // was muted/placeholder text → mist
+          DEFAULT: "#9aa0ac", // steel — lightened from #858b98 (was borderline-AA)
+          steel: "#bfc1c9", // mist — muted/placeholder text
         },
-        hairline: "#545864", // gunmetal — hairline borders on the dark canvas
-        faint: "#e5e7eb", // was subdued icon strokes → platinum
+        hairline: "#666c7a", // gunmetal — hairline borders on the dark canvas
+        faint: "#e5e7eb", // platinum — subdued icon strokes
         cobalt: {
-          DEFAULT: "#54b9ff", // was primary interactive blue → plasma blue
-          deep: "#acafff", // was hover/pressed → ultraviolet
+          DEFAULT: "#3aa8ff", // plasma blue — deepened/more saturated
+          deep: "#9a9dff", // ultraviolet — hover/pressed
         },
         cerulean: "#00daef", // electric cyan
-        violet: "#acafff", // ultraviolet
-        forest: "#4bf3c8", // aurora mint
-        amber: "#ffd493",
+        violet: "#9a9dff", // ultraviolet
+        forest: "#2ef7c6", // aurora mint — more saturated
+        amber: "#ffc670", // deeper amber
         "signal-blue": "#61dafb",
       },
       fontFamily: {
@@ -75,10 +78,27 @@ const config: Config = {
       },
       backgroundImage: {
         "hero-gradient":
-          "radial-gradient(circle at 50% 0%, rgba(50, 69, 255, 0.3) 0%, rgba(31, 35, 46, 0) 60%)",
-        "cta-gradient": "linear-gradient(83.21deg, #3245ff 0%, #b845ed 100%)",
-        "nebula-gradient": "linear-gradient(83.21deg, #3245ff 0%, #b845ed 100%)",
-        "plasma-gradient": "linear-gradient(66.77deg, #d83333 0%, #f041ff 100%)",
+          "radial-gradient(circle at 50% 0%, rgba(47, 61, 255, 0.32) 0%, rgba(16, 18, 26, 0) 60%)",
+        "cta-gradient": "linear-gradient(83.21deg, #2f3dff 0%, #c93ff2 100%)",
+        "nebula-gradient": "linear-gradient(83.21deg, #2f3dff 0%, #c93ff2 100%)",
+        "plasma-gradient": "linear-gradient(66.77deg, #ff3b3b 0%, #ff35fa 100%)",
+      },
+      // Motion tokens — see DESIGN.md's "Tokens — Motion" section. `spring`
+      // is the signature reactive easing (a slight overshoot on settle),
+      // used for hover/press feedback; `out-smooth` is for larger,
+      // non-bouncy movements (panel entrances, tab swaps).
+      transitionTimingFunction: {
+        spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "out-smooth": "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
+      // Tinted ambient glows — interaction FEEDBACK (hover/focus/active),
+      // never elevation-at-rest (see DESIGN.md's Do's/Don'ts: this system
+      // still has no drop-shadow elevation system). Paired with a lift via
+      // `hover:-translate-y-px` on the elements that use these.
+      boxShadow: {
+        "glow-plasma": "0 0 0 1px rgba(58, 168, 255, 0.4), 0 0 24px rgba(58, 168, 255, 0.25)",
+        "glow-nebula": "0 0 0 1px rgba(154, 157, 255, 0.4), 0 0 24px rgba(184, 69, 237, 0.25)",
+        "glow-mint": "0 0 0 1px rgba(46, 247, 198, 0.4), 0 0 24px rgba(46, 247, 198, 0.2)",
       },
       keyframes: {
         "fade-in": {
@@ -96,11 +116,21 @@ const config: Config = {
           "0%, 100%": { opacity: "0.5", transform: "scale(0.92)" },
           "50%": { opacity: "0.8", transform: "scale(1.05)" },
         },
+        // The general-purpose live-status pulse (DESIGN.md's Motion
+        // section) — same breathing shape as toast-glow-pulse, generalized
+        // for any "this is actively live right now" dot (connected wallet,
+        // unclaimed reward, in-flight transaction). Reserve it for things
+        // that are genuinely live — see DESIGN.md's Don'ts.
+        "pulse-live": {
+          "0%, 100%": { opacity: "0.55", transform: "scale(0.92)" },
+          "50%": { opacity: "1", transform: "scale(1.08)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.25s ease-out",
         "fade-in-fast": "fade-in-fast 0.15s ease-out",
         "toast-glow-pulse": "toast-glow-pulse 3.5s ease-in-out infinite",
+        "pulse-live": "pulse-live 2s ease-in-out infinite",
       },
     },
   },

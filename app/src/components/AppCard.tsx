@@ -30,8 +30,8 @@ export function AppCard({
   preview?: boolean;
 }) {
   const className = cn(
-    "card group flex flex-col overflow-hidden transition-colors",
-    !preview && "hover:border-cobalt/40",
+    "group flex flex-col overflow-hidden",
+    preview ? "card" : "card-interactive",
   );
   // Apps have no onchain "category" — the corner badge shows the tag with
   // the most stake behind it instead, or nothing if the app has no tags.

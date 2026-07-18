@@ -85,19 +85,19 @@ void main() {
   vec2 uv = fragPx / u_resolution.xy;
   vec2 p = (fragPx - 0.5 * u_resolution.xy) / u_resolution.y;
 
-  vec3 col = mix(vec3(0.047, 0.059, 0.098), vec3(0.11, 0.10, 0.16), uv.y);
+  vec3 col = mix(vec3(0.031, 0.035, 0.067), vec3(0.071, 0.067, 0.106), uv.y);
 
   vec2 warp = p * 1.3 + vec2(u_time * 0.009, -u_time * 0.006);
   float n = fbm(warp + fbm(warp * 1.3 + 4.0));
-  vec3 nebA = vec3(0.196, 0.271, 1.0);
-  vec3 nebB = vec3(0.722, 0.271, 0.929);
+  vec3 nebA = vec3(0.184, 0.239, 1.0);
+  vec3 nebB = vec3(0.788, 0.247, 0.949);
   vec3 nebula = mix(nebA, nebB, clamp(n * 1.3 - 0.15, 0.0, 1.0));
   col += nebula * smoothstep(0.42, 0.88, n) * 0.3;
 
   vec2 nodes[${NODE_COUNT}];
   for (int i = 0; i < ${NODE_COUNT}; i++) nodes[i] = nodePos(i, u_time);
 
-  vec3 edgeColor = vec3(0.33, 0.73, 1.0);
+  vec3 edgeColor = vec3(0.227, 0.659, 1.0);
   float edgeGlow = 0.0;
   for (int i = 0; i < ${NODE_COUNT}; i++) {
     for (int j = i + 1; j < ${NODE_COUNT}; j++) {
@@ -111,8 +111,8 @@ void main() {
   }
   col += edgeColor * edgeGlow;
 
-  vec3 nodeMint = vec3(0.29, 0.95, 0.78);
-  vec3 nodeViolet = vec3(0.67, 0.69, 1.0);
+  vec3 nodeMint = vec3(0.180, 0.969, 0.776);
+  vec3 nodeViolet = vec3(0.604, 0.616, 1.0);
   float nodeGlow = 0.0;
   vec3 nodeTint = vec3(0.0);
   for (int i = 0; i < ${NODE_COUNT}; i++) {

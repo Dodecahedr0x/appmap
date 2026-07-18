@@ -44,7 +44,7 @@ let counter = 0;
 // RGB (0-1) per kind, fed to ToastGlow's shader — same hues as the kind's
 // text/border color below, just as floats instead of a Tailwind class.
 const GLOW_COLOR: Record<ToastKind, readonly [number, number, number]> = {
-  success: [0.294, 0.953, 0.784], // aurora mint
+  success: [0.180, 0.969, 0.776], // aurora mint
   error: [0.973, 0.443, 0.443], // red-400
   info: [0.329, 0.725, 1.0], // plasma blue
 };

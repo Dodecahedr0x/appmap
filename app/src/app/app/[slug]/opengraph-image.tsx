@@ -7,15 +7,15 @@ export const alt = "App preview";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const bgColor = "#1f232e";
-const bg = "radial-gradient(circle at 50% 0%, rgba(50, 69, 255, 0.3) 0%, rgba(31, 35, 46, 0) 60%)";
-const hairline = "#545864";
-const ivory = "#17191e";
-const mist = "#0c0f19";
+const bgColor = "#10121a";
+const bg = "radial-gradient(circle at 50% 0%, rgba(47, 61, 255, 0.3) 0%, rgba(16, 18, 26, 0) 60%)";
+const hairline = "#666c7a";
+const ivory = "#0d0f16";
+const mist = "#080911";
 const ink = "#f2f6fa";
-const slate = "#858b98";
-const violet = "#acafff";
-const forest = "#4bf3c8";
+const slate = "#9aa0ac";
+const violet = "#9a9dff";
+const forest = "#2ef7c6";
 
 export default async function Image({
   params,

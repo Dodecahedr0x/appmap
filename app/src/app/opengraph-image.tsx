@@ -17,9 +17,9 @@ export default function Image() {
           justifyContent: "center",
           alignItems: "center",
           gap: 24,
-          backgroundColor: "#1f232e",
+          backgroundColor: "#10121a",
           backgroundImage:
-            "radial-gradient(circle at 50% 0%, rgba(50, 69, 255, 0.35) 0%, rgba(31, 35, 46, 0) 60%)",
+            "radial-gradient(circle at 50% 0%, rgba(47, 61, 255, 0.35) 0%, rgba(16, 18, 26, 0) 60%)",
           padding: 80,
         }}
       >
@@ -39,7 +39,7 @@ export default function Image() {
             display: "flex",
             textAlign: "center",
             fontSize: 32,
-            color: "#858b98",
+            color: "#9aa0ac",
             maxWidth: 900,
           }}
         >
