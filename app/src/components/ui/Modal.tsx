@@ -60,7 +60,7 @@ export function Modal({
     <div
       className={cn(
         "fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4 transition-colors duration-200",
-        visible ? "bg-mist/70" : "bg-mist/0",
+        visible ? "bg-ink/40" : "bg-ink/0",
       )}
       onClick={onClose}
     >
