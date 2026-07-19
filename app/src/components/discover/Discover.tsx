@@ -10,6 +10,7 @@ import {
   type RangeFilters,
 } from "@/components/discover/FilterPanel";
 import { CreateAppForm } from "@/components/discover/CreateAppForm";
+import { OnboardingBanner } from "@/components/discover/OnboardingBanner";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { SORT_OPTIONS } from "@/lib/constants";
@@ -215,9 +216,11 @@ export function Discover({ initial }: Props) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Discover the best apps"
+        title="Browse apps"
         description="Ranked by the crowd — token-weighted votes, tag stake, and real traffic."
       />
+
+      <OnboardingBanner />
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
