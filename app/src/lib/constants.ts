@@ -35,10 +35,18 @@ export type Chain = (typeof CHAINS)[number];
 
 export const SORT_OPTIONS = [
   { value: "rank", label: "Top ranked" },
+  { value: "trending", label: "Trending" },
   { value: "votes", label: "Most votes" },
   { value: "stake", label: "Most staked" },
   { value: "traffic", label: "Most traffic" },
   { value: "new", label: "Newest" },
+] as const;
+
+/** The interval choices for "Trending" sort and every AppCard's stat-delta
+    subtext — see validation.ts's searchSchema.intervalDays. */
+export const TREND_INTERVALS = [
+  { label: "7d", days: 7 },
+  { label: "30d", days: 30 },
 ] as const;
 
 /** In any grid/list of apps, show one sponsored AdCard after every N app cards. */

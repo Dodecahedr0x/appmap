@@ -30,6 +30,7 @@ export const GET = handler(async (req: NextRequest) => {
     sort: sp.get("sort") ?? undefined,
     page: sp.get("page") ?? undefined,
     pageSize: sp.get("pageSize") ?? undefined,
+    intervalDays: sp.get("intervalDays") ?? undefined,
   });
   const result = await searchApps(input);
   return ok(result);

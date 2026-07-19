@@ -10,6 +10,18 @@ export interface TagDTO {
   suggestedBy: string | null;
 }
 
+/** How much an app's stats moved over a recent window — only populated on
+    search results (see indexer/src/handlers/apps.rs's TrendDto), null/absent
+    everywhere else. Each `*Pct` is independently null when its own baseline
+    snapshot value was exactly 0 ("grew from 0" has no percent to show). */
+export interface TrendDTO {
+  intervalDays: number;
+  voteWeightPct: number | null;
+  stakeTotalPct: number | null;
+  viewCountPct: number | null;
+  rankScorePct: number | null;
+}
+
 export interface AppDTO {
   id: string;
   slug: string;
@@ -29,6 +41,7 @@ export interface AppDTO {
   viewCount: number;
   rankScore: number;
   tags: TagDTO[];
+  trend?: TrendDTO | null;
 }
 
 export interface SearchResult {

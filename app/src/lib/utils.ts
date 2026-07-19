@@ -54,6 +54,20 @@ export function hostname(url: string): string {
   }
 }
 
+/** Formats a stat's recent percent change for AppCard's subtext, e.g.
+    "+12%/7d" or "-8%/30d" — `null` (rendered as nothing) when there's no
+    baseline to compare against, not when the change happens to be small: a
+    genuine 0% still shows as "+0%/7d" rather than being hidden, since that
+    correctly communicates "flat," not "unknown." Rounded to the nearest
+    whole percent — the subtext is a few characters under a stat number, not
+    a place for decimal precision. */
+export function formatDelta(pct: number | null, intervalDays: number): string | null {
+  if (pct === null) return null;
+  const rounded = Math.round(pct);
+  const sign = rounded >= 0 ? "+" : "";
+  return `${sign}${rounded}%/${intervalDays}d`;
+}
+
 /** The app's tag with the most stake behind it, or null if it has no tags
     at all — apps have no onchain "category", so this is what stands in for
     one anywhere a card previously showed `app.category`. */

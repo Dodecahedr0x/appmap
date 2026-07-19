@@ -11,8 +11,9 @@ import {
 } from "@/components/discover/FilterPanel";
 import { CreateAppForm } from "@/components/discover/CreateAppForm";
 import { Modal } from "@/components/ui/Modal";
-import { SORT_OPTIONS } from "@/lib/constants";
+import { SORT_OPTIONS, TREND_INTERVALS } from "@/lib/constants";
 import { interleaveAds } from "@/lib/adPlacement";
+import { cn } from "@/lib/utils";
 import type { SearchResult } from "@/lib/types";
 
 interface Props {
@@ -60,6 +61,7 @@ export function Discover({ initial }: Props) {
   const selectedTags = useMemo(() => params.getAll("tags"), [params]);
   const sort = params.get("sort") ?? "rank";
   const page = Number(params.get("page") ?? "1");
+  const intervalDays = params.get("intervalDays") ?? String(TREND_INTERVALS[0].days);
 
   // Build a query string from the current control values.
   const buildParams = useCallback(
@@ -79,6 +81,9 @@ export function Discover({ initial }: Props) {
       const s = overrides.sort !== undefined ? overrides.sort : sort;
       if (s && typeof s === "string" && s !== "rank") next.set("sort", s);
 
+      const iv = overrides.intervalDays !== undefined ? overrides.intervalDays : intervalDays;
+      if (iv && typeof iv === "string" && iv !== String(TREND_INTERVALS[0].days)) next.set("intervalDays", iv);
+
       const tags =
         overrides.tags !== undefined
           ? (overrides.tags as string[])
@@ -90,7 +95,7 @@ export function Discover({ initial }: Props) {
 
       return next;
     },
-    [query, fuzzy, ranges, sort, selectedTags],
+    [query, fuzzy, ranges, sort, selectedTags, intervalDays],
   );
 
   const navigate = useCallback(
@@ -204,6 +209,26 @@ export function Discover({ initial }: Props) {
             </option>
           ))}
         </select>
+        {/* Drives both "Trending" sort's comparison window and every
+            AppCard's "+X%/Nd" stat subtext — shown regardless of which
+            sort is active, since the subtext isn't trending-sort-only. */}
+        <div
+          role="group"
+          aria-label="Recent-change interval"
+          className="flex shrink-0 gap-1.5"
+        >
+          {TREND_INTERVALS.map((interval) => (
+            <button
+              key={interval.days}
+              type="button"
+              onClick={() => navigate({ intervalDays: String(interval.days), page: "1" })}
+              aria-pressed={intervalDays === String(interval.days)}
+              className={cn("chip", intervalDays === String(interval.days) && "chip-active")}
+            >
+              {interval.label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="btn-primary shrink-0"

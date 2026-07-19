@@ -16,6 +16,7 @@ use chrono::NaiveDateTime;
 use crate::handlers::engine::to_rfc3339;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Serialize, Clone)]
@@ -50,6 +51,29 @@ pub struct AppDto {
     pub view_count: i32,
     pub rank_score: f64,
     pub tags: Vec<TagDto>,
+    /// Only populated by `search_apps` (the Discover list) — every other
+    /// caller of `to_dto` (app detail, related apps, ...) has no reason to
+    /// pay for the extra `AppStatsSnapshot` query, so it defaults to `None`
+    /// there instead of always being fetched.
+    pub trend: Option<TrendDto>,
+}
+
+/// How much each of an app's stats moved over `interval_days`, as a percent
+/// change from its `AppStatsSnapshot` baseline — the data behind Discover's
+/// AppCard subtext ("+12%/7d") and the "trending" sort. Each field is
+/// independently `None` (rather than the whole struct) when its own
+/// baseline value was exactly 0 — "grew from 0" has no meaningful percent,
+/// and returning `None` there instead of `Infinity`/a huge number keeps one
+/// zero-baseline stat from hiding the other three, which usually still have
+/// a real baseline.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendDto {
+    pub interval_days: i64,
+    pub vote_weight_pct: Option<f64>,
+    pub stake_total_pct: Option<f64>,
+    pub view_count_pct: Option<f64>,
+    pub rank_score_pct: Option<f64>,
 }
 
 struct AppRow {
@@ -122,6 +146,7 @@ fn to_dto(row: AppRow, tags: Vec<TagDto>) -> AppDto {
         view_count: row.view_count,
         rank_score: row.rank_score,
         tags,
+        trend: None,
     }
 }
 
@@ -387,11 +412,18 @@ pub struct SearchInput {
     pub page: i64,
     #[serde(default = "default_page_size")]
     pub page_size: i64,
+    /// The window behind both the "trending" sort and every returned app's
+    /// `trend` subtext data — one shared value drives both (see
+    /// Discover.tsx's interval toggle), since AppCard shows a stat delta on
+    /// every card regardless of which sort is active, not just "trending".
+    #[serde(default = "default_interval_days")]
+    pub interval_days: i64,
 }
 
 fn default_sort() -> String { "rank".to_string() }
 fn default_page() -> i64 { 1 }
 fn default_page_size() -> i64 { 20 }
+fn default_interval_days() -> i64 { 7 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -532,6 +564,103 @@ fn compute_facets(apps: &[AppDto]) -> FacetsDto {
     }
 }
 
+/// `None` when `past` is exactly 0 — "grew from 0" has no percent to show,
+/// and returning `Infinity`/a huge number there would be misleading rather
+/// than informative (see TrendDto's doc comment).
+fn pct_change(current: f64, past: f64) -> Option<f64> {
+    if past == 0.0 {
+        None
+    } else {
+        Some((current - past) / past * 100.0)
+    }
+}
+
+struct TrendBaseline {
+    vote_weight: f64,
+    stake_total: f64,
+    view_count: i32,
+    rank_score: f64,
+}
+
+/// One query for every app in `app_ids` rather than N+1 (same reasoning as
+/// `revenue.rs`'s `traffic` handler): the most recent `AppStatsSnapshot` row
+/// at or before `now() - interval_days`, per app — `DISTINCT ON` picks the
+/// single latest-but-still-old-enough row per `appId`. Apps with no
+/// snapshot that old at all (created too recently for the cron to have
+/// run, or a gap in cron history — see the daily-snapshot job) simply have
+/// no entry in the returned map; callers treat a missing entry as "no trend
+/// data" rather than assuming one exists.
+async fn fetch_trend_baseline(
+    pool: &PgPool,
+    app_ids: &[String],
+    interval_days: i64,
+) -> Result<HashMap<String, TrendBaseline>, ApiError> {
+    if app_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let cutoff = chrono::Utc::now().naive_utc() - chrono::Duration::days(interval_days.max(0));
+    let rows: Vec<(String, f64, f64, i32, f64)> = sqlx::query_as(
+        r#"
+        SELECT DISTINCT ON ("appId") "appId", "voteWeight", "stakeTotal", "viewCount", "rankScore"
+        FROM "AppStatsSnapshot"
+        WHERE "appId" = ANY($1) AND date <= $2
+        ORDER BY "appId", date DESC
+        "#,
+    )
+    .bind(app_ids)
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(app_id, vote_weight, stake_total, view_count, rank_score)| {
+            (app_id, TrendBaseline { vote_weight, stake_total, view_count, rank_score })
+        })
+        .collect())
+}
+
+fn trend_for(app: &AppDto, baseline: &TrendBaseline, interval_days: i64) -> TrendDto {
+    TrendDto {
+        interval_days,
+        vote_weight_pct: pct_change(app.vote_weight, baseline.vote_weight),
+        stake_total_pct: pct_change(app.stake_total, baseline.stake_total),
+        view_count_pct: pct_change(app.view_count as f64, baseline.view_count as f64),
+        rank_score_pct: pct_change(app.rank_score, baseline.rank_score),
+    }
+}
+
+/// The "trending" sort's comparator, pulled out as a pure function (id +
+/// current rank_score in, `Ordering` out) so it's unit-testable without a
+/// database. Top gainers first, by the ABSOLUTE change in rank_score (the
+/// platform's own existing blended "how good is this app right now"
+/// measure — reused here rather than inventing a second, competing
+/// definition of "good"), not a percent change: a percent would let a tiny
+/// app with a near-zero baseline (e.g. 0.001 -> 0.1, "+9900%") dominate
+/// over a large app's genuinely significant 500 -> 550 ("+10%") gain, which
+/// isn't what "trending" should mean. Apps with no baseline old enough to
+/// compare against (too new, or a gap in the daily-snapshot cron history)
+/// have nothing to claim as a gain, so they sort after every app that
+/// does — among themselves, falling back to plain rank_score so they still
+/// land somewhere sensible instead of an arbitrary order.
+fn compare_trending(
+    a_id: &str,
+    a_rank_score: f64,
+    b_id: &str,
+    b_rank_score: f64,
+    baseline: &HashMap<String, TrendBaseline>,
+) -> std::cmp::Ordering {
+    let da = baseline.get(a_id).map(|base| a_rank_score - base.rank_score);
+    let db = baseline.get(b_id).map(|base| b_rank_score - base.rank_score);
+    match (da, db) {
+        (Some(da), Some(db)) => db.partial_cmp(&da).unwrap_or(std::cmp::Ordering::Equal),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => b_rank_score.partial_cmp(&a_rank_score).unwrap_or(std::cmp::Ordering::Equal),
+    }
+}
+
 /// Same shape as `search.ts`'s `searchApps` — see this module's doc comment.
 pub async fn search_apps(pool: &PgPool, input: &SearchInput) -> Result<SearchResult, ApiError> {
     let terms = tokenize(&input.q);
@@ -568,12 +697,25 @@ pub async fn search_apps(pool: &PgPool, input: &SearchInput) -> Result<SearchRes
         apps.retain(|a| fuzzy_match(&format!("{} {} {}", a.name, a.tagline, a.description), fuzzy));
     }
 
+    // Trend data (AppCard's "+12%/7d" subtext) is attached to every
+    // returned app regardless of sort — only "trending" below reorders by
+    // it. One bulk query for the whole filtered set, not one per app.
+    let app_ids: Vec<String> = apps.iter().map(|a| a.id.clone()).collect();
+    let baseline = fetch_trend_baseline(pool, &app_ids, input.interval_days).await?;
+    for app in &mut apps {
+        if let Some(b) = baseline.get(&app.id) {
+            app.trend = Some(trend_for(app, b, input.interval_days));
+        }
+    }
+
     let max_rank = apps.iter().map(|a| a.rank_score).fold(0.0, f64::max);
     match input.sort.as_str() {
         "votes" => apps.sort_by(|a, b| b.vote_weight.partial_cmp(&a.vote_weight).unwrap()),
         "stake" => apps.sort_by(|a, b| b.stake_total.partial_cmp(&a.stake_total).unwrap()),
         "traffic" => apps.sort_by(|a, b| b.view_count.cmp(&a.view_count)),
         "new" => apps.sort_by(|a, b| b.created_at.cmp(&a.created_at)),
+        // Top gainers first — see compare_trending's doc comment.
+        "trending" => apps.sort_by(|a, b| compare_trending(&a.id, a.rank_score, &b.id, b.rank_score, &baseline)),
         _ => apps.sort_by(|a, b| {
             let sa = crate::handlers::engine::combine_search_score(text_relevance(a, &terms), a.rank_score, max_rank);
             let sb = crate::handlers::engine::combine_search_score(text_relevance(b, &terms), b.rank_score, max_rank);
@@ -722,5 +864,70 @@ mod tests {
     #[test]
     fn fuzzy_score_returns_negative_one_when_not_a_subsequence() {
         assert_eq!(fuzzy_score("hello", "xyz"), -1.0);
+    }
+
+    #[test]
+    fn pct_change_computes_a_standard_percent_increase() {
+        assert_eq!(pct_change(110.0, 100.0), Some(10.0));
+    }
+
+    #[test]
+    fn pct_change_computes_a_decrease_as_negative() {
+        assert_eq!(pct_change(80.0, 100.0), Some(-20.0));
+    }
+
+    #[test]
+    fn pct_change_is_none_for_a_zero_baseline() {
+        assert_eq!(pct_change(5.0, 0.0), None);
+    }
+
+    fn baseline_map(entries: &[(&str, f64)]) -> HashMap<String, TrendBaseline> {
+        entries
+            .iter()
+            .map(|(id, rank_score)| {
+                (
+                    id.to_string(),
+                    TrendBaseline { vote_weight: 0.0, stake_total: 0.0, view_count: 0, rank_score: *rank_score },
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn compare_trending_ranks_the_bigger_absolute_gainer_first() {
+        // a: 10 -> 20 (+10 points) outgains b: 1000 -> 1005 (+5 points),
+        // regardless of b's much bigger starting point.
+        let baseline = baseline_map(&[("a", 10.0), ("b", 1000.0)]);
+        assert_eq!(compare_trending("a", 20.0, "b", 1005.0, &baseline), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn compare_trending_does_not_let_a_tiny_baseline_inflate_a_percent_win() {
+        // a: 0.001 -> 0.1 is a +9900% swing but only +0.099 points. b:
+        // 500 -> 550 is "only" +10% but +50 points — a real, significant
+        // gain. Absolute comparison correctly ranks b first; this is
+        // exactly the distortion using rank_score_pct for sorting would
+        // cause instead.
+        let baseline = baseline_map(&[("a", 0.001), ("b", 500.0)]);
+        assert_eq!(compare_trending("a", 0.1, "b", 550.0, &baseline), std::cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn compare_trending_sorts_apps_with_no_baseline_after_apps_that_have_one() {
+        let baseline = baseline_map(&[("has-history", 10.0)]);
+        assert_eq!(
+            compare_trending("has-history", 11.0, "brand-new", 999.0, &baseline),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_trending("brand-new", 999.0, "has-history", 11.0, &baseline),
+            std::cmp::Ordering::Greater
+        );
+    }
+
+    #[test]
+    fn compare_trending_falls_back_to_rank_score_when_neither_has_a_baseline() {
+        let baseline = baseline_map(&[]);
+        assert_eq!(compare_trending("a", 5.0, "b", 10.0, &baseline), std::cmp::Ordering::Greater);
     }
 }
