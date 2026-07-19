@@ -36,10 +36,10 @@ function formatTickDate(x: string): string {
   return Number.isNaN(d.getTime()) ? x : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// Same dark-glass tooltip treatment as the force-directed maps' hover
-// cards (ForceMap/GroupMap) — bg-black/70-ish + backdrop-blur + hairline
-// border — so hovering a point here reads as the same interaction
-// language as the rest of Explore, not a recharts-default popup.
+// Deliberately still a dark-glass popover (unlike ForceMap/GroupMap's hover
+// cards, migrated to light in an earlier task) — a small, high-contrast
+// tooltip is a common pattern independent of page theme, similar to a
+// native OS tooltip, and wasn't a redesign target for this component.
 function ChartTooltip({
   active,
   payload,
