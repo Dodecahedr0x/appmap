@@ -34,7 +34,7 @@ export default async function RankingsPage() {
     fetchPlatformStats(),
     fetchPlatformMetricsHistory().catch(() => []),
     fetchPlatformViewsTrend(),
-    searchApps(searchSchema.parse({ sort: "rank" })),
+    searchApps(searchSchema.parse({ sort: "rank", pageSize: LEADERBOARD_SIZE })),
   ]);
 
   const scale = 10 ** config.solana.voteTokenDecimals;
@@ -64,6 +64,7 @@ export default async function RankingsPage() {
         votesTrend={votesTrend}
         stakeTrend={stakeTrend}
         viewsTrend={viewsTrendPoints}
+        wide
       />
 
       <RankingsTabs
