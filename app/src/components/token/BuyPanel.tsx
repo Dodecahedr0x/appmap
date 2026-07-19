@@ -6,11 +6,30 @@ import { useToast } from "@/components/ui/Toaster";
 import { useNebDlmmSwap } from "@/hooks/useNebDlmmSwap";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { TOKEN_SYMBOL } from "@/lib/constants";
-import { formatToken } from "@/lib/utils";
+import { formatToken, splitValueUnit } from "@/lib/utils";
 import type { NebPoolStatus } from "@/lib/indexerClient";
 import { ConnectButton } from "@/components/ConnectButton";
 
 const PRESETS = [10, 50, 100, 500];
+
+/** Same label/value typography as MetricTrendCard's tile header (see
+    components/explore/MetricTrendCard.tsx) — "resembles platform activity
+    stats" per design intent, just without that card's trend chart, since
+    the DLMM pool this reads from doesn't have a purchase-history table to
+    chart a series from (see the old PoolAnalytics component's doc comment,
+    now folded into this panel). */
+function PoolStatTile({ label, value }: { label: string; value: string }) {
+  const [amount, unit] = splitValueUnit(value);
+  return (
+    <div className="rounded-lg border border-hairline p-4">
+      <div className="text-caption font-semibold uppercase tracking-wide text-slate">{label}</div>
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+        <span className="text-heading-sm font-semibold tabular-nums text-ink">{amount}</span>
+        {unit && <span className="text-subheading font-medium text-slate">{unit}</span>}
+      </div>
+    </div>
+  );
+}
 
 export function BuyPanel() {
   const { user } = useAuth();
@@ -77,9 +96,15 @@ export function BuyPanel() {
         </p>
       </div>
 
-      <div className="flex justify-between text-xs text-slate-steel">
-        <span className="tabular-nums">{formatToken(pool.nebReserve, TOKEN_SYMBOL)} in pool</span>
-        <span className="tabular-nums">1 {TOKEN_SYMBOL} ≈ {pool.price.toFixed(6)} USDC</span>
+      {/* Live NEB/USDC Meteora DLMM pool indicators — proxied from the
+          indexer (see lib/indexerClient.ts's fetchPoolStatus via /api/pool
+          above), not a DB cache. Formerly its own "Pool analytics" section;
+          folded in here since it's the same pool this panel already swaps
+          against, and there's nothing else on the page that needs it. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <PoolStatTile label="Price" value={`${pool.price.toFixed(6)} USDC`} />
+        <PoolStatTile label={`${TOKEN_SYMBOL} in pool`} value={formatToken(pool.nebReserve, TOKEN_SYMBOL)} />
+        <PoolStatTile label="USDC in pool" value={pool.usdcReserve.toFixed(2)} />
       </div>
 
       {!user ? (
