@@ -28,6 +28,9 @@ function DeltaCell({ deltaPct, intervalDays }: { deltaPct?: number | null; inter
  * A dense, sortable leaderboard — the same underlying app data as the
  * Browse grid, in a comparison-friendly tabular form. Lives on the
  * Rankings page's default tab (see docs/plans/2026-07-19-light-redesign-design.md).
+ *
+ * `apps` is expected to be a small, pre-bounded list — e.g. top 50 — since
+ * sorting happens client-side over the full array on every column click.
  */
 export function Leaderboard({ apps }: { apps: AppDTO[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("rank");
@@ -59,7 +62,11 @@ export function Leaderboard({ apps }: { apps: AppDTO[] }) {
           <tr className="border-b border-hairline text-left text-caption uppercase tracking-wide text-slate-steel">
             <th className="px-4 py-3 font-semibold">App</th>
             {COLUMNS.map((c) => (
-              <th key={c.key} className="px-4 py-3 font-semibold">
+              <th
+                key={c.key}
+                className="px-4 py-3 font-semibold"
+                aria-sort={sortKey === c.key ? (sortDesc ? "descending" : "ascending") : "none"}
+              >
                 <button
                   type="button"
                   onClick={() => onSort(c.key)}
