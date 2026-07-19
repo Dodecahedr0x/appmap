@@ -129,6 +129,7 @@ Runnable from the repo root or from `app/` — identical either way.
 | `npm run launch:neb` | Mint NEB's full supply and seed the NEB/USDC Meteora DLMM pool (see below) |
 | `npm run apps:create-onchain` | Register every app in `scripts/appData/apps.json` on-chain (idempotent — see "Populating apps" below) |
 | `npm run apps:discover -- --tag=<tag>` | Use `claude -p` to find real apps matching a tag and append them to `scripts/appData/apps.json` |
+| `npm run apps:curate` | Local web UI (http://localhost:4400) to review/retag existing apps and approve `apps:discover` suggestions by hand |
 
 ## Populating apps
 
@@ -166,6 +167,14 @@ want more coverage of; it shells out to a local `claude -p` subprocess
 inverted — see `scripts/discoverApps.ts`) asking for real apps matching
 that tag, dedupes against the existing list by URL, and appends whatever's
 new.
+
+For a friendlier way to do both of the above by hand, run
+`npm run apps:curate` (see `scripts/apps-curator/`): a small local web UI
+with a **Review** tab for adding/removing tags on existing entries
+(writes through to `apps.json` immediately) and an **Expand** tab that
+runs `apps:discover`'s same `claude -p` search for a given tag, then lets
+you uncheck, edit tags on, and approve each suggestion before anything is
+written — nothing is added to `apps.json` without an explicit approve.
 
 ## NEB token launch
 
