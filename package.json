@@ -18,7 +18,9 @@
     "test:watch": "npm --prefix app run test:watch",
     "test:anchor": "npx anchor test",
     "settle:epoch": "npm --prefix app run settle:epoch",
-    "snapshot:daily": "npm --prefix app run snapshot:daily"
+    "snapshot:daily": "npm --prefix app run snapshot:daily",
+    "docs:dev": "cd docs-site && npx mintlify@latest dev",
+    "docs:export": "cd docs-site && npx mintlify@latest export --output ../docs-site-export.zip"
   },
   "devDependencies": {
     "@anchor-lang/core": "^1.1.2",

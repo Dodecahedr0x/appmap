@@ -1,0 +1,30 @@
+---
+title: Pricing
+description: "Every /api/data/* endpoint and its price in NEB"
+---
+
+<Info>
+  Source of truth: [`app/src/lib/x402.ts`](https://github.com/Dodecahedr0x/appmap/blob/main/app/src/lib/x402.ts)'s
+  `X402_ENDPOINTS` — the same config both the API routes and
+  nebulous.world's [About page](https://nebulous.world/about) read from.
+  The table below mirrors it; if it looks stale, that file (or the About
+  page) is the authoritative current price.
+</Info>
+
+| Endpoint | Price | What you get |
+| --- | --- | --- |
+| `GET /api/data/platform-stats` | 0.01 NEB | Platform-wide totals: approved apps, distinct tags, total vote weight, total tag stake, and page views. |
+| `GET /api/data/platform-history` | 0.05 NEB | Daily time series of the same on-chain totals, since the platform's first snapshot. |
+| `GET /api/data/tags` | 0.05 NEB | Every tag in use, with its total stake and how many approved apps carry it. |
+| `GET /api/data/traffic` | 0.5 NEB | Revenue-eligible page-view counts per app over a given date range — not available anywhere else, priced/gated for the first time here. |
+
+All prices are per request, denominated in NEB, and settled via a direct
+SPL token transfer to the platform treasury — see [Overview](/api-reference/overview)
+for the full request/pay/retry flow, and [The NEB token](/concepts/the-neb-token)
+for what NEB is and how to get it.
+
+<Note>
+  `traffic` is priced highest because it's the one dataset that isn't
+  derivable from anything else public on the platform — everything else
+  here is also visible (in aggregate) through the normal nebulous.world UI.
+</Note>

@@ -130,6 +130,8 @@ Runnable from the repo root or from `app/` — identical either way.
 | `npm run apps:create-onchain` | Register every app in `scripts/appData/apps.json` on-chain (idempotent — see "Populating apps" below) |
 | `npm run apps:discover -- --tag=<tag>` | Use `claude -p` to find real apps matching a tag and append them to `scripts/appData/apps.json` |
 | `npm run apps:curate` | Local web UI (http://localhost:4400) to review/retag existing apps and approve `apps:discover` suggestions by hand |
+| `npm run docs:dev` (repo root only) | Live-reloading preview of `docs-site/` — see "Docs site" below |
+| `npm run docs:export` (repo root only) | Export `docs-site/` to a static `docs-site-export.zip` |
 
 ## Populating apps
 
@@ -227,6 +229,17 @@ is handled by the indexer's own `POST /x402/settle`
 (`indexer/src/handlers/x402.rs`) rather than a third-party facilitator — no
 public facilitator knows about this project's token or, in local dev, its
 Surfpool cluster.
+
+## Docs site
+
+`docs-site/` is a statically-generated [Mintlify](https://mintlify.com)
+site explaining the product concept and the x402 data API/pricing in more
+depth than the About page — linked from the footer on every page (see
+`app/src/lib/constants.ts`'s `SITE_DOCS_URL`, and
+`app/src/components/Footer.tsx`). It deploys as its own Render static site
+(`nebulous-world-docs` in `render.yaml`), independent of the main app's
+build/deploy. See `docs-site/README.md` for previewing, exporting, and
+deploying it.
 
 ## Database ownership
 
