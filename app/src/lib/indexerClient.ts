@@ -371,6 +371,8 @@ export interface PlatformStats {
   totalVoteWeight: number;
   totalStake: number;
   totalViews: number;
+  /** Raw on-chain u64 amount (vote-token decimals), decimal string — scale by voteTokenDecimals. */
+  totalRevenueDistributed: string;
 }
 
 export async function fetchPlatformStats(): Promise<PlatformStats> {
@@ -379,6 +381,11 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
 
 export async function fetchPlatformViewsTrend(): Promise<{ date: string; totalViews: number }[]> {
   return (await get("/platform/views-trend")) as { date: string; totalViews: number }[];
+}
+
+/** Ascending daily time series of on-chain `fund_app_rewards` amounts — see indexer/src/handlers/platform.rs's platform_revenue_trend. */
+export async function fetchRevenueDistributedTrend(): Promise<{ date: string; amount: string }[]> {
+  return (await get("/platform/revenue-trend")) as { date: string; amount: string }[];
 }
 
 export async function fetchVote(appId: string, userId: string): Promise<{ id: string; amount: number } | null> {

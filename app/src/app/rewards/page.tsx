@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import {
-  fetchPoolStatus,
   fetchPlatformStats,
   fetchPlatformMetricsHistory,
   fetchPlatformViewsTrend,
+  fetchRevenueDistributedTrend,
 } from "@/lib/indexerClient";
 import { TOKEN_NAME, TOKEN_SYMBOL, SITE_URL } from "@/lib/constants";
 import { config } from "@/lib/config";
 import { BuyPanel } from "@/components/token/BuyPanel";
-import { PoolAnalytics } from "@/components/rewards/PoolAnalytics";
 import { PlatformMetrics } from "@/components/rewards/PlatformMetrics";
 import { ClaimRewards } from "@/components/rewards/ClaimRewards";
 import { CloseZeroStakeAccounts } from "@/components/rewards/CloseZeroStakeAccounts";
@@ -24,15 +23,18 @@ export const metadata: Metadata = {
 };
 
 export default async function RewardsPage() {
-  // The on-chain-derived series (apps/tags/votes/stake) comes from the
-  // indexer, which is a separate service that can be unreachable in some
-  // environments — degrade to an empty trend rather than failing the whole
-  // page over a chart that isn't the page's only content.
-  const [pool, stats, onchainHistory, viewsTrend] = await Promise.all([
-    fetchPoolStatus(),
+  // The on-chain-derived series (apps/tags/votes/stake/revenue) comes from
+  // the indexer, which is a separate service that can be unreachable in
+  // some environments — degrade to an empty trend rather than failing the
+  // whole page over a chart that isn't the page's only content. Pool status
+  // isn't fetched here any more — BuyPanel fetches it itself client-side
+  // (via /api/pool) since it needs live numbers after every swap, not just
+  // on initial page load.
+  const [stats, onchainHistory, viewsTrend, revenueTrend] = await Promise.all([
     fetchPlatformStats(),
     fetchPlatformMetricsHistory().catch(() => []),
     fetchPlatformViewsTrend(),
+    fetchRevenueDistributedTrend().catch(() => []),
   ]);
 
   const scale = 10 ** config.solana.voteTokenDecimals;
@@ -47,9 +49,11 @@ export default async function RewardsPage() {
     y: Number(p.totalTagStake) / scale,
   }));
   const viewsTrendPoints: TrendPoint[] = viewsTrend.map((p) => ({ x: p.date, y: p.totalViews }));
+  const revenueTrendPoints: TrendPoint[] = revenueTrend.map((p) => ({ x: p.date, y: Number(p.amount) / scale }));
+  const revenueTotal = Number(stats.totalRevenueDistributed) / scale;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Rewards"
         description={
@@ -61,8 +65,14 @@ export default async function RewardsPage() {
         }
       />
 
-      <BuyPanel />
-      <PoolAnalytics pool={pool} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <BuyPanel />
+        <div className="space-y-6">
+          <ClaimRewards />
+          <CloseZeroStakeAccounts />
+        </div>
+      </div>
+
       <PlatformMetrics
         stats={stats}
         appsTrend={appsTrend}
@@ -70,9 +80,10 @@ export default async function RewardsPage() {
         votesTrend={votesTrend}
         stakeTrend={stakeTrend}
         viewsTrend={viewsTrendPoints}
+        revenueTrend={revenueTrendPoints}
+        revenueTotal={revenueTotal}
+        wide
       />
-      <ClaimRewards />
-      <CloseZeroStakeAccounts />
     </div>
   );
 }
