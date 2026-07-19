@@ -28,16 +28,12 @@ const FALLBACK_PACK: TagPack = {
   ],
 };
 
-// Same dark-map palette ForceMap uses (see DESIGN.md's nebula gradient /
-// plasma blue tokens) — tag circles tint from the nebula gradient's blue
-// stop toward its magenta stop as they nest deeper, app leaves get a solid
-// plasma-blue dot so they always read as distinct from their container.
-const TAG_FILL_SHALLOW: [number, number, number] = [47, 61, 255];
-const TAG_FILL_DEEP: [number, number, number] = [201, 63, 242];
-const APP_FILL = "#3aa8ff";
-const SELECTED_RING = "#9a9dff";
-const LABEL_INK = "#f2f6fa";
-const LABEL_DIM = "#c7cbd6";
+const TAG_FILL_SHALLOW: [number, number, number] = [99, 102, 241];
+const TAG_FILL_DEEP: [number, number, number] = [55, 47, 176];
+const APP_FILL = "#4338ca";
+const SELECTED_RING = "#372fb0";
+const LABEL_INK = "#0d0e12";
+const LABEL_DIM = "#565a66";
 const MAX_SIBLINGS = 6;
 const APP_LABEL_FONT_SIZE = 11;
 const APP_LABEL_FONT_WEIGHT = 500;
@@ -82,7 +78,7 @@ function tagFill(depth: number, maxDepth: number): string {
   const r = Math.round(r1 + (r2 - r1) * t);
   const g = Math.round(g1 + (g2 - g1) * t);
   const b = Math.round(b1 + (b2 - b1) * t);
-  return `rgba(${r}, ${g}, ${b}, ${0.16 + t * 0.12})`;
+  return `rgba(${r}, ${g}, ${b}, ${0.25 + t * 0.25})`;
 }
 
 // Lazily created, cached — a single offscreen canvas 2D context is enough
@@ -532,7 +528,7 @@ export function GroupMap({
       <div className="relative">
         <div
           ref={containerRef}
-          className="relative h-[24rem] w-full overflow-hidden rounded-card border border-white/10 sm:h-[30rem]"
+          className="relative h-[24rem] w-full overflow-hidden rounded-card border border-hairline sm:h-[30rem]"
         >
           <svg
             ref={svgRef}
@@ -580,7 +576,7 @@ export function GroupMap({
                       r={n.r}
                       fill={isApp ? APP_FILL : tagFill(n.depth, maxDepth)}
                       fillOpacity={isApp ? (isHovered || isSelected ? 0.95 : 0.75) : undefined}
-                      stroke={isSelected || isFilterTag ? SELECTED_RING : isHovered ? "#ffffff" : "rgba(255,255,255,0.15)"}
+                      stroke={isSelected || isFilterTag ? SELECTED_RING : isHovered ? "#0d0e12" : "rgba(13,14,18,0.15)"}
                       strokeWidth={(isSelected || isFilterTag ? 2.5 : isHovered ? 2 : 1) / view.k}
                     />
                     {showLabel && (
@@ -603,52 +599,52 @@ export function GroupMap({
         </div>
         {isEmpty && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
-            <p className="text-sm text-white/50">No approved apps to group yet.</p>
+            <p className="text-sm text-slate-steel">No approved apps to group yet.</p>
           </div>
         )}
         {isFilteredEmpty && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center">
-            <p className="text-sm text-white/50">
+            <p className="text-sm text-slate-steel">
               No apps carry every selected tag: {selectedTags.map((t) => `#${t}`).join(", ")}.
             </p>
           </div>
         )}
         {loading && !isEmpty && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <p className="text-sm text-white/50">Loading…</p>
+            <p className="text-sm text-slate-steel">Loading…</p>
           </div>
         )}
         {hovered && (
-          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-white/10 bg-black/70 px-3 py-2 backdrop-blur-sm">
-            <div className="text-sm font-semibold text-white">
+          <div className="pointer-events-none absolute left-3 top-3 max-w-[14rem] rounded-card border border-hairline bg-cream/90 px-3 py-2 backdrop-blur-sm">
+            <div className="text-sm font-semibold text-ink">
               {hovered.data.type === "app" ? hovered.data.name : `#${hovered.data.name}`}
             </div>
             {hovered.data.type === "app" ? (
-              <div className="text-caption text-white/60">{formatToken(hovered.data.stake, TOKEN_SYMBOL)} staked</div>
+              <div className="text-caption text-slate">{formatToken(hovered.data.stake, TOKEN_SYMBOL)} staked</div>
             ) : (
-              <div className="text-caption text-white/60">{formatNumber(hovered.leaves().length)} apps</div>
+              <div className="text-caption text-slate">{formatNumber(hovered.leaves().length)} apps</div>
             )}
           </div>
         )}
-        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-white/10 bg-black/50 backdrop-blur-sm">
+        <div className="absolute bottom-3 right-3 flex flex-col overflow-hidden rounded-card border border-hairline bg-cream/80 backdrop-blur-sm">
           <button
             type="button"
             onClick={() => zoomByFactor(ZOOM_BUTTON_FACTOR)}
             aria-label="Zoom in"
-            className="grid h-10 w-10 place-items-center text-white/80 transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
           >
             +
           </button>
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-hairline" />
           <button
             type="button"
             onClick={() => zoomByFactor(1 / ZOOM_BUTTON_FACTOR)}
             aria-label="Zoom out"
-            className="grid h-10 w-10 place-items-center text-white/80 transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
           >
             −
           </button>
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-hairline" />
           <button
             type="button"
             onClick={() => {
@@ -657,7 +653,7 @@ export function GroupMap({
               onSelect?.(null);
             }}
             aria-label="Reset zoom and pan"
-            className="grid h-10 w-10 place-items-center text-sm text-white/80 transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-sm text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
           >
             ⟲
           </button>
@@ -676,7 +672,7 @@ export function GroupMap({
           </li>
         ))}
       </ul>
-      <div className="mt-2 text-caption text-white/50">
+      <div className="mt-2 text-caption text-slate-steel">
         {source === "live" ? "Live tags & apps." : "Sample tags & apps."} Drag to pan, scroll to zoom, click an app
         to zoom in and select it, click a tag to filter the map to it.
       </div>
