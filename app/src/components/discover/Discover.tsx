@@ -11,6 +11,7 @@ import {
 } from "@/components/discover/FilterPanel";
 import { CreateAppForm } from "@/components/discover/CreateAppForm";
 import { Modal } from "@/components/ui/Modal";
+import { PageHeader } from "@/components/PageHeader";
 import { SORT_OPTIONS } from "@/lib/constants";
 import { interleaveAds } from "@/lib/adPlacement";
 import type { SearchResult } from "@/lib/types";
@@ -159,15 +160,10 @@ export function Discover({ initial }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="font-display text-balance text-heading-lg font-normal leading-[1.15] tracking-tight text-ink">
-          Discover the best apps
-        </h1>
-        <p className="mt-2 text-pretty text-body text-slate">
-          Ranked by the crowd — token-weighted votes, tag stake, and real
-          traffic.
-        </p>
-      </div>
+      <PageHeader
+        title="Discover the best apps"
+        description="Ranked by the crowd — token-weighted votes, tag stake, and real traffic."
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
