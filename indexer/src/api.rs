@@ -251,6 +251,35 @@ fn vault_address(config: &Pubkey, mint: &Pubkey) -> Pubkey {
     associated_token_address(config, mint)
 }
 
+/// Builds an SPL Associated Token Account program `CreateIdempotent`
+/// instruction (discriminator `1` — a no-op if the ATA already exists,
+/// unlike discriminator `0`'s `Create`, which errors) — account layout
+/// mirrors `@solana/spl-token`'s `createAssociatedTokenAccountIdempotentInstruction`
+/// exactly: `[payer (signer, w), associated_token (w), owner, mint,
+/// system_program, token_program]`.
+///
+/// Every builder below that reads/writes a user's vote-token ATA
+/// (`user_token_account`) prepends this ahead of the real instruction,
+/// unconditionally rather than behind an `account_exists` check — an
+/// idempotent create against an already-existing ATA is a cheap no-op, so
+/// there's nothing to gain from the extra RPC round-trip a check would
+/// cost, and it closes the gap for any wallet that's never held the vote
+/// token before (never bought NEB, so it has no ATA yet) or that closed an
+/// emptied ATA between one call and the next (e.g. withdrew everything,
+/// closed the account, then comes back to claim a reward later).
+fn ata_create_idempotent_ix(payer: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Instruction {
+    let associated_token = associated_token_address(owner, mint);
+    let accounts = vec![
+        AccountMeta::new(*payer, true),
+        AccountMeta::new(associated_token, false),
+        AccountMeta::new_readonly(*owner, false),
+        AccountMeta::new_readonly(*mint, false),
+        AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
+        AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+    ];
+    Instruction::new_with_bytes(ASSOCIATED_TOKEN_PROGRAM_ID, &[1u8], accounts)
+}
+
 /// Whether `pubkey` currently has an account on-chain — checked via a live
 /// RPC call rather than the `indexed_account` cache (see `fetch_account`),
 /// since the Carbon indexing pipeline can legitimately lag a slot or two
@@ -843,7 +872,11 @@ async fn build_vote(
     // to construct `init_app` with even if it wanted to lazily create one.
     // A vote against a nonexistent `app` now simply fails on-chain with the
     // ordinary "account not found" error, which is the correct behavior.
-    let mut instructions = Vec::new();
+    //
+    // `user_token_account` isn't guaranteed to exist yet (a wallet's first
+    // ever vote may be its first ever contact with the vote token) — see
+    // `ata_create_idempotent_ix`'s doc comment.
+    let mut instructions = vec![ata_create_idempotent_ix(&user, &user, &state.vote_token_mint)];
 
     let mut data = VOTE_DISC.to_vec();
     data.extend_from_slice(&amount.to_le_bytes());
@@ -899,8 +932,16 @@ async fn build_withdraw_vote(
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
     ];
-    let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
-    let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
+    // `user_token_account` normally still exists from the vote this
+    // withdraws (voting already requires it — see `build_vote`), but a
+    // wallet could have closed it in between while it sat empty (all its
+    // balance moved into `vault` at vote time) — see
+    // `ata_create_idempotent_ix`'s doc comment.
+    let instructions = vec![
+        ata_create_idempotent_ix(&user, &user, &state.vote_token_mint),
+        Instruction::new_with_bytes(state.program_id, &data, accounts),
+    ];
+    let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
     Ok(Json(BuiltTxDto { transaction: tx }))
 }
 
@@ -949,6 +990,9 @@ async fn build_stake_tag(
             &user,
         ));
     }
+    // `user_token_account` isn't guaranteed to exist yet, same reasoning as
+    // `build_vote` — see `ata_create_idempotent_ix`'s doc comment.
+    instructions.push(ata_create_idempotent_ix(&user, &user, &state.vote_token_mint));
 
     let mut data = STAKE_TAG_DISC.to_vec();
     data.extend_from_slice(&amount.to_le_bytes());
@@ -1006,8 +1050,12 @@ async fn build_withdraw_tag_stake(
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
     ];
-    let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
-    let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
+    // See `build_withdraw_vote`'s comment on the same pattern.
+    let instructions = vec![
+        ata_create_idempotent_ix(&user, &user, &state.vote_token_mint),
+        Instruction::new_with_bytes(state.program_id, &data, accounts),
+    ];
+    let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
     Ok(Json(BuiltTxDto { transaction: tx }))
 }
 
@@ -1183,8 +1231,14 @@ async fn build_claim_vote_reward(
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
     ];
-    let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
-    let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
+    // See `build_withdraw_vote`'s comment on the same pattern — a claim
+    // implies a prior vote, which already required this ATA to exist, but
+    // it could have been closed (emptied) in between.
+    let instructions = vec![
+        ata_create_idempotent_ix(&user, &user, &state.vote_token_mint),
+        Instruction::new_with_bytes(state.program_id, &data, accounts),
+    ];
+    let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
     Ok(Json(BuiltTxDto { transaction: tx }))
 }
 
@@ -1233,8 +1287,12 @@ async fn build_claim_tag_reward(
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
     ];
-    let ix = Instruction::new_with_bytes(state.program_id, &data, accounts);
-    let tx = unsigned_tx_base64(&state.rpc, &user, vec![ix]).await?;
+    // See `build_claim_vote_reward`'s comment on the same pattern.
+    let instructions = vec![
+        ata_create_idempotent_ix(&user, &user, &state.vote_token_mint),
+        Instruction::new_with_bytes(state.program_id, &data, accounts),
+    ];
+    let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
     Ok(Json(BuiltTxDto { transaction: tx }))
 }
 
@@ -1361,6 +1419,52 @@ mod tests {
         assert_eq!(tag.to_string(), "EwCP1sFK2Reuu4RiiwvygBffzCt8rEqxKocHFSTSenCF");
         assert_eq!(app_tag_stake.to_string(), "Amrp4xm898tGgeeXZ2zKoj2YEdfoRNF1NSFPw51ivLjR");
         assert_eq!(stake_pos.to_string(), "27N8WYexQynYkqkfP6vjts4ZCAd4KErdDqfEw2t77BcS");
+    }
+
+    /// Cross-checked against the real Associated Token Account program via
+    /// `spl-token address --url mainnet-beta --token
+    /// EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v --owner
+    /// 11111111111111111111111111111112 --verbose`, which independently
+    /// derives (and, via its live RPC call, confirms on-chain) this exact
+    /// ATA for real USDC and the System Program's own address used as an
+    /// arbitrary owner. This derivation must stay byte-identical to the
+    /// canonical SPL implementation — `ata_create_idempotent_ix` below
+    /// targets whatever address this computes, so a wrong derivation would
+    /// silently create/address the wrong account rather than erroring.
+    #[test]
+    fn associated_token_address_matches_spl_token_cli() {
+        let owner = Pubkey::from_str("11111111111111111111111111111112").unwrap();
+        let mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
+        let ata = associated_token_address(&owner, &mint);
+        assert_eq!(ata.to_string(), "G9xKTRhM57AL4my3ZRVNqM95mxtACgKdNRPX6EVhB7hv");
+    }
+
+    /// The account order/mutability/discriminator this builds must match
+    /// `@solana/spl-token`'s `createAssociatedTokenAccountIdempotentInstruction`
+    /// exactly — cross-checked against
+    /// app/node_modules/@solana/spl-token/lib/cjs/instructions/associatedTokenAccount.js's
+    /// `buildAssociatedTokenAccountInstruction`. A wrong account order is
+    /// silently accepted at the Rust type level (it's just a
+    /// `Vec<AccountMeta>`) but rejected on-chain, so this locks the layout
+    /// in as a regression test rather than relying on manual review alone.
+    #[test]
+    fn ata_create_idempotent_ix_matches_spl_token_layout() {
+        let payer = Pubkey::from_str("5Hs51hUxpr9cBz8gwbsFNVcJqdtPeJR8MoUNxoUSGP8a").unwrap();
+        let owner = Pubkey::from_str("11111111111111111111111111111112").unwrap();
+        let mint = Pubkey::from_str("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v").unwrap();
+        let ix = ata_create_idempotent_ix(&payer, &owner, &mint);
+
+        assert_eq!(ix.program_id, ASSOCIATED_TOKEN_PROGRAM_ID);
+        assert_eq!(ix.data, vec![1u8], "1 = CreateIdempotent discriminator, 0 would be Create (errors if it exists)");
+
+        let expected_ata = associated_token_address(&owner, &mint);
+        assert_eq!(ix.accounts.len(), 6);
+        assert_eq!(ix.accounts[0], AccountMeta::new(payer, true), "payer: writable signer");
+        assert_eq!(ix.accounts[1], AccountMeta::new(expected_ata, false), "associated_token: writable");
+        assert_eq!(ix.accounts[2], AccountMeta::new_readonly(owner, false), "owner: readonly");
+        assert_eq!(ix.accounts[3], AccountMeta::new_readonly(mint, false), "mint: readonly");
+        assert_eq!(ix.accounts[4], AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false), "system_program: readonly");
+        assert_eq!(ix.accounts[5], AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false), "token_program: readonly");
     }
 
     /// Regression test: an oversized app_id/tag_slug used to reach
