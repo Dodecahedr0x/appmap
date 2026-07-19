@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { AppDTO } from "@/lib/types";
-import { formatToken, formatNumber, hostname, cn, topStakedTag } from "@/lib/utils";
+import { formatToken, formatNumber, hostname, cn, topStakedTag, formatDelta } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 
 // Caps the chips shown on a card — an app can carry arbitrarily many tags
@@ -10,8 +10,14 @@ import { TOKEN_SYMBOL } from "@/lib/constants";
 // callers to have already ordered `app.tags` that way.
 const MAX_VISIBLE_TAGS = 5;
 
-/** Compact metric with a label. */
-function Stat({ label, value }: { label: string; value: string }) {
+/** Compact metric with a label, plus an optional recent-change subtext
+    ("+12%/7d") — green for a gain, red for a decline, matching the
+    achromatic-except-accents convention the rest of the app's chip/error
+    states already use (text-forest / text-red-400). Omitted entirely (not
+    "0%") when there's no baseline snapshot to compare against — see
+    formatDelta's doc comment for why a genuine 0% still renders. */
+function Stat({ label, value, deltaPct, intervalDays }: { label: string; value: string; deltaPct?: number | null; intervalDays?: number }) {
+  const delta = intervalDays != null ? formatDelta(deltaPct ?? null, intervalDays) : null;
   return (
     <div className="flex flex-col">
       <span className="text-sm font-semibold tabular-nums text-ink">
@@ -20,6 +26,16 @@ function Stat({ label, value }: { label: string; value: string }) {
       <span className="text-[10px] uppercase tracking-wide text-slate-steel">
         {label}
       </span>
+      {delta && (
+        <span
+          className={cn(
+            "text-[10px] tabular-nums",
+            (deltaPct ?? 0) >= 0 ? "text-forest" : "text-red-400",
+          )}
+        >
+          {delta}
+        </span>
+      )}
     </div>
   );
 }
@@ -120,10 +136,30 @@ export function AppCard({
       )}
 
       <div className="mt-auto grid grid-cols-4 gap-2 border-t border-hairline p-4">
-        <Stat label="Rank" value={app.rankScore.toFixed(2)} />
-        <Stat label="Votes" value={formatToken(app.voteWeight, "")} />
-        <Stat label="Staked" value={formatToken(app.stakeTotal, "")} />
-        <Stat label="Views" value={formatNumber(app.viewCount)} />
+        <Stat
+          label="Rank"
+          value={app.rankScore.toFixed(2)}
+          deltaPct={app.trend?.rankScorePct}
+          intervalDays={app.trend?.intervalDays}
+        />
+        <Stat
+          label="Votes"
+          value={formatToken(app.voteWeight, "")}
+          deltaPct={app.trend?.voteWeightPct}
+          intervalDays={app.trend?.intervalDays}
+        />
+        <Stat
+          label="Staked"
+          value={formatToken(app.stakeTotal, "")}
+          deltaPct={app.trend?.stakeTotalPct}
+          intervalDays={app.trend?.intervalDays}
+        />
+        <Stat
+          label="Views"
+          value={formatNumber(app.viewCount)}
+          deltaPct={app.trend?.viewCountPct}
+          intervalDays={app.trend?.intervalDays}
+        />
       </div>
     </>
   );

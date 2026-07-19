@@ -17,7 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const [{ apps }, { tags }] = await Promise.all([
-    searchApps({ q: "", tags: [], fuzzy: "", sort: "new", page: 1, pageSize: MAX_APPS }),
+    searchApps({ q: "", tags: [], fuzzy: "", sort: "new", page: 1, pageSize: MAX_APPS, intervalDays: 7 }),
     fetchTags(),
   ]);
 
