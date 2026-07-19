@@ -63,7 +63,9 @@ export default async function HomePage({ searchParams }: PageProps) {
     pageviewsMin: str(sp.pageviewsMin),
     pageviewsMax: str(sp.pageviewsMax),
     sort: str(sp.sort),
-    page: str(sp.page),
+    // No `page`: results grow via infinite scroll now (see Discover.tsx),
+    // so the server-rendered page is always the first one regardless of
+    // any stale `?page=` on a link shared before that change.
   });
 
   const initial = await searchApps(input);

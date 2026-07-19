@@ -14,7 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/PageHeader";
 import { SORT_OPTIONS } from "@/lib/constants";
 import { interleaveAds } from "@/lib/adPlacement";
-import type { SearchResult } from "@/lib/types";
+import type { AppDTO, SearchResult } from "@/lib/types";
 
 interface Props {
   initial: SearchResult;
@@ -24,9 +24,12 @@ const RANGE_KEYS = Object.keys(EMPTY_RANGE_FILTERS) as (keyof RangeFilters)[];
 
 /**
  * The Discover experience: a search box, a floating filter panel, a sort
- * control, and a results grid. All state lives in the URL so results are
- * shareable and the back button works; changing any control pushes new query
- * params and refetches from /api/apps.
+ * control, and an infinite-scrolling results grid. Every filter/sort/query
+ * control lives in the URL so results are shareable and the back button
+ * works; changing any of them pushes new query params and refetches page 1
+ * from /api/apps. Scroll position itself is not part of that shareable
+ * state — a fresh page load always starts at page 1, then grows as the user
+ * scrolls (see the sentinel ref below).
  */
 export function Discover({ initial }: Props) {
   const router = useRouter();
@@ -39,8 +42,14 @@ export function Discover({ initial }: Props) {
     for (const key of RANGE_KEYS) next[key] = params.get(key) ?? "";
     return next;
   });
-  const [result, setResult] = useState<SearchResult>(initial);
+  const [apps, setApps] = useState<AppDTO[]>(initial.apps);
+  const [total, setTotal] = useState(initial.total);
+  const [facets, setFacets] = useState(initial.facets);
+  // How many pages have been loaded into `apps` so far — bumped by loadMore,
+  // reset to 1 whenever the filters/sort effect below replaces the list.
+  const [loadedPage, setLoadedPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   // Bumped after a successful create to force the fetch effect below to
   // re-run against the current params (new app shows up immediately if it
@@ -60,9 +69,10 @@ export function Discover({ initial }: Props) {
 
   const selectedTags = useMemo(() => params.getAll("tags"), [params]);
   const sort = params.get("sort") ?? "rank";
-  const page = Number(params.get("page") ?? "1");
 
-  // Build a query string from the current control values.
+  // Build a query string from the current control values — never a "page":
+  // results accumulate through infinite scroll, not page navigation, so
+  // scroll depth was never part of the shareable URL state.
   const buildParams = useCallback(
     (overrides: Record<string, string | string[] | undefined>) => {
       const next = new URLSearchParams();
@@ -86,9 +96,6 @@ export function Discover({ initial }: Props) {
           : selectedTags;
       for (const t of tags) next.append("tags", t);
 
-      const p = overrides.page !== undefined ? overrides.page : "1";
-      if (p && p !== "1") next.set("page", String(p));
-
       return next;
     },
     [query, fuzzy, ranges, sort, selectedTags],
@@ -102,15 +109,19 @@ export function Discover({ initial }: Props) {
     [buildParams, router],
   );
 
-  // Refetch whenever the URL params change.
+  // Refetch page 1 whenever the URL's filters/sort change — replaces
+  // whatever infinite-scroll pages had accumulated so far with a fresh set.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const qs = params.toString();
-    fetch(`/api/apps?${qs}`, { cache: "no-store" })
+    fetch(`/api/apps?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((json) => {
-        if (!cancelled && json.ok) setResult(json.data);
+        if (cancelled || !json.ok) return;
+        setApps(json.data.apps);
+        setTotal(json.data.total);
+        setFacets(json.data.facets);
+        setLoadedPage(1);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -120,27 +131,73 @@ export function Discover({ initial }: Props) {
     };
   }, [params, refreshKey]);
 
+  // Infinite scroll: fetch the next page (same filters/sort as the current
+  // results) and append once the sentinel below the grid enters the
+  // viewport — see the sentinelRef callback ref further down.
+  const hasMore = apps.length < total;
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  const loadingMoreRef = useRef(false);
+  const loadMore = useCallback(() => {
+    if (loadingMoreRef.current || loadingRef.current || !hasMore) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const next = new URLSearchParams(params.toString());
+    next.set("page", String(loadedPage + 1));
+    fetch(`/api/apps?${next.toString()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.ok) return;
+        setApps((prev) => [...prev, ...json.data.apps]);
+        setLoadedPage((p) => p + 1);
+      })
+      .finally(() => {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [params, loadedPage, hasMore]);
+
+  // A callback ref (not a plain ref + effect) so the observer is correctly
+  // torn down/rebuilt as the sentinel div itself mounts and unmounts (it
+  // only renders while `hasMore`) and whenever `loadMore` gets a fresh
+  // closure (new filters/page).
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const sentinelRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      observerRef.current?.disconnect();
+      if (!node) return;
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) loadMore();
+        },
+        { rootMargin: "600px" },
+      );
+      observerRef.current.observe(node);
+    },
+    [loadMore],
+  );
+
   // Debounced text search.
   const onQueryChange = (value: string) => {
     setQuery(value);
-    debounce("q", () => navigate({ q: value, page: "1" }));
+    debounce("q", () => navigate({ q: value }));
   };
 
   const onFuzzyChange = (value: string) => {
     setFuzzy(value);
-    debounce("fuzzy", () => navigate({ fuzzy: value, page: "1" }));
+    debounce("fuzzy", () => navigate({ fuzzy: value }));
   };
 
   const onRangeChange = (key: keyof RangeFilters, value: string) => {
     setRanges((prev) => ({ ...prev, [key]: value }));
-    debounce(key, () => navigate({ [key]: value, page: "1" }));
+    debounce(key, () => navigate({ [key]: value }));
   };
 
   const toggleTag = (slug: string) => {
     const next = selectedTags.includes(slug)
       ? selectedTags.filter((t) => t !== slug)
       : [...selectedTags, slug];
-    navigate({ tags: next, page: "1" });
+    navigate({ tags: next });
   };
 
   const clearFilters = () => {
@@ -154,9 +211,6 @@ export function Discover({ initial }: Props) {
     for (const key of RANGE_KEYS) overrides[key] = "";
     navigate(overrides);
   };
-
-  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
-  const startRank = (result.page - 1) * result.pageSize;
 
   return (
     <div className="space-y-6">
@@ -191,7 +245,7 @@ export function Discover({ initial }: Props) {
         <select
           className="input sm:w-48"
           value={sort}
-          onChange={(e) => navigate({ sort: e.target.value, page: "1" })}
+          onChange={(e) => navigate({ sort: e.target.value })}
           aria-label="Sort results"
         >
           {SORT_OPTIONS.map((o) => (
@@ -210,7 +264,7 @@ export function Discover({ initial }: Props) {
       </div>
 
       <FilterPanel
-        facets={result.facets}
+        facets={facets}
         selectedTags={selectedTags}
         onToggleTag={toggleTag}
         ranges={ranges}
@@ -223,12 +277,12 @@ export function Discover({ initial }: Props) {
       <section>
         <div className="mb-3 flex items-center justify-between text-sm text-slate">
           <span>
-            {loading ? "Searching…" : `${result.total} apps`}
+            {loading ? "Searching…" : `${total} apps`}
             {query && !loading && ` for “${query}”`}
           </span>
         </div>
 
-        {result.apps.length === 0 ? (
+        {apps.length === 0 ? (
           <div
             key={
               query + JSON.stringify(ranges) + fuzzy + selectedTags.join(",")
@@ -249,41 +303,30 @@ export function Discover({ initial }: Props) {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {interleaveAds(result.apps).map((entry) =>
-              entry.kind === "ad" ? (
-                <AdCard key={entry.key} appId={entry.appId} />
-              ) : (
-                <AppCard
-                  key={entry.app.id}
-                  app={entry.app}
-                  rank={sort === "rank" ? startRank + entry.index + 1 : undefined}
-                />
-              ),
-            )}
-          </div>
-        )}
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {interleaveAds(apps).map((entry) =>
+                entry.kind === "ad" ? (
+                  <AdCard key={entry.key} appId={entry.appId} />
+                ) : (
+                  <AppCard
+                    key={entry.app.id}
+                    app={entry.app}
+                    rank={sort === "rank" ? entry.index + 1 : undefined}
+                  />
+                ),
+              )}
+            </div>
 
-        {totalPages > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-2">
-            <button
-              className="btn-secondary"
-              disabled={page <= 1}
-              onClick={() => navigate({ page: String(page - 1) })}
-            >
-              Previous
-            </button>
-            <span className="text-sm text-slate">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              className="btn-secondary"
-              disabled={page >= totalPages}
-              onClick={() => navigate({ page: String(page + 1) })}
-            >
-              Next
-            </button>
-          </div>
+            {hasMore && (
+              <div
+                ref={sentinelRef}
+                className="mt-6 flex items-center justify-center py-4 text-sm text-slate-steel"
+              >
+                {loadingMore && "Loading more…"}
+              </div>
+            )}
+          </>
         )}
       </section>
 
