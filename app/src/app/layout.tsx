@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { SolanaProvider } from "@/components/providers/SolanaProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
@@ -10,18 +10,15 @@ import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "@/lib/constants";
 
 const title = `${SITE_NAME} — discover the best apps, ranked by the crowd`;
 
-// DESIGN.md's display face is the proprietary 'Obviously' — Space Grotesk is
-// its own documented substitute ("No web-safe substitute captures the feel
-// — Inter Black or Space Grotesk Bold approximate it").
+// One typeface for the whole app now — see DESIGN.md. `font-display` in
+// tailwind.config.ts resolves to this same `--font-ui-sans-serif` variable
+// (no separate `--font-obviously` variable exists any more), so nothing
+// else needs to change for lingering `font-display` class usage to keep
+// working correctly.
 const bodySans = Inter({
   subsets: ["latin"],
   variable: "--font-ui-sans-serif",
-  weight: ["400", "500", "600", "700"],
-});
-const displaySans = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-obviously",
-  weight: ["300", "400", "700"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -45,7 +42,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1f232e",
+  themeColor: "#ffffff",
 };
 
 // Site-level structured data — lets Google offer a sitelinks search box for
@@ -80,7 +77,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${bodySans.variable} ${displaySans.variable}`}>
+    <html lang="en" className={bodySans.variable}>
       <body className="bg-cream font-sans text-ink antialiased">
         <JsonLd data={siteLd} />
         <JsonLd data={orgLd} />
