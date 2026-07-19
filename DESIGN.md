@@ -124,7 +124,7 @@ Indigo fill (`bg-cobalt`), white text, 8px radius, 14px/600 weight, `12px 20px` 
 ### App Card (Data Card)
 **Role:** The base unit of the Browse grid and the ad slot — `AppCard`, `AdCard`
 
-`Surface` background, 10px radius, 1px `Border` (`.card`). No shadow-raising, no lift, no glow at rest. On hover (`.card-interactive`): background lifts to `Surface Raised` (white) and the shadow steps from `shadow-rest` to `shadow-hover` — that's the entire hover treatment, on `duration-150 ease-out`. Numeric fields (rank score, stake, view count) are always `tabular-nums` so a live update never reflows the layout around it. App icons carry a thin `ring-1 ring-inset ring-white/10` — a carryover from the dark theme's icon-separation treatment that this pass didn't revisit; it reads as a faint inset highlight on the light card background today rather than a real outline.
+`Surface` background, 10px radius, 1px `Border` (`.card`). No shadow-raising, no lift, no glow at rest. On hover (`.card-interactive`): the card's own chrome (background, shadow) is a color/shadow-only change — background lifts to `Surface Raised` (white) and the shadow steps from `shadow-rest` to `shadow-hover`, on `duration-150 ease-out`. The card's hero image is the one deliberate exception to that "no transform" rule: `AppCard.tsx`/`AdCard.tsx` apply `transition-transform duration-300 group-hover:scale-[1.03]` to the image itself, a subtle zoom-in on hover, on its own 300ms duration — distinct from the 150ms the rest of the card's chrome uses. Numeric fields (rank score, stake, view count) are always `tabular-nums` so a live update never reflows the layout around it. App icons carry a thin `ring-1 ring-inset ring-white/10` — a carryover from the dark theme's icon-separation treatment that this pass didn't revisit; it reads as a faint inset highlight on the light card background today rather than a real outline.
 
 The vote action lives directly on the card, not behind a click into the app's detail page — the concrete fix for "core actions buried" (see `CardVoteButton.tsx`). A compact pill button in the card's footer shows a small upvote icon plus the app's current vote weight (tabular-nums). **Quick vote:** one click casts a small predefined default amount (10 tokens) immediately — optimistic UI updates the count right away, the on-chain confirmation and `/api/vote` write happen in the background, with a rollback if either fails. A "•••" affordance next to it opens a lightweight popover with the same preset amounts as the full `VotePanel` (10/50/100/500) plus a custom input, for anyone who wants to stake something meaningful. One click for the common case, one click further for the power-user case.
 
@@ -136,7 +136,7 @@ The vote action lives directly on the card, not behind a click into the app's de
 ### Constellation / Force-Directed Map
 **Role:** `ForceMap` (apps/tags) and `GroupMap` (circle-packing) — now a secondary lens, not the product's signature visual
 
-Restyled for the light canvas: `Surface`-colored (`#f7f7f8`) canvas background, Indigo (`#4338ca`) node fills, a muted `Border Strong`-toned (`#a5a8b8`) edge stroke, `Ink` labels, `Indigo Deep` (`#372fb0`) selection ring. Same interaction model as before — drag to pan, scroll/pinch or +/−/reset to zoom, click a node to zoom in and select it. It's demoted structurally, too: it now lives inside Rankings as the "Map view" tab (`RankingsTabs`), alongside — not instead of — the Leaderboard, which is the tab shown by default.
+Restyled for the light canvas: `Surface`-colored (`#f7f7f8`) canvas background, Indigo (`#4338ca`) node fills, a muted gray-blue (`#a5a8b8`, its own value — not the `Border Strong` token, which is a lighter `#d1d3da`) edge stroke, `Ink` labels, `Indigo Deep` (`#372fb0`) selection ring. Same interaction model as before — drag to pan, scroll/pinch or +/−/reset to zoom, click a node to zoom in and select it. It's demoted structurally, too: it now lives inside Rankings as the "Map view" tab (`RankingsTabs`), alongside — not instead of — the Leaderboard, which is the tab shown by default.
 
 ### Live Reward / Stat Ticker
 **Role:** `MetricTrendCard`'s headline figure, `PlatformMetrics`' stat tiles, `ClaimRewards`' pending-amount column, leaderboard cells — any accumulator-driven number
@@ -156,7 +156,7 @@ A two-item segmented control (`Leaderboard` / `Map view`) in a `Well`-colored (`
 ### Leaderboard
 **Role:** Rankings' primary content — `Leaderboard.tsx`
 
-A dense, sortable table: rank, app (name + hostname), vote weight, stake, views, and a 7-day trend delta, all `tabular-nums`. Column headers are clickable to sort (client-side, over the already-fetched top-N apps); the active sort column highlights in `Indigo`. Row hover uses the `Well` background (`hover:bg-mist`). Deltas render in `Positive`/`Negative` depending on sign. Same underlying data as the Browse grid, in a comparison-friendly tabular form suited to scanning many apps at once rather than browsing a few.
+A dense, sortable table: app (name + hostname), rank, vote weight, stake, views, and a 7-day trend delta, all `tabular-nums`. Column headers are clickable to sort (client-side, over the already-fetched top-N apps); the active sort column highlights in `Indigo`. Row hover uses the `Well` background (`hover:bg-mist`). Deltas render in `Positive`/`Negative` depending on sign. Same underlying data as the Browse grid, in a comparison-friendly tabular form suited to scanning many apps at once rather than browsing a few.
 
 ### Onboarding Banner
 **Role:** A compact, dismissible first-visit explainer above the Browse grid — `OnboardingBanner.tsx`
@@ -176,7 +176,7 @@ A dense, sortable table: rank, app (name + hostname), vote weight, stake, views,
 
 ### Don't
 - Don't use drop shadows or glow for elevation beyond the two documented `shadow-rest`/`shadow-hover` steps — there's no third "big" shadow, and no colored/tinted glow of any kind
-- Don't add a transform-based lift, scale, or bounce on hover/press — feedback is color/background/border/shadow only, at `150ms`/`ease-out`
+- Don't add a transform-based lift, scale, or bounce to card/button/chip chrome (borders, backgrounds, shadows) on hover/press — feedback there is color/background/border/shadow only, at `150ms`/`ease-out`. (The App Card's own hero-image zoom-on-hover, `group-hover:scale-[1.03]` at 300ms, is a distinct, intentional exception — a photographic-preview convention, not chrome feedback.)
 - Don't use large gradient background fills anywhere in the product — the old Nebula/Plasma gradients are gone from the token set entirely, not just unused
 - Don't set body text below 14px or above 18px
 - Don't reach for `cerulean` or `signal-blue` in new work — both are unused legacy aliases left over from the dark-theme token names (see Tokens — Colors)
@@ -211,6 +211,8 @@ Full-width light canvas (the old copy's "full-width dark canvas" language, updat
 (Replaces the old list's Uniswap and Obsidian's graph view — the constellation map is no longer the product's signature visual, so a force-directed-graph-tool reference no longer fits as a primary comparison.)
 
 ## Quick Start
+
+The blocks below are a portable translation of these tokens for external consumers (a marketing microsite, a partner embed, a design tool) — they are not literal repo content. This app itself defines these values as Tailwind `colors`/`fontFamily`/`borderRadius`/etc. entries in `app/tailwind.config.ts`, not as CSS custom properties, so grepping this codebase for e.g. `--font-ui-monospace` won't find anything; grep `tailwind.config.ts` instead.
 
 ### CSS Custom Properties
 
@@ -248,7 +250,7 @@ Full-width light canvas (the old copy's "full-width dark canvas" language, updat
 
   /* Typography — Font Families */
   --font-ui-sans-serif: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-ui-monospace: 'ui-monospace', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-ui-monospace: 'ui-monospace', 'SFMono-Regular', 'Menlo', monospace;
 
   /* Typography — Scale */
   --text-caption: 12px; --leading-caption: 1.5; --tracking-caption: 0.3px;
@@ -305,7 +307,7 @@ Full-width light canvas (the old copy's "full-width dark canvas" language, updat
   --ease-out-smooth: cubic-bezier(0, 0, 0.2, 1);
 
   --font-ui-sans-serif: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-ui-monospace: 'ui-monospace', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-ui-monospace: 'ui-monospace', 'SFMono-Regular', 'Menlo', monospace;
 
   --text-caption: 12px; --leading-caption: 1.5; --tracking-caption: 0.3px;
   --text-body-sm: 14px; --leading-body-sm: 1.65;
