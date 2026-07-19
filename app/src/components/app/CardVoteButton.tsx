@@ -63,8 +63,11 @@ export function CardVoteButton({
         txSig ? { txSig } : undefined,
       );
     } catch (err) {
-      // Roll back the optimistic bump — the vote didn't actually land.
-      setOptimisticWeight(voteWeight);
+      // Roll back the optimistic bump — the vote didn't actually land. Reset
+      // to prevOptimistic (the value right before this attempt), not the
+      // stale voteWeight prop, so an earlier successful vote in the same
+      // session isn't silently wiped from the display by a later failure.
+      setOptimisticWeight(prevOptimistic);
       toast.error(err instanceof Error ? err.message : "Vote failed");
     } finally {
       setBusy(false);
@@ -117,6 +120,10 @@ export function CardVoteButton({
       </button>
 
       {pickerOpen && (
+        // Relies on ~120px of content above the vote row within the card
+        // (image + title strip) to avoid being clipped by AppCard's outer
+        // overflow-hidden — see Task 8 code review. If card content ever
+        // shrinks below that, portal this to document.body like Modal.tsx does.
         <div
           role="dialog"
           aria-label="Custom vote amount"
