@@ -48,7 +48,7 @@ async function main() {
 
   // pageSize is set well beyond any realistic catalog size — this script
   // needs every app, not a paginated slice.
-  const { apps } = await searchApps({ q: "", tags: [], fuzzy: "", sort: "rank", page: 1, pageSize: 100_000, intervalDays: 7 });
+  const { apps } = await searchApps({ q: "", tags: [], fuzzy: "", sort: "rank", page: 1, pageSize: 100_000 });
   const trafficByApp = await fetchPlatformTraffic(start, end);
   const traffic = apps.map((app) => ({
     appId: app.id,

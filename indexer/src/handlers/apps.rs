@@ -60,12 +60,14 @@ pub struct AppDto {
 
 /// How much each of an app's stats moved over `interval_days`, as a percent
 /// change from its `AppStatsSnapshot` baseline — the data behind Discover's
-/// AppCard subtext ("+12%/7d") and the "trending" sort. Each field is
-/// independently `None` (rather than the whole struct) when its own
-/// baseline value was exactly 0 — "grew from 0" has no meaningful percent,
-/// and returning `None` there instead of `Infinity`/a huge number keeps one
-/// zero-baseline stat from hiding the other three, which usually still have
-/// a real baseline.
+/// AppCard subtext ("+12%/7d"). Always the weekly window (see
+/// `TREND_DISPLAY_DAYS`) regardless of the active sort — "trending_month"
+/// reorders results using its own separate 30-day baseline, but every
+/// card's displayed delta stays weekly. Each field is independently `None`
+/// (rather than the whole struct) when its own baseline value was exactly 0
+/// — "grew from 0" has no meaningful percent, and returning `None` there
+/// instead of `Infinity`/a huge number keeps one zero-baseline stat from
+/// hiding the other three, which usually still have a real baseline.
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TrendDto {
@@ -412,18 +414,18 @@ pub struct SearchInput {
     pub page: i64,
     #[serde(default = "default_page_size")]
     pub page_size: i64,
-    /// The window behind both the "trending" sort and every returned app's
-    /// `trend` subtext data — one shared value drives both (see
-    /// Discover.tsx's interval toggle), since AppCard shows a stat delta on
-    /// every card regardless of which sort is active, not just "trending".
-    #[serde(default = "default_interval_days")]
-    pub interval_days: i64,
 }
 
 fn default_sort() -> String { "rank".to_string() }
 fn default_page() -> i64 { 1 }
 fn default_page_size() -> i64 { 20 }
-fn default_interval_days() -> i64 { 7 }
+
+/// Every returned app's `trend`/AppCard subtext is always this window
+/// ("weekly growth"), independent of `sort` — see this module's `search_apps`.
+const TREND_DISPLAY_DAYS: i64 = 7;
+/// The comparison window behind the "trending_month" sort option — see
+/// `SORT_OPTIONS` in constants.ts for "Trending (week)"/"Trending (month)".
+const TRENDING_MONTH_DAYS: i64 = 30;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -698,16 +700,25 @@ pub async fn search_apps(pool: &PgPool, input: &SearchInput) -> Result<SearchRes
         apps.retain(|a| fuzzy_match(&format!("{} {} {}", a.name, a.tagline, a.description), fuzzy));
     }
 
-    // Trend data (AppCard's "+12%/7d" subtext) is attached to every
-    // returned app regardless of sort — only "trending" below reorders by
-    // it. One bulk query for the whole filtered set, not one per app.
+    // Trend data (AppCard's "+12%/7d" subtext) is always the weekly window,
+    // attached to every returned app regardless of sort. One bulk query for
+    // the whole filtered set, not one per app.
     let app_ids: Vec<String> = apps.iter().map(|a| a.id.clone()).collect();
-    let baseline = fetch_trend_baseline(pool, &app_ids, input.interval_days).await?;
+    let weekly_baseline = fetch_trend_baseline(pool, &app_ids, TREND_DISPLAY_DAYS).await?;
     for app in &mut apps {
-        if let Some(b) = baseline.get(&app.id) {
-            app.trend = Some(trend_for(app, b, input.interval_days));
+        if let Some(b) = weekly_baseline.get(&app.id) {
+            app.trend = Some(trend_for(app, b, TREND_DISPLAY_DAYS));
         }
     }
+
+    // "trending_month" compares against a 30-day-old baseline instead of the
+    // weekly one above — fetched separately since it's only used to order
+    // results, never shown (AppCard's subtext stays weekly regardless).
+    let monthly_baseline = if input.sort == "trending_month" {
+        Some(fetch_trend_baseline(pool, &app_ids, TRENDING_MONTH_DAYS).await?)
+    } else {
+        None
+    };
 
     let max_rank = apps.iter().map(|a| a.rank_score).fold(0.0, f64::max);
     match input.sort.as_str() {
@@ -716,7 +727,13 @@ pub async fn search_apps(pool: &PgPool, input: &SearchInput) -> Result<SearchRes
         "traffic" => apps.sort_by(|a, b| b.view_count.cmp(&a.view_count)),
         "new" => apps.sort_by(|a, b| b.created_at.cmp(&a.created_at)),
         // Top gainers first — see compare_trending's doc comment.
-        "trending" => apps.sort_by(|a, b| compare_trending(&a.id, a.rank_score, &b.id, b.rank_score, &baseline)),
+        "trending_week" => {
+            apps.sort_by(|a, b| compare_trending(&a.id, a.rank_score, &b.id, b.rank_score, &weekly_baseline))
+        }
+        "trending_month" => {
+            let baseline = monthly_baseline.as_ref().unwrap();
+            apps.sort_by(|a, b| compare_trending(&a.id, a.rank_score, &b.id, b.rank_score, baseline))
+        }
         _ => apps.sort_by(|a, b| {
             let sa = crate::handlers::engine::combine_search_score(text_relevance(a, &terms), a.rank_score, max_rank);
             let sb = crate::handlers::engine::combine_search_score(text_relevance(b, &terms), b.rank_score, max_rank);
