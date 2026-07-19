@@ -63,3 +63,21 @@ export const SITE_DESCRIPTION =
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
 ).replace(/\/$/, "");
+
+/** GitHub repo — linked from the footer. */
+export const SITE_GITHUB_URL =
+  process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/Dodecahedr0x/appmap";
+
+/** Twitter/X profile — linked from the footer. */
+export const SITE_TWITTER_URL =
+  process.env.NEXT_PUBLIC_TWITTER_URL || "https://x.com/Dodecahedr0x";
+
+/**
+ * Docs site (see docs-site/, a statically-generated Mintlify build deployed
+ * as its own Render static site — see render.yaml's
+ * nebulous-world-docs service and docs-site/README.md). Defaults to that
+ * service's onrender.com URL, matching every other service name in
+ * render.yaml; override once a custom docs domain is attached.
+ */
+export const SITE_DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL || "https://nebulous-world-docs.onrender.com";

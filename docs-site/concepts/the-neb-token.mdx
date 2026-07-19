@@ -1,0 +1,38 @@
+---
+title: The NEB token
+description: "What NEB is, how it's used, and how to get it"
+---
+
+**NEB** (full name **Nebula**) is the one token every on-chain feature in
+nebulous.world uses: votes, tag stakes, unstake fees, ad-revenue rewards,
+and the [data API's](/api-reference/overview) per-request pricing are all
+denominated in NEB.
+
+## How to get NEB
+
+NEB isn't minted or sold by the `nebulous_world` program itself. It's
+minted once, with its full supply, with on-chain Metaplex metadata — that
+entire supply then seeds a single-sided **NEB/USDC pool on Meteora's
+Dynamic Liquidity Market Maker (DLMM)**. Buying NEB is a direct swap
+against that public pool, the same way you'd swap into any other SPL
+token — not a special instruction on nebulous.world's own program.
+
+## Where NEB moves
+
+| Action | Effect |
+| --- | --- |
+| Vote for an app | NEB committed, weighted into that app's rank |
+| Stake behind a tag | NEB committed, boosts the app's rank and starts earning ad-revenue share |
+| Withdraw a vote or tag stake | NEB returned, minus a fee that decays linearly from 1% (immediate) to 0% (after 7 days) |
+| Claim rewards | Accrued ad-revenue share, in NEB, paid out without touching the underlying vote/stake |
+| Pay for a data API request | NEB transferred directly to the platform treasury over x402 — see [Data API](/api-reference/overview) |
+
+## Simulation mode
+
+Until a real NEB mint and treasury address are configured for a given
+deployment, every NEB-denominated feature above (voting, staking,
+withdrawal fees, and the data API) runs in a **simulation mode**: fully
+interactive and exercisable, but without a real token movement or a real
+x402 payment requirement. This is a deployment-time configuration, not a
+user-facing setting — see the main repo's `README.md` if you're running
+your own instance.
