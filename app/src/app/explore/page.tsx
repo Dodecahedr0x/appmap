@@ -1,89 +1,31 @@
 import type { Metadata } from "next";
-import { fetchPlatformStats, fetchPlatformViewsTrend } from "@/lib/indexerClient";
-import { fetchPlatformMetricsHistory } from "@/lib/indexerClient";
-import { formatToken, formatNumber } from "@/lib/utils";
-import { TOKEN_SYMBOL, SITE_URL } from "@/lib/constants";
-import { config } from "@/lib/config";
+import { SITE_URL } from "@/lib/constants";
 import { ExploreMaps } from "@/components/explore/ExploreMaps";
-import { MetricTrendCard, type TrendPoint } from "@/components/explore/MetricTrendCard";
-
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Explore",
-  description: "See what's happening across nebulous.world — top apps, tag trends, and how apps and tags relate to each other.",
+  description: "Browse nebulous.world by tag, or click through the app, tag, and group maps to see how everything connects.",
   alternates: { canonical: `${SITE_URL}/explore` },
 };
 
-export default async function ExplorePage() {
-  // The on-chain-derived series (apps/tags/votes/stake) comes from the
-  // indexer, which is a separate service that can be unreachable in some
-  // environments — degrade to an empty trend rather than failing the whole
-  // page over a chart that isn't this page's only content (unlike
-  // app/rewards/page.tsx, where the indexer status *is* the page).
-  const [stats, onchainHistory, viewsTrend] = await Promise.all([
-    fetchPlatformStats(),
-    fetchPlatformMetricsHistory().catch(() => []),
-    fetchPlatformViewsTrend(),
-  ]);
-
-  const scale = 10 ** config.solana.voteTokenDecimals;
-  const appsTrend: TrendPoint[] = onchainHistory.map((p) => ({ x: p.capturedAt, y: p.appCount }));
-  const tagsTrend: TrendPoint[] = onchainHistory.map((p) => ({ x: p.capturedAt, y: p.tagCount }));
-  const votesTrend: TrendPoint[] = onchainHistory.map((p) => ({
-    x: p.capturedAt,
-    y: Number(p.totalVoteStake) / scale,
-  }));
-  const stakeTrend: TrendPoint[] = onchainHistory.map((p) => ({
-    x: p.capturedAt,
-    y: Number(p.totalTagStake) / scale,
-  }));
-  const viewsTrendPoints: TrendPoint[] = viewsTrend.map((p) => ({ x: p.date, y: p.totalViews }));
-
+// Platform-wide activity metrics used to live here — moved to the Rewards
+// page (see components/rewards/PlatformMetrics.tsx), which is where the
+// product's other "read the numbers" surfaces (pool analytics) already
+// live. This page is just the maps now: pick a tag/tab up top, click a node
+// to see the apps behind it below — the same selector-then-results shape as
+// the Discover page, just browsing by tag/connection instead of by search.
+export default function ExplorePage() {
   return (
-    <div className="space-y-16">
+    <div className="space-y-6">
       <div>
         <h1 className="font-display text-heading-xl font-normal text-ink">Explore</h1>
         <p className="mt-2 max-w-2xl text-pretty text-subheading text-slate">
-          A closer look at what&apos;s happening across nebulous.world: who the community is
-          backing, which apps are worth a look, and how it all connects.
+          Browse by tag, or click through the app, tag, and group maps to see how nebulous.world
+          connects.
         </p>
       </div>
 
-      <section>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <MetricTrendCard label="Apps" value={formatNumber(stats.totalApps)} data={appsTrend} />
-          <MetricTrendCard label="Tags" value={formatNumber(stats.totalTags)} data={tagsTrend} />
-          <MetricTrendCard
-            label="Votes cast"
-            value={formatToken(stats.totalVoteWeight, TOKEN_SYMBOL)}
-            data={votesTrend}
-            valueKind="token"
-          />
-          <MetricTrendCard
-            label="Staked"
-            value={formatToken(stats.totalStake, TOKEN_SYMBOL)}
-            data={stakeTrend}
-            valueKind="token"
-          />
-          <MetricTrendCard
-            label="Page views"
-            value={formatNumber(stats.totalViews)}
-            data={viewsTrendPoints}
-          />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-heading font-semibold text-ink">Maps</h2>
-        <p className="mt-1 max-w-2xl text-pretty text-sm text-slate">
-          Three views of how nebulous.world connects — pick a tab, then click a node to see the
-          apps behind it.
-        </p>
-        <div className="mt-6">
-          <ExploreMaps />
-        </div>
-      </section>
+      <ExploreMaps />
     </div>
   );
 }
