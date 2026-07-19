@@ -125,14 +125,14 @@ export function ExploreMaps() {
 
   return (
     <div>
-      {/* Same Carbon-card surface as every other panel in the app (see
-          .card in globals.css) — this used to be a bespoke dark-glass
-          treatment (translucent white overlays, a hand-picked abyss →
-          singularity gradient) built for when this was the one dark
+      {/* Same light Surface/bg-ivory card treatment as every other panel in
+          the app (see .card in globals.css) — this used to be a bespoke
+          dark-glass treatment (translucent white overlays, a hand-picked
+          abyss → singularity gradient) built for when this was the one dark
           section on an otherwise light-cream page, sitting on an animated
-          nebula backdrop. Now that the whole app is the same dark Astro
-          theme (see DESIGN.md) and the nebula backdrop is gone, that
-          bespoke treatment just reads as visually out of step with
+          nebula backdrop. Now that the whole app has been repainted to the
+          shared light theme (see DESIGN.md) and the nebula backdrop is gone,
+          that bespoke treatment would read as visually out of step with
           everything else — this panel is a card like any other now. */}
       <section className="card overflow-hidden p-4 sm:p-6">
         <div className="space-y-4">

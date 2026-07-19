@@ -41,11 +41,13 @@ const ToastContext = createContext<ToastApi | null>(null);
 
 let counter = 0;
 
-// RGB (0-1) per kind, fed to ToastGlow's shader — same hues as the kind's
-// text/border color below, just as floats instead of a Tailwind class.
+// RGB (0-1) per kind, fed to ToastGlow's shader — same hue family as the
+// kind's text/border color below, just as floats instead of a Tailwind
+// class. The error glow is intentionally brighter than the `negative`
+// token (#b91c1c) used for text/border below, for visibility in the shader.
 const GLOW_COLOR: Record<ToastKind, readonly [number, number, number]> = {
   success: [0.180, 0.969, 0.776], // aurora mint
-  error: [0.973, 0.443, 0.443], // red-400
+  error: [0.973, 0.443, 0.443], // bright red glow
   info: [0.329, 0.725, 1.0], // plasma blue
 };
 
@@ -101,7 +103,7 @@ export function Toaster({ children }: { children: ReactNode }) {
               "pointer-events-auto relative overflow-hidden rounded-card border bg-ivory/90 backdrop-blur-md transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
               t.leaving ? "translate-y-1 opacity-0" : "animate-fade-in translate-y-0 opacity-100",
               t.kind === "success" && "border-forest/30",
-              t.kind === "error" && "border-red-400/30",
+              t.kind === "error" && "border-negative/30",
               t.kind === "info" && "border-hairline",
             )}
           >

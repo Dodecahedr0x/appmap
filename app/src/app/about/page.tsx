@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchPlatformStats } from "@/lib/indexerClient";
-import { formatNumber, formatToken, splitValueUnit } from "@/lib/utils";
+import { cn, formatNumber, formatToken, splitValueUnit } from "@/lib/utils";
 import { SITE_NAME, SITE_URL, TOKEN_NAME, TOKEN_SYMBOL } from "@/lib/constants";
 import { X402_ENDPOINTS } from "@/lib/x402";
 import { ConstellationField } from "@/components/about/ConstellationField";
@@ -295,18 +295,19 @@ PAYMENT-RESPONSE: eyJzZXR0bGVkIjp0cnVlLCJ0cmFuc2FjdGlvbiI6Ii4uLiJ9
           <span className="text-body-sm font-semibold uppercase tracking-wide text-violet">
             Right now
           </span>
-          <h2 className="mt-2 text-balance font-display text-heading font-light text-ink">
+          <h2 className="mt-2 text-balance font-display text-heading font-light text-white">
             Live on {SITE_NAME}
           </h2>
           <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5">
-            <StatItem label="Apps" value={formatNumber(stats.totalApps)} />
-            <StatItem label="Tags" value={formatNumber(stats.totalTags)} />
+            <StatItem dark label="Apps" value={formatNumber(stats.totalApps)} />
+            <StatItem dark label="Tags" value={formatNumber(stats.totalTags)} />
             <StatItem
+              dark
               label="Votes cast"
               value={formatToken(stats.totalVoteWeight, TOKEN_SYMBOL)}
             />
-            <StatItem label="Staked" value={formatToken(stats.totalStake, TOKEN_SYMBOL)} />
-            <StatItem label="Page views" value={formatNumber(stats.totalViews)} />
+            <StatItem dark label="Staked" value={formatToken(stats.totalStake, TOKEN_SYMBOL)} />
+            <StatItem dark label="Page views" value={formatNumber(stats.totalViews)} />
           </div>
         </div>
       </section>
@@ -362,7 +363,21 @@ PAYMENT-RESPONSE: eyJzZXR0bGVkIjp0cnVlLCJ0cmFuc2FjdGlvbiI6Ii4uLiJ9
   );
 }
 
-function StatItem({ label, value }: { label: string; value: string }) {
+function StatItem({
+  label,
+  value,
+  dark,
+}: {
+  label: string;
+  value: string;
+  // This section (the "Live on nebulous.world" stats strip) is a deliberate
+  // dark island on an otherwise light page — same bg-[#040509] treatment as
+  // the terminal command box above it. `text-ink` resolves to near-black in
+  // this theme, so it's invisible there; `dark` swaps in the same literal
+  // white/white-70 escape hatch the terminal box uses instead of the
+  // light-theme tokens.
+  dark?: boolean;
+}) {
   // Grid items get an implicit min-width: auto, sized to their content's
   // longest unbreakable run — at 30px bold this number can be wider than
   // its column, which pushed the whole grid (and, via the shared
@@ -374,12 +389,28 @@ function StatItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <div className="flex flex-wrap items-baseline gap-x-1.5">
-        <span className="font-display text-heading-sm font-normal tabular-nums text-ink">
+        <span
+          className={cn(
+            "font-display text-heading-sm font-normal tabular-nums",
+            dark ? "text-white" : "text-ink",
+          )}
+        >
           {amount}
         </span>
-        {unit && <span className="text-body-sm text-slate-steel">{unit}</span>}
+        {unit && (
+          <span className={cn("text-body-sm", dark ? "text-white/70" : "text-slate-steel")}>
+            {unit}
+          </span>
+        )}
       </div>
-      <div className="mt-1 text-caption uppercase tracking-wide text-slate-steel">{label}</div>
+      <div
+        className={cn(
+          "mt-1 text-caption uppercase tracking-wide",
+          dark ? "text-white/70" : "text-slate-steel",
+        )}
+      >
+        {label}
+      </div>
     </div>
   );
 }
