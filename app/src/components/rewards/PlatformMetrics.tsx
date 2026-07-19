@@ -9,14 +9,14 @@ import type { PlatformStats } from "@/lib/indexerClient";
  * Explore page, but it's a snapshot of the whole product, not something
  * that helps you find or compare a specific app/tag the way the maps do —
  * moved here to sit with the rest of the product's "read the numbers"
- * surfaces (see PoolAnalytics above), leaving Explore to just the maps.
+ * surfaces, leaving Explore to just the maps. Pool-specific numbers (price,
+ * reserves) live in BuyPanel instead, next to the swap form they describe.
  *
- * Rendered in two different containers now: Rewards' narrow max-w-2xl
- * reading column (the default/`wide=false` grid), and Rankings' full-width
- * max-w-7xl page (`wide=true`) — see rankings/page.tsx. The `wide` prop
- * switches the column count to match, same reasoning as the grid comment
- * below: too few columns in a wide container looks sparse/stretched, too
- * many in a narrow one squeezes each tile illegible.
+ * Rendered in two different containers now: Rewards' and Rankings' both
+ * full-width max-w-7xl pages (`wide=true`) — see rewards/page.tsx and
+ * rankings/page.tsx. The `wide` prop switches the column count up on large
+ * screens so 5-6 tiles don't look sparse/stretched in that width; the
+ * `false` default stays a tighter 3-across for any future narrower caller.
  */
 export function PlatformMetrics({
   stats,
@@ -25,6 +25,8 @@ export function PlatformMetrics({
   votesTrend,
   stakeTrend,
   viewsTrend,
+  revenueTrend,
+  revenueTotal,
   wide = false,
 }: {
   stats: PlatformStats;
@@ -33,6 +35,14 @@ export function PlatformMetrics({
   votesTrend: TrendPoint[];
   stakeTrend: TrendPoint[];
   viewsTrend: TrendPoint[];
+  /** Both omitted entirely (not just empty/0) on pages that don't fetch
+      this data — the tile only renders when `revenueTrend` is passed, so
+      it stays opt-in rather than a sixth tile appearing everywhere with a
+      flat-zero placeholder. Pre-scaled by the caller (divided by the vote
+      token's decimals), same as every trend point already passed in here —
+      this component never does raw-u64 unit math itself. */
+  revenueTrend?: TrendPoint[];
+  revenueTotal?: number;
   wide?: boolean;
 }) {
   return (
@@ -46,15 +56,12 @@ export function PlatformMetrics({
         </p>
       </div>
 
-      {/* 3 columns by default, not the wider 5-across grid this used on the
-          old full-width Explore page — the rewards page's own container is
-          a narrower max-w-2xl reading column (see rewards/page.tsx), so 5
-          columns there would squeeze each tile down to an illegible sliver.
-          3 wraps the 5 cards to two rows instead, staying legible at this
-          width. `wide` opts back into 5-across on large screens for
-          Rankings, whose container is the app-wide max-w-7xl — there, 3
-          columns would look sparse/stretched instead of cramped. */}
-      <div className={cn("grid grid-cols-2 gap-4 sm:grid-cols-3", wide && "lg:grid-cols-5")}>
+      {/* 3 columns by default; `wide` opts into a 6-across grid on large
+          screens — a clean fit whether this renders 5 tiles (Rankings, no
+          revenue tile: 5 of 6 columns used) or 6 (Rewards, with the revenue
+          tile: exact fit, and also exactly 2 even rows of 3 at the sm
+          breakpoint either way). */}
+      <div className={cn("grid grid-cols-2 gap-4 sm:grid-cols-3", wide && "lg:grid-cols-6")}>
         <MetricTrendCard label="Apps" value={formatNumber(stats.totalApps)} data={appsTrend} />
         <MetricTrendCard label="Tags" value={formatNumber(stats.totalTags)} data={tagsTrend} />
         <MetricTrendCard
@@ -70,6 +77,14 @@ export function PlatformMetrics({
           valueKind="token"
         />
         <MetricTrendCard label="Page views" value={formatNumber(stats.totalViews)} data={viewsTrend} />
+        {revenueTrend && (
+          <MetricTrendCard
+            label="Revenue distributed"
+            value={formatToken(revenueTotal ?? 0, TOKEN_SYMBOL)}
+            data={revenueTrend}
+            valueKind="token"
+          />
+        )}
       </div>
     </section>
   );

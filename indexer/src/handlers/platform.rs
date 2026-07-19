@@ -338,6 +338,11 @@ struct PlatformStatsDto {
     total_vote_weight: f64,
     total_stake: f64,
     total_views: i32,
+    /// All-time sum of every `fund_app_rewards` instruction's `amount`, raw
+    /// on-chain u64 (vote-token decimals) as a decimal string — see
+    /// `RevenueTrendPointDto`'s comment below for why this reads from
+    /// `indexed_instruction` rather than a dedicated table.
+    total_revenue_distributed: String,
 }
 
 async fn platform_stats(State(state): State<Arc<ApiState>>) -> Result<Json<PlatformStatsDto>, ApiError> {
@@ -360,12 +365,24 @@ async fn platform_stats(State(state): State<Arc<ApiState>>) -> Result<Json<Platf
     .await
     .map_err(crate::api::internal)?;
 
+    let total_revenue_distributed: Option<String> = sqlx::query_scalar(
+        r#"
+        SELECT SUM((data->'data'->>'amount')::numeric)::text
+        FROM indexed_instruction
+        WHERE instruction_name = 'fund_app_rewards'
+        "#,
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
     Ok(Json(PlatformStatsDto {
         total_apps,
         total_tags,
         total_vote_weight: total_vote_weight.unwrap_or(0.0),
         total_stake: total_stake.unwrap_or(0.0),
         total_views: total_views.unwrap_or(0) as i32,
+        total_revenue_distributed: total_revenue_distributed.unwrap_or_else(|| "0".to_string()),
     }))
 }
 
@@ -397,6 +414,54 @@ async fn platform_views_trend(State(state): State<Arc<ApiState>>) -> Result<Json
     ))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RevenueTrendPointDto {
+    date: String,
+    /// Raw on-chain u64 amount (vote-token decimals) summed for that day,
+    /// as a decimal string — same convention as `PlatformMetricsPointDto`'s
+    /// `total_vote_stake`/`total_tag_stake` in api.rs, for the same reason
+    /// (a scaled u64 can exceed f64's safe integer range).
+    amount: String,
+}
+
+/// Every `fund_app_rewards` call (the on-chain half of epoch settlement —
+/// see `app/scripts/settleEpoch.ts`) is already captured, unconditionally
+/// and idempotently, in `indexed_instruction` by the crawler's generic
+/// instruction processor (`src/processors/instruction.rs`) — there's no
+/// dedicated revenue table or Anchor event to listen for, since the
+/// program never emits one. This aggregates that raw log directly rather
+/// than adding a new periodic rollup, mirroring `platform_views_trend`
+/// above. `data` is `{"type": "FundAppRewards", "data": {"pool": ...,
+/// "amount": ...}}` per the decoder's `serde(tag = "type", content =
+/// "data")` enum encoding, hence the nested `data->'data'->>'amount'`.
+async fn platform_revenue_trend(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<Vec<RevenueTrendPointDto>>, ApiError> {
+    let rows: Vec<(NaiveDateTime, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT date_trunc('day', block_time)::timestamp AS day,
+               SUM((data->'data'->>'amount')::numeric)::text
+        FROM indexed_instruction
+        WHERE instruction_name = 'fund_app_rewards' AND block_time IS NOT NULL
+        GROUP BY day
+        ORDER BY day ASC
+        "#,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|(date, amount)| RevenueTrendPointDto {
+                date: to_rfc3339(date),
+                amount: amount.unwrap_or_else(|| "0".to_string()),
+            })
+            .collect(),
+    ))
+}
+
 pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
         .route("/apps/graph", get(app_graph))
@@ -404,4 +469,5 @@ pub fn routes() -> Router<Arc<ApiState>> {
         .route("/tags/pack", get(tag_pack))
         .route("/platform/stats", get(platform_stats))
         .route("/platform/views-trend", get(platform_views_trend))
+        .route("/platform/revenue-trend", get(platform_revenue_trend))
 }
