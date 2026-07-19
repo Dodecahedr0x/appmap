@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { TagGraph } from "@/lib/indexerClient";
 type TagGraphNode = TagGraph["nodes"][number];
@@ -49,12 +50,22 @@ const MAX_FILTER_TAGS = 30;
  * selection aren't the same kind of thing to carry across — but the tag
  * filter itself persists across tabs, since it's a standing preference,
  * not a one-off selection.
+ *
+ * Both the active tab (`?tab=`) and the tag filter (`?tags=`, repeatable)
+ * live in the URL rather than plain local state, so this view is
+ * deep-linkable — see AppCard's tag chips, which land on `?view=map&tab=
+ * group&tags=<slug>` (the `view` param is RankingsTabs' own, one level up)
+ * to open straight into "every app tagged X," filtered, with zero clicks.
  */
 export function ExploreMaps() {
-  const [tab, setTab] = useState<TabKey>("apps");
+  const router = useRouter();
+  const params = useSearchParams();
+  const rawTab = params.get("tab");
+  const tab: TabKey = rawTab === "tags" || rawTab === "group" ? rawTab : "apps";
+  const selectedTags = useMemo(() => params.getAll("tags"), [params]);
+
   const [selection, setSelection] = useState<MapSelection | null>(null);
   const [availableTags, setAvailableTags] = useState<TagGraphNode[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   // Drives the Tags tab's "typing a tag selects it on the map" behavior —
   // see ForceMap's `selectRequest` doc comment for why this needs to be a
   // fresh object every time rather than just the tag's id.
@@ -72,21 +83,42 @@ export function ExploreMaps() {
       .catch(() => {});
   }, []);
 
+  // A stale request would otherwise re-fire on remount (each tab's map
+  // fully remounts via the `key={tab}` below) and silently re-select
+  // whatever was last picked — selection doesn't persist across tabs
+  // anywhere else in this component either, so this shouldn't be the one
+  // exception. Runs on every tab change regardless of what triggered it
+  // (a click here, or a deep link landing directly on a different tab).
+  useEffect(() => {
+    setSelection(null);
+    setTagSelectRequest(null);
+  }, [tab]);
+
+  function pushParams(next: { tab?: TabKey; tags?: string[] }) {
+    const sp = new URLSearchParams(params.toString());
+    if (next.tab !== undefined) {
+      if (next.tab === "apps") sp.delete("tab");
+      else sp.set("tab", next.tab);
+    }
+    if (next.tags !== undefined) {
+      sp.delete("tags");
+      for (const t of next.tags) sp.append("tags", t);
+    }
+    const qs = sp.toString();
+    router.push(qs ? `/rankings?${qs}` : "/rankings", { scroll: false });
+  }
+
   function switchTab(next: TabKey) {
     if (next === tab) return;
-    setTab(next);
-    setSelection(null);
-    // A stale request would otherwise re-fire on remount (each tab's map
-    // fully remounts via the `key={tab}` below) and silently re-select
-    // whatever was last picked — selection doesn't persist across tabs
-    // anywhere else in this component either (see `setSelection(null)`
-    // above), so this shouldn't be the one exception.
-    setTagSelectRequest(null);
+    pushParams({ tab: next });
   }
 
   function toggleTagFilter(slug: string) {
     setSelection(null);
-    setSelectedTags((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
+    const next = selectedTags.includes(slug)
+      ? selectedTags.filter((s) => s !== slug)
+      : [...selectedTags, slug];
+    pushParams({ tags: next });
   }
 
   // Tags tab only: picking a tag from the search box selects it on the map
@@ -193,7 +225,7 @@ export function ExploreMaps() {
                       <span aria-hidden="true">✕</span>
                     </button>
                   ))}
-                  <button type="button" onClick={() => setSelectedTags([])} className="chip">
+                  <button type="button" onClick={() => pushParams({ tags: [] })} className="chip">
                     Clear filters
                   </button>
                 </div>

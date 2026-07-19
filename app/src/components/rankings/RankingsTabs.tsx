@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +16,24 @@ const TABS: { key: TabKey; label: string }[] = [
  * (comparison-friendly tabular data), Map view is the constellation map —
  * demoted from its old status as the whole Explore page to one optional
  * lens here. See docs/plans/2026-07-19-light-redesign-design.md.
+ *
+ * The active tab lives in the URL (`?view=map`), not just local state — so
+ * a link can deep-link straight into Map view (see AppCard's tag chips,
+ * which land here with `?view=map&tab=group&tags=<slug>` for ExploreMaps'
+ * own nested tab/filter state below to pick up).
  */
 export function RankingsTabs({ leaderboard, map }: { leaderboard: ReactNode; map: ReactNode }) {
-  const [tab, setTab] = useState<TabKey>("leaderboard");
+  const router = useRouter();
+  const params = useSearchParams();
+  const tab: TabKey = params.get("view") === "map" ? "map" : "leaderboard";
+
+  function setTab(next: TabKey) {
+    const sp = new URLSearchParams(params.toString());
+    if (next === "leaderboard") sp.delete("view");
+    else sp.set("view", next);
+    const qs = sp.toString();
+    router.push(qs ? `/rankings?${qs}` : "/rankings", { scroll: false });
+  }
 
   return (
     <div className="space-y-4">

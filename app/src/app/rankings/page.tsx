@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SITE_URL } from "@/lib/constants";
 import { PageHeader } from "@/components/PageHeader";
@@ -67,10 +68,12 @@ export default async function RankingsPage() {
         wide
       />
 
-      <RankingsTabs
-        leaderboard={<Leaderboard apps={searchResult.apps.slice(0, LEADERBOARD_SIZE)} />}
-        map={<ExploreMaps />}
-      />
+      <Suspense fallback={<div className="py-16 text-center text-slate-steel">Loading…</div>}>
+        <RankingsTabs
+          leaderboard={<Leaderboard apps={searchResult.apps.slice(0, LEADERBOARD_SIZE)} />}
+          map={<ExploreMaps />}
+        />
+      </Suspense>
     </div>
   );
 }

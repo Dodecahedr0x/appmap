@@ -2,8 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { AppDTO } from "@/lib/types";
 import { formatToken, formatNumber, hostname, cn, topStakedTag, formatDelta } from "@/lib/utils";
-import { TOKEN_SYMBOL } from "@/lib/constants";
 import { CardVoteButton } from "@/components/app/CardVoteButton";
+import { TagChip } from "@/components/app/TagChip";
 
 // Caps the chips shown on a card — an app can carry arbitrarily many tags
 // (see scripts/createAppsOnchain.ts), but the card itself has room for a
@@ -88,9 +88,10 @@ export function AppCard({
           </span>
         )}
         {topTag && (
-          <span className="chip absolute right-2.5 top-2.5 border-none bg-ivory/90">
-            #{topTag.name}
-          </span>
+          <TagChip
+            tag={topTag}
+            className="absolute right-2.5 top-2.5 border-none bg-ivory/90"
+          />
         )}
       </div>
 
@@ -113,26 +114,8 @@ export function AppCard({
             .sort((a, b) => b.stakeTotal - a.stakeTotal)
             .slice(0, MAX_VISIBLE_TAGS)
             .map((t) => (
-            <span
-              key={t.id}
-              className={cn(
-                "chip text-[11px]",
-                t.stakeTotal > 0 && "chip-active",
-              )}
-              title={
-                t.stakeTotal > 0
-                  ? `${formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked`
-                  : "No stake yet"
-              }
-            >
-              #{t.name}
-              {t.stakeTotal > 0 && (
-                <span className="text-cobalt">
-                  {formatToken(t.stakeTotal, "")}
-                </span>
-              )}
-            </span>
-          ))}
+              <TagChip key={t.id} tag={t} />
+            ))}
         </div>
       )}
 
