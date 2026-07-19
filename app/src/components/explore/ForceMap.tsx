@@ -56,6 +56,16 @@ interface ForceMapProps<RawNode, RawLink> {
   // from a fetch failure, which still falls back to sample data, since a
   // genuinely empty result shouldn't be masked by unrelated sample nodes.
   emptyMessage?: string;
+  // Programmatically selects the node with this id — e.g. a caller-side
+  // search/autocomplete picking a node without the user clicking it
+  // directly. A fresh object each time (not just a changed `id`) is what
+  // triggers it: selection state lives inside this component's own
+  // imperative canvas closure, not in React state a parent could otherwise
+  // diff against, so re-selecting the SAME id twice in a row (e.g. picking
+  // it again after clicking a different node on the canvas directly in
+  // between) needs a new object reference to be noticed at all — see the
+  // effect below.
+  selectRequest?: { id: string } | null;
 }
 
 // DESIGN.md tokens (see globals.css/tailwind.config.ts): plasma blue for
@@ -168,6 +178,7 @@ export function ForceMap<RawNode, RawLink>({
   sourceLabel,
   onSelect,
   emptyMessage,
+  selectRequest,
 }: ForceMapProps<RawNode, RawLink>) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [source, setSource] = useState<"live" | "sample">("sample");
@@ -196,6 +207,12 @@ export function ForceMap<RawNode, RawLink>({
   const zoomActionsRef = useRef<{ zoomIn: () => void; zoomOut: () => void; reset: () => void } | undefined>(
     undefined,
   );
+  // Set once the simulation is running (see `start()` below) to the
+  // closure's own `selectNode` — lets `selectRequest` (an external,
+  // React-visible prop) reach into state that otherwise lives only inside
+  // that closure, the same indirection `zoomActionsRef`/`applyMetricsRef`
+  // already use for their own imperative actions.
+  const externalSelectRef = useRef<((id: string | null) => void) | undefined>(undefined);
   // Exposes the same adjacency map the canvas click handler uses, so the
   // sr-only list's select action (keyboard/screen-reader path) reports the
   // same "connected peers" a mouse click would, instead of an empty array.
@@ -586,6 +603,10 @@ export function ForceMap<RawNode, RawLink>({
         onSelect?.(node, node ? [...(neighbors.get(node.id) ?? [])] : []);
       }
 
+      externalSelectRef.current = (id) => {
+        selectNode(id ? nodes.find((n) => n.id === id) ?? null : null);
+      };
+
       // Wheel = zoom to cursor. Listened natively (not React's onWheel) so
       // preventDefault reliably stops page scroll while the cursor is over
       // the map, which requires an explicit non-passive listener.
@@ -683,6 +704,7 @@ export function ForceMap<RawNode, RawLink>({
         ro.disconnect();
         applyMetricsRef.current = undefined;
         zoomActionsRef.current = undefined;
+        externalSelectRef.current = undefined;
         neighborsRef.current = new Map();
         canvas!.removeEventListener("pointerdown", onDown);
         canvas!.removeEventListener("pointerleave", onLeave);
@@ -701,6 +723,18 @@ export function ForceMap<RawNode, RawLink>({
     // toggling it doesn't re-fetch or restart the drag/hover listeners.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchUrl]);
+
+  // `selectRequest` going from null to a real request always means "select
+  // this," even if the caller re-selects the same id twice in a row — see
+  // `selectRequest`'s doc comment on `ForceMapProps` for why that needs a
+  // fresh object reference rather than an id-equality check to notice.
+  // No-ops harmlessly if the simulation hasn't started yet (externalSelectRef
+  // still unset) — a caller driving this is expected to wait for a user
+  // interaction first, by which point the map has virtually always loaded.
+  useEffect(() => {
+    if (selectRequest) externalSelectRef.current?.(selectRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectRequest]);
 
   function handleSizeChange(key: string) {
     setSizeKey(key);

@@ -44,7 +44,14 @@ const FALLBACK_LINKS: MapLink[] = [
  * total stake / how often two tags are used together. Click a tag to select
  * it and see apps carrying it (and its closest neighbor tags) below the map.
  */
-export function TagMap({ onSelect }: { onSelect?: (node: MapNode | null, neighborIds: string[]) => void }) {
+export function TagMap({
+  onSelect,
+  selectRequest,
+}: {
+  onSelect?: (node: MapNode | null, neighborIds: string[]) => void;
+  /** Selects a tag node programmatically — e.g. typed into the tag search above the map — the same as clicking it directly. See ForceMap's `selectRequest` doc comment. */
+  selectRequest?: { id: string } | null;
+}) {
   return (
     <ForceMap<TagGraphNode, TagGraphEdge>
       fetchUrl="/api/tags/graph"
@@ -55,6 +62,7 @@ export function TagMap({ onSelect }: { onSelect?: (node: MapNode | null, neighbo
       sourceLabel="tags"
       ariaLabel="Map of nebulous.world tags. Circle size and connection strength depend on the selected options; by default, size reflects total stake and connections show how often two tags appear on the same app. Click a tag to select it and see related apps below; drag a node to reposition, drag the background to pan, scroll to zoom."
       onSelect={onSelect}
+      selectRequest={selectRequest}
       sizeMetrics={[
         { key: "stake", label: "Stake", format: (v) => `${formatToken(v, TOKEN_SYMBOL)} staked` },
         { key: "appCount", label: "Apps using it", format: (v) => `${formatNumber(v)} apps` },

@@ -8,6 +8,7 @@ import { AppMap } from "./AppMap";
 import { TagMap } from "./TagMap";
 import { GroupMap } from "./GroupMap";
 import { RelatedApps, type MapSelection } from "./RelatedApps";
+import { TagAutocomplete } from "./TagAutocomplete";
 import type { MapNode } from "./ForceMap";
 
 type TabKey = "apps" | "tags" | "group";
@@ -54,6 +55,10 @@ export function ExploreMaps() {
   const [selection, setSelection] = useState<MapSelection | null>(null);
   const [availableTags, setAvailableTags] = useState<TagGraphNode[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // Drives the Tags tab's "typing a tag selects it on the map" behavior —
+  // see ForceMap's `selectRequest` doc comment for why this needs to be a
+  // fresh object every time rather than just the tag's id.
+  const [tagSelectRequest, setTagSelectRequest] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/tags/graph")
@@ -71,11 +76,26 @@ export function ExploreMaps() {
     if (next === tab) return;
     setTab(next);
     setSelection(null);
+    // A stale request would otherwise re-fire on remount (each tab's map
+    // fully remounts via the `key={tab}` below) and silently re-select
+    // whatever was last picked — selection doesn't persist across tabs
+    // anywhere else in this component either (see `setSelection(null)`
+    // above), so this shouldn't be the one exception.
+    setTagSelectRequest(null);
   }
 
   function toggleTagFilter(slug: string) {
     setSelection(null);
     setSelectedTags((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
+  }
+
+  // Tags tab only: picking a tag from the search box selects it on the map
+  // exactly as clicking its node would (see TagMap/ForceMap's
+  // `selectRequest` prop) — there's no "filter" concept on this tab (every
+  // tag is always shown), so typing a tag jumps to it instead of narrowing
+  // anything down.
+  function selectTagOnMap(slug: string) {
+    setTagSelectRequest({ id: slug });
   }
 
   function handleAppSelect(node: MapNode | null, neighborIds: string[]) {
@@ -145,23 +165,54 @@ export function ExploreMaps() {
               <div className="text-caption font-semibold uppercase tracking-wide text-slate">
                 Filter by tag{selectedTags.length > 0 ? ` (${selectedTags.length} selected)` : ""}
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {availableTags.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => toggleTagFilter(t.id)}
-                    aria-pressed={selectedTags.includes(t.id)}
-                    className={cn("chip", selectedTags.includes(t.id) && "chip-active")}
-                  >
-                    #{t.name}
-                  </button>
-                ))}
-                {selectedTags.length > 0 && (
+              <div className="mt-1.5 max-w-xs">
+                <TagAutocomplete
+                  options={availableTags}
+                  excludeIds={selectedTags}
+                  onSelect={toggleTagFilter}
+                  placeholder="Search tags to filter by…"
+                  ariaLabel="Search tags to filter the map by"
+                />
+              </div>
+              {/* Selected tags live below the search box, not in it — the
+                  box always starts empty (see TagAutocomplete's own doc
+                  comment: it's a picker, not a persistent search field), so
+                  this is the only place the current filter is visible.
+                  Clicking one removes it, same toggle the search box's
+                  onSelect uses to add it. */}
+              {selectedTags.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {selectedTags.map((slug) => (
+                    <button
+                      key={slug}
+                      type="button"
+                      onClick={() => toggleTagFilter(slug)}
+                      className="chip chip-active"
+                    >
+                      #{availableTags.find((t) => t.id === slug)?.name ?? slug}
+                      <span aria-hidden="true">✕</span>
+                    </button>
+                  ))}
                   <button type="button" onClick={() => setSelectedTags([])} className="chip">
                     Clear filters
                   </button>
-                )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "tags" && availableTags.length > 0 && (
+            <div>
+              <div className="text-caption font-semibold uppercase tracking-wide text-slate">
+                Jump to a tag
+              </div>
+              <div className="mt-1.5 max-w-xs">
+                <TagAutocomplete
+                  options={availableTags}
+                  onSelect={selectTagOnMap}
+                  placeholder="Search tags…"
+                  ariaLabel="Search for a tag to select it on the map"
+                />
               </div>
             </div>
           )}
@@ -170,7 +221,7 @@ export function ExploreMaps() {
             {tab === "apps" ? (
               <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} />
             ) : tab === "tags" ? (
-              <TagMap onSelect={handleTagSelect} />
+              <TagMap onSelect={handleTagSelect} selectRequest={tagSelectRequest} />
             ) : (
               <GroupMap onSelect={handleGroupSelect} selectedTags={selectedTags} onToggleTag={toggleTagFilter} />
             )}
