@@ -61,7 +61,7 @@ export function Navbar() {
           {connected && (
             <span
               className="h-1.5 w-1.5 rounded-full bg-forest"
-              aria-label="Wallet connected"
+              aria-hidden="true"
             />
           )}
           <ConnectButton />
