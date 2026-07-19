@@ -61,7 +61,8 @@ export function ExploreMaps() {
       .then((json) => {
         if (!json.ok) return;
         const tags: TagGraphNode[] = json.data.nodes ?? [];
-        setAvailableTags([...tags].sort((a, b) => b.appCount - a.appCount).slice(0, MAX_FILTER_TAGS));
+        const mostUsed = [...tags].sort((a, b) => b.appCount - a.appCount).slice(0, MAX_FILTER_TAGS);
+        setAvailableTags(mostUsed.sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {});
   }, []);

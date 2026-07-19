@@ -527,6 +527,7 @@ fn compute_facets(apps: &[AppDto]) -> FacetsDto {
     }
     tags.sort_by(|a, b| b.2.cmp(&a.2));
     tags.truncate(30);
+    tags.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
     FacetsDto {
         tags: tags.into_iter().map(|(slug, name, count)| TagFacetDto { slug, name, count }).collect(),
     }
