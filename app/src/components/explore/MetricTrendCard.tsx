@@ -5,10 +5,9 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { formatNumber, formatToken, splitValueUnit } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 
-// DESIGN.md tokens (see tailwind.config.ts): ivory=carbon, hairline=gunmetal,
-// slate=steel, ink=lunar white, forest=aurora mint — same values this card
-// used under a component-scoped "astro-" prefix before the whole site
-// adopted them.
+// DESIGN.md tokens (see tailwind.config.ts): ivory=surface, hairline=border,
+// slate=ink muted, ink=primary text, cobalt=indigo — the light-theme values
+// of the same named tokens this card has always read from.
 
 export interface TrendPoint {
   x: string;
@@ -21,7 +20,7 @@ export interface TrendPoint {
 // points — a flat baseline at 0 reads as "nothing here yet" on its own,
 // no caption needed, and every card keeps the same layout.
 const MIN_POINTS = 7;
-const TICK_STYLE = { fontSize: 9, fill: "#9aa0ac" };
+const TICK_STYLE = { fontSize: 9, fill: "#565a66" };
 
 function withZeroFloor(data: TrendPoint[]): TrendPoint[] {
   if (data.length >= 2) return data;
@@ -125,8 +124,8 @@ export function MetricTrendCard({
           <AreaChart data={chartData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2ef7c6" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#2ef7c6" stopOpacity={0} />
+                <stop offset="0%" stopColor="#4338ca" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#4338ca" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
@@ -148,13 +147,13 @@ export function MetricTrendCard({
             />
             <Tooltip
               content={<ChartTooltip valueFormat={valueFormat} />}
-              cursor={{ stroke: "#2ef7c6", strokeOpacity: 0.3 }}
+              cursor={{ stroke: "#4338ca", strokeOpacity: 0.3 }}
               isAnimationActive={false}
             />
             <Area
               type="monotone"
               dataKey="y"
-              stroke="#2ef7c6"
+              stroke="#4338ca"
               strokeWidth={2}
               fill={`url(#${gradientId})`}
               isAnimationActive={false}
