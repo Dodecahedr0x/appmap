@@ -118,7 +118,10 @@ export default async function AboutPage() {
           text content inside is re-constrained to the normal column. */}
       <section className="relative left-1/2 -mt-8 w-screen -translate-x-1/2 overflow-hidden">
         <ConstellationField className="absolute inset-0 -z-10 h-full w-full" />
-        <div className="absolute inset-0 -z-10 bg-hero-gradient" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{ background: "radial-gradient(circle at 50% 0%, rgba(67, 56, 202, 0.08) 0%, rgba(255, 255, 255, 0) 60%)" }}
+        />
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-32 text-center sm:px-6 lg:px-8">
           <span className="rounded-pill border border-hairline bg-mist/60 px-4 py-1.5 text-caption font-semibold uppercase tracking-wide text-slate-steel backdrop-blur-sm">
             Crowd-sourced app discovery on Solana
@@ -338,7 +341,10 @@ PAYMENT-RESPONSE: eyJzZXR0bGVkIjp0cnVlLCJ0cmFuc2FjdGlvbiI6Ii4uLiJ9
 
       {/* Final CTA — same reveal/breakout split as the stats section above. */}
       <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-hero-gradient" />
+        <div
+          className="absolute inset-0 -z-10"
+          style={{ background: "radial-gradient(circle at 50% 0%, rgba(67, 56, 202, 0.08) 0%, rgba(255, 255, 255, 0) 60%)" }}
+        />
         <div className="reveal mx-auto flex max-w-2xl flex-col items-center gap-5 px-4 py-24 text-center sm:px-6 lg:px-8">
           <h2 className="text-balance font-display text-heading font-light text-ink">
             Ready to back what&apos;s good?

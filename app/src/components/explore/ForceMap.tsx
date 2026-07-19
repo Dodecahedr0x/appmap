@@ -83,7 +83,7 @@ const SELECTED_RING = "#372fb0";
 // an opaque card surface behind them, unlike this canvas overlay's
 // translucent panel over the map background.
 const DARK_CHIP =
-  "inline-flex items-center gap-1 rounded-pill border border-hairline bg-cream/80 px-2.5 py-1 text-xs text-slate transition-[color,background-color,border-color,transform] duration-150 hover:bg-mist active:scale-[0.96]";
+  "inline-flex items-center gap-1 rounded-pill border border-hairline bg-cream/80 px-2.5 py-1 text-xs text-slate transition-colors duration-150 hover:bg-mist";
 const DARK_CHIP_ACTIVE = "border-cobalt/50 bg-indigo-soft text-cobalt";
 // A pointer that moved less than this while a node was grabbed (or the
 // background was pressed) still counts as a click/tap, not a drag/pan —
@@ -790,7 +790,7 @@ export function ForceMap<RawNode, RawLink>({
             type="button"
             onClick={() => zoomActionsRef.current?.zoomIn()}
             aria-label="Zoom in"
-            className="grid h-10 w-10 place-items-center text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-slate transition-colors duration-150 hover:bg-mist"
           >
             +
           </button>
@@ -799,7 +799,7 @@ export function ForceMap<RawNode, RawLink>({
             type="button"
             onClick={() => zoomActionsRef.current?.zoomOut()}
             aria-label="Zoom out"
-            className="grid h-10 w-10 place-items-center text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-slate transition-colors duration-150 hover:bg-mist"
           >
             −
           </button>
@@ -808,7 +808,7 @@ export function ForceMap<RawNode, RawLink>({
             type="button"
             onClick={() => zoomActionsRef.current?.reset()}
             aria-label="Reset zoom and pan"
-            className="grid h-10 w-10 place-items-center text-sm text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-sm text-slate transition-colors duration-150 hover:bg-mist"
           >
             ⟲
           </button>

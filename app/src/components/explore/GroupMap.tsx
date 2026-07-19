@@ -631,7 +631,7 @@ export function GroupMap({
             type="button"
             onClick={() => zoomByFactor(ZOOM_BUTTON_FACTOR)}
             aria-label="Zoom in"
-            className="grid h-10 w-10 place-items-center text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-slate transition-colors duration-150 hover:bg-mist"
           >
             +
           </button>
@@ -640,7 +640,7 @@ export function GroupMap({
             type="button"
             onClick={() => zoomByFactor(1 / ZOOM_BUTTON_FACTOR)}
             aria-label="Zoom out"
-            className="grid h-10 w-10 place-items-center text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-slate transition-colors duration-150 hover:bg-mist"
           >
             −
           </button>
@@ -653,7 +653,7 @@ export function GroupMap({
               onSelect?.(null);
             }}
             aria-label="Reset zoom and pan"
-            className="grid h-10 w-10 place-items-center text-sm text-slate transition-[background-color,transform] duration-150 hover:bg-mist active:scale-[0.96]"
+            className="grid h-10 w-10 place-items-center text-sm text-slate transition-colors duration-150 hover:bg-mist"
           >
             ⟲
           </button>

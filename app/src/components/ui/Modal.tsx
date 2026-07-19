@@ -83,7 +83,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-11 w-11 place-items-center rounded-navitem text-slate transition-[color,background-color,transform] duration-150 hover:bg-ivory hover:text-ink active:scale-[0.96]"
+            className="grid h-11 w-11 place-items-center rounded-navitem text-slate transition-[color,background-color] duration-150 hover:bg-ivory hover:text-ink"
           >
             ✕
           </button>

@@ -56,7 +56,7 @@ body {
     @apply btn text-slate hover:bg-ivory hover:text-ink;
   }
   .input {
-    @apply w-full rounded-card border border-hairline bg-mist px-3 py-2 text-sm text-ink placeholder:text-slate-steel transition-[border-color,box-shadow] duration-150 focus:border-cobalt/60 focus:outline-none focus:ring-1 focus:ring-cobalt/40;
+    @apply w-full rounded-card border border-hairline bg-mist px-3 py-2 text-sm text-ink placeholder:text-slate-steel transition-[border-color,box-shadow] duration-150 focus:border-cobalt focus:outline-none focus:ring-2 focus:ring-cobalt/70;
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-pill border border-hairline bg-ivory px-2.5 py-1 text-xs text-slate transition-[color,background-color,border-color,opacity] duration-150 ease-out active:opacity-80;

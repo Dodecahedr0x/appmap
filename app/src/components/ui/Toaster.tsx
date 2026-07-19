@@ -111,7 +111,7 @@ export function Toaster({ children }: { children: ReactNode }) {
                 className={cn(
                   "mt-0.5 h-4 w-4 shrink-0",
                   t.kind === "success" && "text-forest",
-                  t.kind === "error" && "text-red-400",
+                  t.kind === "error" && "text-negative",
                   t.kind === "info" && "text-cobalt",
                 )}
                 fill="none"
@@ -125,7 +125,7 @@ export function Toaster({ children }: { children: ReactNode }) {
                   className={cn(
                     "text-sm",
                     t.kind === "success" && "text-forest",
-                    t.kind === "error" && "text-red-400",
+                    t.kind === "error" && "text-negative",
                     t.kind === "info" && "text-ink",
                   )}
                 >

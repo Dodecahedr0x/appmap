@@ -121,7 +121,7 @@ export function TagAutocomplete({
         <ul
           id={listboxId}
           role="listbox"
-          className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-card border border-hairline bg-ivory py-1 shadow-glow-plasma"
+          className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-card border border-hairline bg-ivory py-1 shadow-hover"
         >
           {matches.map((t, i) => (
             <li key={t.id} role="option" aria-selected={i === highlighted}>

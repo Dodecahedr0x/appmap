@@ -149,7 +149,7 @@ export function ExploreMaps() {
                 aria-selected={tab === t.key}
                 onClick={() => switchTab(t.key)}
                 className={cn(
-                  "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.96]",
+                  "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color] duration-150",
                   tab === t.key ? "bg-ivory text-ink" : "text-slate hover:text-ink",
                 )}
               >

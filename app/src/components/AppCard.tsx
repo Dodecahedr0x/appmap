@@ -14,7 +14,7 @@ const MAX_VISIBLE_TAGS = 5;
 /** Compact metric with a label, plus an optional recent-change subtext
     ("+12%/7d") — green for a gain, red for a decline, matching the
     achromatic-except-accents convention the rest of the app's chip/error
-    states already use (text-forest / text-red-400). Omitted entirely (not
+    states already use (text-forest / text-negative). Omitted entirely (not
     "0%") when there's no baseline snapshot to compare against — see
     formatDelta's doc comment for why a genuine 0% still renders. */
 function Stat({ label, value, deltaPct, intervalDays }: { label: string; value: string; deltaPct?: number | null; intervalDays?: number }) {
@@ -31,7 +31,7 @@ function Stat({ label, value, deltaPct, intervalDays }: { label: string; value: 
         <span
           className={cn(
             "text-[10px] tabular-nums",
-            (deltaPct ?? 0) >= 0 ? "text-forest" : "text-red-400",
+            (deltaPct ?? 0) >= 0 ? "text-forest" : "text-negative",
           )}
         >
           {delta}
