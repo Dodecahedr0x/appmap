@@ -7,6 +7,7 @@ mod dlmm_bridge;
 mod handlers;
 mod platform_metrics;
 mod processors;
+mod reconcile;
 mod rollup;
 
 use anyhow::Result;
@@ -40,7 +41,8 @@ async fn main() -> Result<()> {
 
     let pool = db::connect(&config.database_url).await?;
 
-    backfill::run(&config.rpc_http_url, config.program_id, &pool).await?;
+    let backfill_result = backfill::run(&config.rpc_http_url, config.program_id, &pool).await?;
+    reconcile::run(&pool, &backfill_result.decoded, config.vote_token_decimals).await?;
 
     tokio::spawn(rollup::run(pool.clone(), config.rollup_interval_secs));
     tokio::spawn(crawler::run(

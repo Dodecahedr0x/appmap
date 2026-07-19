@@ -38,6 +38,11 @@ pub struct Config {
     /// simply aren't reachable in that case since the app itself won't call
     /// them (see isSimulationMode() in app/src/lib/config.ts).
     pub vote_token_mint: Option<Pubkey>,
+    /// Decimals of the vote/stake SPL mint — same env var and default as
+    /// `voteTokenDecimals` in app/src/lib/config.ts. Used by src/reconcile.rs
+    /// to scale raw on-chain u64 stake/vote amounts into the UI-unit scale
+    /// `App.stakeTotal`/`voteWeight`/`AppTag.stakeTotal` are stored in.
+    pub vote_token_decimals: u32,
     /// Port the HTTP API (src/api.rs) listens on.
     pub api_port: u16,
     /// Base URL of the dlmm-bridge sidecar (see dlmm-bridge/README.md).
@@ -90,6 +95,10 @@ impl Config {
             .map(|s| Pubkey::from_str(&s))
             .transpose()
             .with_context(|| "invalid NEXT_PUBLIC_VOTE_TOKEN_MINT")?;
+        let vote_token_decimals = std::env::var("NEXT_PUBLIC_VOTE_TOKEN_DECIMALS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(6);
         let api_port = std::env::var("INDEXER_API_PORT")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -109,6 +118,7 @@ impl Config {
             crawler_poll_interval_secs,
             platform_metrics_interval_secs,
             vote_token_mint,
+            vote_token_decimals,
             api_port,
             dlmm_bridge_url,
             neb_dlmm_pool,

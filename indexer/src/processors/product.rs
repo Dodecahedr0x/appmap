@@ -6,8 +6,11 @@
 //! seed script (see AGENTS.md). Called from `src/crawler.rs`, which already
 //! replays full program history on a fresh database (crawler_cursor starts
 //! empty) before settling into live polling, so this naturally backfills on
-//! startup and stays current afterward — no separate reconciliation pass
-//! needed.
+//! startup and stays current afterward. `src/reconcile.rs` runs alongside
+//! this as a startup-only safety net — it can add a placeholder `App`/`Tag`
+//! row from the raw account snapshot alone (no memo metadata) if this path
+//! somehow missed one, but this crawler-driven path is still the only
+//! source of real app/tag metadata.
 //!
 //! `Vote`/`Stake`/`Ad`/`RevenueEpoch`/... keep their existing app-owned
 //! write paths (recorded by the Next.js API once a wallet-signed transaction

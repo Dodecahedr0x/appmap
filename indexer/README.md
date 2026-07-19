@@ -43,6 +43,15 @@ indexerClient.ts                                     child process — see dlmm-
   `getProgramAccounts` is called — everything else that needs current
   state reads `indexed_account` (kept live by the `programSubscribe`
   pipeline below) instead of re-scanning the program.
+- **`src/reconcile.rs`** — runs once right after `backfill.rs`, on the same
+  snapshot: reconciles `App`/`Tag`/`AppTag` existence and stake totals
+  against the real on-chain accounts (adds rows for on-chain apps/tags
+  missing from the database, removes rows with no on-chain account left,
+  and overwrites the cached `stakeTotal`/`voteWeight` columns — normally
+  derived from the client-trusted `Vote`/`Stake` ledger, see
+  `src/handlers/engine.rs` — with the actual on-chain aggregates). A
+  startup-only self-heal, not a replacement for the crawler's
+  instruction-driven writes.
 - **`src/main.rs`** — the live account pipeline: Carbon's
   `RpcProgramSubscribe` datasource feeds the generated decoder
   (`decoder/`), which feeds `AccountProcessor` (`src/processors/account.rs`).
