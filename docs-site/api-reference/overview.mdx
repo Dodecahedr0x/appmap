@@ -1,0 +1,82 @@
+---
+title: Overview
+description: "Pay-per-request access to platform data, no signup"
+---
+
+nebulous.world exposes a small set of read-only datasets — platform
+totals, historical time series, tag stats, and per-app traffic — under
+`/api/data/*`, priced individually and paid for over
+**[x402](https://www.x402.org)**, the open, HTTP-native micropayment
+standard. There's no API key, no account, and no subscription: an
+autonomous agent or a script can start querying immediately, paying only
+for what it actually requests.
+
+<Info>
+  See [Pricing](/api-reference/pricing) for the current price of each
+  endpoint — the same numbers shown on nebulous.world's [About
+  page](https://nebulous.world/about), sourced from the exact same config
+  the API itself enforces.
+</Info>
+
+## The request/pay/retry flow
+
+x402 turns "pay for an API call" into a single HTTP round trip instead of a
+separate billing step. There is no third-party payment facilitator
+involved — nebulous.world verifies and settles the payment itself.
+
+<Steps>
+  <Step title="Request the resource">
+    Call the endpoint like any other HTTP GET. No headers required on the
+    first attempt.
+  </Step>
+  <Step title="Get a 402 with the price">
+    If payment is required, the response is `402 Payment Required` with a
+    `PAYMENT-REQUIRED` header: base64-encoded JSON describing the exact
+    price (in raw NEB units), the asset (NEB's mint address), and where to
+    pay it (the platform treasury).
+  </Step>
+  <Step title="Sign and submit a payment">
+    Build and sign a Solana SPL token transfer for the exact amount, to the
+    exact address, from `PAYMENT-REQUIRED` — then retry the same request
+    with a `PAYMENT-SIGNATURE` header: base64-encoded JSON containing the
+    payer's address and the fully-signed, serialized transaction.
+  </Step>
+  <Step title="Get the data">
+    nebulous.world verifies the transaction matches what was required,
+    submits it on chain, and returns `200 OK` with the requested data and a
+    `PAYMENT-RESPONSE` header confirming settlement (including the
+    transaction signature).
+  </Step>
+</Steps>
+
+## Example
+
+```bash
+$ curl -s https://nebulous.world/api/data/platform-stats
+HTTP/1.1 402 Payment Required
+PAYMENT-REQUIRED: eyJhY2NlcHRzIjpbeyJzY2hlbWUiOiJleGFjdCIs...
+# decodes to: { scheme: "exact", network: "solana:...",
+#               amount: "10000", asset: "<NEB mint>", payTo: "<treasury>" }
+
+# sign a 0.01 NEB transfer to payTo, then retry with the payload
+$ curl -s https://nebulous.world/api/data/platform-stats \
+    -H "PAYMENT-SIGNATURE: eyJwYXllciI6Ii4uLiIsInRyYW5zYWN0aW9uIjoiLi4uIn0="
+HTTP/1.1 200 OK
+PAYMENT-RESPONSE: eyJzZXR0bGVkIjp0cnVlLCJ0cmFuc2FjdGlvbiI6Ii4uLiJ9
+{"ok":true,"data":{"totalApps":63,"totalTags":112,...}}
+```
+
+## Network identifier
+
+x402's `network` field expects a [CAIP-2](https://chainagnostic.org/CAIPs/caip-2)
+chain identifier. Solana clusters don't have short EVM-style chain IDs, so
+nebulous.world identifies the cluster by its own genesis hash:
+`solana:<genesis hash>` — mainnet-beta, devnet, and testnet each resolve to
+a different hash depending on which cluster the deployment is pointed at.
+
+## Simulation mode
+
+If a deployment has no real NEB mint or treasury address configured yet,
+every `/api/data/*` request succeeds immediately with a `simulated: true`
+receipt instead of requiring payment — see [The NEB
+token](/concepts/the-neb-token#simulation-mode).

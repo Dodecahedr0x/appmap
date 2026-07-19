@@ -1,0 +1,66 @@
+---
+title: How it works
+description: "Ranking, voting, tag staking, and ad revenue sharing"
+---
+
+## Ranking
+
+Every app's rank blends three signals, all readable on chain: **token-weighted
+votes**, **tag stake**, and **real traffic** (page views, weighted toward
+CAPTCHA-verified visits — see [Ad revenue sharing](#ad-revenue-sharing)
+below). There's no editorial curation and no paid placement — an app with
+more genuine conviction behind it, not a bigger marketing budget, ranks
+higher.
+
+## Voting
+
+Anyone can vote for an app by committing NEB to it. A vote's weight is
+proportional to the amount committed, and votes feed directly into that
+app's rank. Votes aren't spent or burned — they're withdrawable, subject to
+the same decaying unstake fee tag stakes use (see below), so a vote is a
+real, revocable position rather than a one-time action.
+
+## Tags and staking
+
+Anyone can suggest a tag for an app (`swap`, `nft-marketplace`,
+`developer-tools`, …), and anyone can **stake** NEB behind a tag they
+believe genuinely describes it. Stake behind a tag:
+
+- Boosts that app's rank.
+- Makes the tag itself easier to discover (see the [Group
+  map](https://nebulous.world/explore) — tags cluster by shared apps, sized
+  by total stake).
+- Starts earning a share of that app's ad revenue, proportional to your
+  stake relative to everyone else staked on any of that app's tags.
+
+### Withdrawing a vote or tag stake
+
+Both votes and tag stakes can be withdrawn at any time, subject to a
+**linearly-decaying unstake fee**: 1% if withdrawn immediately after
+staking, decaying linearly to 0% over the following 7 days. The fee
+discourages flash-staking purely to farm a moment of rank or revenue share,
+without permanently locking anyone's capital.
+
+## Ad revenue sharing
+
+Every app page tracks (privacy-preserving, CAPTCHA-verified) traffic and
+serves ads. Aggregate ad earnings are allocated back to individual apps
+**proportional to each app's share of revenue-eligible traffic** — visits
+that passed bot verification, since only verified traffic should earn
+money (this is separate from the *raw* view count that feeds ranking above,
+where every visit counts toward visibility).
+
+Once an app's gross revenue is allocated, it's distributed further to
+everyone staked behind *any* of that app's tags, proportional to their
+stake — so staking early on a tag that turns out to describe a popular app
+earns more than staking late, and staking on multiple tags for the same app
+doesn't multiply your share beyond your total stake. Earned NEB can be
+claimed at any time without withdrawing the underlying vote or stake.
+
+## It's all on chain
+
+Votes, tag stakes, withdrawals, and reward claims are real Solana
+transactions against the `nebulous_world` Anchor program — nebulous.world's
+UI is a client for that program, not a database with a UI bolted on. See
+[the NEB token](/concepts/the-neb-token) for what's actually moving in each
+of these transactions.

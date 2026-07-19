@@ -1,0 +1,49 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "nebulous.world docs",
+  "description": "Crowd-sourced app discovery on Solana: how ranking, voting, tag staking, and ad revenue sharing work, plus the x402-priced data API.",
+  "colors": {
+    "primary": "#3aa8ff",
+    "light": "#00daef",
+    "dark": "#2f3dff"
+  },
+  "favicon": "/favicon.ico",
+  "navigation": {
+    "pages": [
+      {
+        "group": "Getting Started",
+        "pages": ["introduction"]
+      },
+      {
+        "group": "Concepts",
+        "pages": ["concepts/how-it-works", "concepts/the-neb-token"]
+      },
+      {
+        "group": "Data API",
+        "pages": ["api-reference/overview", "api-reference/pricing"]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/logo.png",
+    "dark": "/logo/logo.png"
+  },
+  "navbar": {
+    "links": [
+      { "label": "App", "href": "https://nebulous.world" },
+      { "label": "GitHub", "href": "https://github.com/Dodecahedr0x/appmap" }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Browse apps",
+      "href": "https://nebulous.world"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/Dodecahedr0x",
+      "github": "https://github.com/Dodecahedr0x/appmap"
+    }
+  }
+}

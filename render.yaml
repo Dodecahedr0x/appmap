@@ -65,6 +65,29 @@ services:
       - key: TURNSTILE_SECRET_KEY
         sync: false
 
+  # Statically-generated Mintlify docs site (see docs-site/README.md) —
+  # explains the product concept and the x402 data API/pricing. A separate
+  # static site, deliberately decoupled from the main app's own build/deploy
+  # (nebulous-world above): a docs content change or a Mintlify CLI hiccup
+  # should never be able to block or break the product's own deploy.
+  # `NEXT_PUBLIC_DOCS_URL` on the main app defaults to this service's own
+  # onrender.com URL (see app/src/lib/constants.ts) — override it there once
+  # a custom docs domain is attached.
+  - type: web
+    name: nebulous-world-docs
+    runtime: static
+    repo: https://github.com/Dodecahedr0x/appmap
+    rootDir: docs-site
+    branch: main
+    autoDeploy: true
+    buildCommand: npx mintlify@latest export --output docs-export.zip --telemetry false && unzip -o docs-export.zip -d dist && rm docs-export.zip
+    staticPublishPath: dist
+    envVars:
+      # The Mintlify CLI refuses to run on Node 25+ — pin to the LTS line
+      # it supports (see docs-site/README.md's Requirements section).
+      - key: NODE_VERSION
+        value: "22.12.0"
+
   # Writes the AppStatsSnapshot rows that power per-app trend charts (see
   # app/scripts/dailySnapshot.ts) by calling the indexer's HTTP API — no
   # direct database access, same as the web service above.
