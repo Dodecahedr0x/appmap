@@ -5,7 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ConnectButton } from "@/components/ConnectButton";
-import { cn } from "@/lib/utils";
+import { useWalletBalances } from "@/hooks/useWalletBalances";
+import { config } from "@/lib/config";
+import { TOKEN_SYMBOL } from "@/lib/constants";
+import { cn, formatToken } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Browse" },
@@ -17,6 +20,7 @@ const NAV = [
 export function Navbar() {
   const pathname = usePathname();
   const { connected } = useWallet();
+  const { neb } = useWalletBalances(config.solana.voteTokenMint || null, null);
   return (
     <header className="sticky top-0 z-40 border-b border-hairline bg-cream">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -63,6 +67,9 @@ export function Navbar() {
               className="h-1.5 w-1.5 rounded-full bg-forest"
               aria-hidden="true"
             />
+          )}
+          {connected && neb !== null && (
+            <span className="chip font-mono tabular-nums">{formatToken(neb, TOKEN_SYMBOL)}</span>
           )}
           <ConnectButton />
         </div>

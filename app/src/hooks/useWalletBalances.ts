@@ -22,7 +22,9 @@ async function fetchBalance(owner: string, mint: string): Promise<number> {
   }
 }
 
-/** The connected wallet's NEB and USDC balances, for display next to the buy panel. */
+/** The connected wallet's NEB and/or USDC balance. Either mint can be
+    omitted (`null`) independently — e.g. the navbar only wants NEB — in
+    which case that side just stays `null` rather than blocking the other. */
 export function useWalletBalances(nebMint: string | null, usdcMint: string | null): WalletBalances {
   const { publicKey } = useWallet();
   const [neb, setNeb] = useState<number | null>(null);
@@ -30,20 +32,29 @@ export function useWalletBalances(nebMint: string | null, usdcMint: string | nul
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    if (!publicKey || !nebMint || !usdcMint) {
+    if (!publicKey) {
       setNeb(null);
       setUsdc(null);
       return;
     }
     let cancelled = false;
     const owner = publicKey.toBase58();
-    Promise.all([fetchBalance(owner, nebMint), fetchBalance(owner, usdcMint)]).then(
-      ([nebBalance, usdcBalance]) => {
-        if (cancelled) return;
-        setNeb(nebBalance);
-        setUsdc(usdcBalance);
-      },
-    );
+
+    if (nebMint) {
+      fetchBalance(owner, nebMint).then((balance) => {
+        if (!cancelled) setNeb(balance);
+      });
+    } else {
+      setNeb(null);
+    }
+    if (usdcMint) {
+      fetchBalance(owner, usdcMint).then((balance) => {
+        if (!cancelled) setUsdc(balance);
+      });
+    } else {
+      setUsdc(null);
+    }
+
     return () => {
       cancelled = true;
     };
