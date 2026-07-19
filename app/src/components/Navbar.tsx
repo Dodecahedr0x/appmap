@@ -8,8 +8,8 @@ import { ConnectButton } from "@/components/ConnectButton";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/", label: "Discover" },
-  { href: "/explore", label: "Explore" },
+  { href: "/", label: "Browse" },
+  { href: "/rankings", label: "Rankings" },
   { href: "/rewards", label: "Rewards" },
   { href: "/about", label: "About" },
 ];
@@ -18,7 +18,7 @@ export function Navbar() {
   const pathname = usePathname();
   const { connected } = useWallet();
   return (
-    <header className="navbar-chrome sticky top-0 z-40 border-b border-hairline/70 bg-cream/75 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-hairline bg-cream">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
@@ -45,31 +45,27 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-navitem px-3 py-2 text-sm font-medium transition-[color,background-color] duration-150 ease-spring",
+                    "rounded-navitem px-3 py-2 text-sm font-medium transition-colors duration-150",
                     active
-                      ? "bg-ivory text-ink"
+                      ? "bg-indigo-soft text-cobalt"
                       : "text-slate hover:text-ink",
                   )}
                 >
                   {item.label}
-                  {/* A live-status pulse, not decoration — see DESIGN.md's
-                      Navigation Bar component and its Don'ts ("reserve
-                      pulse-live for things that are genuinely live"): the
-                      active route only carries it once a wallet is
-                      connected, i.e. there's actually something of yours
-                      being tracked live on that page. */}
-                  {active && connected && (
-                    <span
-                      className="h-1.5 w-1.5 animate-pulse-live rounded-full bg-forest"
-                      aria-hidden="true"
-                    />
-                  )}
                 </Link>
               );
             })}
           </nav>
         </div>
-        <ConnectButton />
+        <div className="flex items-center gap-2">
+          {connected && (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-forest"
+              aria-label="Wallet connected"
+            />
+          )}
+          <ConnectButton />
+        </div>
       </div>
     </header>
   );
