@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SITE_URL } from "@/lib/constants";
 import { ExploreMaps } from "@/components/explore/ExploreMaps";
+import { PageHeader } from "@/components/PageHeader";
 
 export const metadata: Metadata = {
   title: "Explore",
@@ -17,13 +18,10 @@ export const metadata: Metadata = {
 export default function ExplorePage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-heading-xl font-normal text-ink">Explore</h1>
-        <p className="mt-2 max-w-2xl text-pretty text-subheading text-slate">
-          Browse by tag, or click through the app, tag, and group maps to see how nebulous.world
-          connects.
-        </p>
-      </div>
+      <PageHeader
+        title="Explore"
+        description="Browse by tag, or click through the app, tag, and group maps to see how nebulous.world connects."
+      />
 
       <ExploreMaps />
     </div>
