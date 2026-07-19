@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>apps.json curator</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1f232e;
+    --surface: #17191e;
+    --surface-2: #0c0f19;
+    --border: #2c313d;
+    --ink: #f2f6fa;
+    --muted: #858b98;
+    --accent: #54b9ff;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .tabs { display: inline-flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9999px; padding: 3px; }
+  .tabs button {
+    border: none; background: transparent; color: var(--muted);
+    padding: 6px 16px; border-radius: 9999px; font: inherit; font-weight: 500; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); }
+  main { max-width: 860px; margin: 0 auto; padding: 24px; }
+  .tab-panel[hidden] { display: none; }
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  input, select {
+    background: var(--surface); border: 1px solid var(--border); color: var(--ink);
+    border-radius: 8px; padding: 8px 12px; font: inherit;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  #review-search { flex: 1; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .app-list { display: flex; flex-direction: column; gap: 10px; }
+  .app-card {
+    border: 1px solid var(--border); background: var(--surface); border-radius: 12px;
+    padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start;
+  }
+  .app-card-checkbox { margin-top: 4px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+  .app-card-body { flex: 1; min-width: 0; }
+  .app-card-header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .app-name { color: var(--ink); font-weight: 600; text-decoration: none; }
+  .app-name:hover { color: var(--accent); }
+  .app-meta { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .app-tagline { margin: 4px 0 10px; color: var(--muted); }
+  .tag-editor { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 9999px;
+    padding: 3px 4px 3px 10px; font-size: 12px; color: var(--ink);
+  }
+  .chip-remove {
+    border: none; background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 9999px;
+  }
+  .chip-remove:hover { color: var(--danger); background: rgba(248, 113, 113, 0.12); }
+  .chip-add {
+    background: transparent; border: 1px dashed var(--border); border-radius: 9999px;
+    padding: 3px 10px; font-size: 12px; width: 84px;
+  }
+  form#expand-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+  #expand-tag { flex: 1; min-width: 220px; }
+  #expand-count { width: 72px; }
+  details { flex-basis: 100%; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  details label { display: inline-flex; align-items: center; gap: 6px; margin: 8px 12px 0 0; font-size: 12px; color: var(--muted); }
+  button[type="submit"], #expand-approve {
+    background: var(--accent); color: #060913; border: none; border-radius: 9999px;
+    padding: 8px 18px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button[type="submit"]:disabled, #expand-approve:disabled { opacity: 0.5; cursor: not-allowed; }
+  #expand-status { margin: 12px 0; }
+  #expand-actions { margin-top: 14px; }
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 12px);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 9999px;
+    padding: 10px 20px; font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity 150ms, transform 150ms;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>apps.json curator</h1>
+    <div class="tabs" role="tablist" aria-label="Curator sections">
+      <button role="tab" data-tab="review" aria-selected="true">Review</button>
+      <button role="tab" data-tab="expand" aria-selected="false">Expand</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-review" class="tab-panel">
+      <div class="toolbar">
+        <input id="review-search" placeholder="Filter by name, url, or tag…" aria-label="Filter apps" />
+        <span id="review-count" class="muted"></span>
+      </div>
+      <div id="review-list" class="app-list"></div>
+    </section>
+
+    <section id="tab-expand" class="tab-panel" hidden>
+      <form id="expand-form">
+        <input id="expand-tag" placeholder="Tag to search for, e.g. productivity" aria-label="Tag to search for" required />
+        <input id="expand-count" type="number" min="1" max="25" value="8" aria-label="How many to suggest" />
+        <button type="submit">Search</button>
+        <details>
+          <summary>Advanced</summary>
+          <label>Model <input id="expand-model" value="sonnet" size="10" /></label>
+          <label>Effort
+            <select id="expand-effort">
+              <option value="low">low</option>
+              <option value="medium" selected>medium</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+        </details>
+      </form>
+      <div id="expand-status" class="muted"></div>
+      <div id="expand-results" class="app-list"></div>
+      <div id="expand-actions" hidden>
+        <button id="expand-approve" type="button">Add approved apps</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
