@@ -292,7 +292,7 @@ PAYMENT-RESPONSE: eyJzZXR0bGVkIjp0cnVlLCJ0cmFuc2FjdGlvbiI6Ii4uLiJ9
           centering the instant the reveal animation applies. */}
       <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden border-y border-hairline bg-[#040509] py-16">
         <div className="reveal mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <span className="text-body-sm font-semibold uppercase tracking-wide text-violet">
+          <span className="text-body-sm font-semibold uppercase tracking-wide text-[#a5a8f5]">
             Right now
           </span>
           <h2 className="mt-2 text-balance font-display text-heading font-light text-white">
