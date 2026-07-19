@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { AppDTO } from "@/lib/types";
 import { formatToken, formatNumber, hostname, cn, topStakedTag, formatDelta } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
+import { CardVoteButton } from "@/components/app/CardVoteButton";
 
 // Caps the chips shown on a card — an app can carry arbitrarily many tags
 // (see scripts/createAppsOnchain.ts), but the card itself has room for a
@@ -135,17 +136,11 @@ export function AppCard({
         </div>
       )}
 
-      <div className="mt-auto grid grid-cols-4 gap-2 border-t border-hairline p-4">
+      <div className="mt-auto grid grid-cols-3 gap-2 border-t border-hairline p-4">
         <Stat
           label="Rank"
           value={app.rankScore.toFixed(2)}
           deltaPct={app.trend?.rankScorePct}
-          intervalDays={app.trend?.intervalDays}
-        />
-        <Stat
-          label="Votes"
-          value={formatToken(app.voteWeight, "")}
-          deltaPct={app.trend?.voteWeightPct}
           intervalDays={app.trend?.intervalDays}
         />
         <Stat
@@ -161,6 +156,13 @@ export function AppCard({
           intervalDays={app.trend?.intervalDays}
         />
       </div>
+      {!preview && (
+        <div className="border-t border-hairline p-4 pt-0">
+          <div className="pt-3">
+            <CardVoteButton appId={app.id} voteWeight={app.voteWeight} />
+          </div>
+        </div>
+      )}
     </>
   );
 
