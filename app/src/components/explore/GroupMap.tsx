@@ -35,6 +35,12 @@ const SELECTED_RING = "#372fb0";
 const LABEL_INK = "#0d0e12";
 const LABEL_DIM = "#565a66";
 const MAX_SIBLINGS = 6;
+// Floor for an app's normalized pack value (see the `appPackValue` comment
+// at its call site) — a fraction of the biggest app's own value (which is
+// always exactly 1 after normalization), so a 0-stake app's circle stays a
+// fixed, legible proportion of the map's biggest circle no matter how big
+// that biggest one is.
+const APP_MIN_VALUE_FRACTION = 0.18;
 const APP_LABEL_FONT_SIZE = 11;
 const APP_LABEL_FONT_WEIGHT = 500;
 const TAG_LABEL_FONT_SIZE = 12;
@@ -364,8 +370,25 @@ export function GroupMap({
   const root: PackTagNode = { type: "tag", id: "__root__", name: "", children: tree.children };
   const width = Math.max(1, size.width);
   const height = Math.max(1, size.height);
+  // d3.pack sizes a leaf's AREA proportional to its `.sum()` value, i.e.
+  // radius ∝ sqrt(value) — feeding it raw stake directly (as `Math.max(1,
+  // d.stake)` used to) means radius ends up ∝ sqrt(stake), and real stake
+  // distributions are heavily power-law: an app with 1 (the old floor) next
+  // to one with 40,000 gets a radius ~1/200th the size, an unreadable
+  // pinprick rather than a small circle. Normalizing against the biggest
+  // app currently on the map (an additional sqrt on top of pack's own,
+  // i.e. final radius ∝ stake^0.25 relative to the max) compresses that
+  // range dramatically while still ordering apps correctly by stake, and
+  // flooring the normalized value (not the raw stake) guarantees a
+  // meaningful minimum circle size — smallestRadius/biggestRadius works out
+  // to sqrt(APP_MIN_VALUE_FRACTION) ≈ 42%, comfortably legible — regardless
+  // of whether "small" means 0 stake or just much less than this map's
+  // biggest app.
+  const maxAppStake = Math.max(1, ...filteredApps.map((a) => a.stake));
+  const appPackValue = (stake: number) =>
+    Math.max(APP_MIN_VALUE_FRACTION, Math.sqrt(Math.max(0, stake) / maxAppStake));
   const h = hierarchy<PackNode>(root, (d) => (d.type === "tag" ? d.children : undefined))
-    .sum((d) => (d.type === "app" ? Math.max(1, d.stake) : 0))
+    .sum((d) => (d.type === "app" ? appPackValue(d.stake) : 0))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   // `padding` isn't just a gap between SIBLING circles — d3 reserves it
   // around every child before enclosing them in their parent, so it's also
