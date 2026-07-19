@@ -123,12 +123,11 @@ export const searchSchema = z.object({
   tagsCountMax: intFilter(),
   pageviewsMin: intFilter(),
   pageviewsMax: intFilter(),
-  sort: z.enum(["rank", "votes", "stake", "traffic", "new", "trending"]).optional().default("rank"),
+  sort: z
+    .enum(["rank", "votes", "stake", "traffic", "new", "trending_week", "trending_month"])
+    .optional()
+    .default("rank"),
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(50).optional().default(20),
-  // The window behind both "trending" sort and every returned app's `trend`
-  // subtext — same value drives both, see indexer/src/handlers/apps.rs's
-  // SearchInput.interval_days doc comment.
-  intervalDays: z.coerce.number().int().min(1).max(365).optional().default(7),
 });
 export type SearchInput = z.infer<typeof searchSchema>;

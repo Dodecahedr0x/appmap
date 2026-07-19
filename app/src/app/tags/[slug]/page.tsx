@@ -50,7 +50,6 @@ export default async function TagPage({ params }: Props) {
     sort: "rank",
     page: 1,
     pageSize: APPS_LIMIT,
-    intervalDays: 7,
   });
 
   const url = `${SITE_URL}/tags/${tag.slug}`;
