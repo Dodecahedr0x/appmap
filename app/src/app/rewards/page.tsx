@@ -59,8 +59,8 @@ export default async function RewardsPage() {
         description={
           <>
             Everything {TOKEN_SYMBOL} lives here: buy {TOKEN_NAME} on the public NEB/USDC pool,
-            watch its live indicators, and claim what your votes and tag stakes have earned —
-            without withdrawing your principal.
+            watch its live indicators, claim what your votes and tag stakes have earned, and
+            unstake to withdraw your principal whenever you want.
           </>
         }
       />

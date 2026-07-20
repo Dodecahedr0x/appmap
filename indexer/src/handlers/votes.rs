@@ -151,8 +151,46 @@ async fn withdraw(
     Ok(Json(serde_json::json!({ "withdrawn": true })))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WithdrawAllReq {
+    app_id: String,
+    user_id: String,
+}
+
+/// Marks every active `Vote` row for this (user, app) withdrawn in one
+/// shot, rather than one row by id (`withdraw` above) — a user can vote on
+/// the same app more than once over time (each `vote()` call just adds to
+/// the single on-chain VotePosition, see programs/nebulous_world), so a
+/// full on-chain withdrawal of the whole position needs to retire every DB
+/// row behind it, not just one. Used by the rewards page's "Your rewards"
+/// list, which sums exactly these rows (see handlers/rewards.rs) — the
+/// on-chain withdraw call there always withdraws that same summed amount.
+async fn withdraw_all(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<WithdrawAllReq>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let result = sqlx::query(
+        r#"UPDATE "Vote" SET active = false, "withdrawnAt" = now() WHERE "userId" = $1 AND "appId" = $2 AND active = true"#,
+    )
+    .bind(&req.user_id)
+    .bind(&req.app_id)
+    .execute(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    if result.rows_affected() == 0 {
+        return Err(crate::api::not_found("No active vote to withdraw"));
+    }
+
+    refresh_app(&state.pool, &req.app_id).await?;
+
+    Ok(Json(serde_json::json!({ "withdrawn": true })))
+}
+
 pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
         .route("/votes", get(get_vote).post(create))
         .route("/votes/:id/withdraw", post(withdraw))
+        .route("/votes/withdraw-all", post(withdraw_all))
 }

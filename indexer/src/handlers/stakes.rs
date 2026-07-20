@@ -156,8 +156,56 @@ async fn withdraw(
     Ok(Json(serde_json::json!({ "withdrawn": true })))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WithdrawAllReq {
+    app_tag_id: String,
+    user_id: String,
+}
+
+/// Marks every active `Stake` row for this (user, app-tag) withdrawn in one
+/// shot, rather than one row by id (`withdraw` above) — a user can stake on
+/// the same tag more than once over time (each `stake_tag()` call just adds
+/// to the single on-chain StakePosition), so a full on-chain withdrawal of
+/// the whole position needs to retire every DB row behind it, not just one.
+/// Used by the rewards page's "Your rewards" list, which sums exactly these
+/// rows (see handlers/rewards.rs) — the on-chain withdraw call there always
+/// withdraws that same summed amount.
+async fn withdraw_all(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<WithdrawAllReq>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let app_id: Option<String> = sqlx::query_scalar(r#"SELECT "appId" FROM "AppTag" WHERE id = $1"#)
+        .bind(&req.app_tag_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(crate::api::internal)?;
+    let Some(app_id) = app_id else {
+        return Err(not_found("Tag not found"));
+    };
+
+    let result = sqlx::query(
+        r#"UPDATE "Stake" SET active = false, "withdrawnAt" = now() WHERE "userId" = $1 AND "appTagId" = $2 AND active = true"#,
+    )
+    .bind(&req.user_id)
+    .bind(&req.app_tag_id)
+    .execute(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    if result.rows_affected() == 0 {
+        return Err(not_found("No active stake to withdraw"));
+    }
+
+    refresh_app_tag(&state.pool, &req.app_tag_id).await?;
+    refresh_app(&state.pool, &app_id).await?;
+
+    Ok(Json(serde_json::json!({ "withdrawn": true })))
+}
+
 pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
         .route("/stakes", get(list).post(create))
         .route("/stakes/:id/withdraw", post(withdraw))
+        .route("/stakes/withdraw-all", post(withdraw_all))
 }

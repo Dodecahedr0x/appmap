@@ -411,6 +411,11 @@ export async function withdrawVote(voteId: string, userId: string): Promise<{ wi
   return (await post(`/votes/${encodeURIComponent(voteId)}/withdraw`, { userId })) as { withdrawn: boolean };
 }
 
+/** Withdraws every active Vote row for this (user, app) at once — see indexer/src/handlers/votes.rs's withdraw_all. */
+export async function withdrawAllVotes(appId: string, userId: string): Promise<{ withdrawn: boolean }> {
+  return (await post("/votes/withdraw-all", { appId, userId })) as { withdrawn: boolean };
+}
+
 export async function fetchStakes(appId: string, userId: string): Promise<{ id: string; amount: number; appTagId: string }[]> {
   const res = (await get(`/stakes?appId=${encodeURIComponent(appId)}&userId=${encodeURIComponent(userId)}`)) as {
     stakes: { id: string; amount: number; appTagId: string }[];
@@ -430,6 +435,11 @@ export async function createStake(input: {
 
 export async function withdrawStake(stakeId: string, userId: string): Promise<{ withdrawn: boolean }> {
   return (await post(`/stakes/${encodeURIComponent(stakeId)}/withdraw`, { userId })) as { withdrawn: boolean };
+}
+
+/** Withdraws every active Stake row for this (user, app-tag) at once — see indexer/src/handlers/stakes.rs's withdraw_all. */
+export async function withdrawAllStakes(appTagId: string, userId: string): Promise<{ withdrawn: boolean }> {
+  return (await post("/stakes/withdraw-all", { appTagId, userId })) as { withdrawn: boolean };
 }
 
 export interface RewardsPositions {
