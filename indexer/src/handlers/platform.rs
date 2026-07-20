@@ -34,6 +34,18 @@ struct AppGraphEdge {
 
 const MAX_NEIGHBORS_PER_APP: usize = 6;
 
+/// How far back every platform-wide trend chart looks — apps/tags/votes/
+/// stake (api.rs's get_platform_metrics_history), page views, and revenue
+/// (both below) all share this window so they render on the same x-axis
+/// domain instead of each defaulting to "however much history its own
+/// source table happens to have". Before this, `platform_metrics_snapshot`
+/// (a brand-new hourly gauge table) and `AppStatsSnapshot`/
+/// `indexed_instruction` (long-lived daily tables) produced wildly
+/// different date ranges on charts that are supposed to sit side by side.
+/// Matches `TRENDING_MONTH_DAYS` in handlers/apps.rs — same "trending
+/// month" concept, applied platform-wide instead of per-app.
+pub const PLATFORM_TREND_WINDOW_DAYS: i64 = 30;
+
 struct AppNode {
     slug: String,
     name: String,
@@ -398,11 +410,12 @@ async fn platform_views_trend(State(state): State<Arc<ApiState>>) -> Result<Json
         r#"
         SELECT s.date, SUM(s."viewCount")
         FROM "AppStatsSnapshot" s JOIN "App" a ON a.id = s."appId"
-        WHERE a.status = 'approved'
+        WHERE a.status = 'approved' AND s.date > now() - make_interval(days => $1)
         GROUP BY s.date
         ORDER BY s.date ASC
         "#,
     )
+    .bind(PLATFORM_TREND_WINDOW_DAYS as i32)
     .fetch_all(&state.pool)
     .await
     .map_err(crate::api::internal)?;
@@ -444,10 +457,12 @@ async fn platform_revenue_trend(
                SUM((data->'data'->>'amount')::numeric)::text
         FROM indexed_instruction
         WHERE instruction_name = 'fund_app_rewards' AND block_time IS NOT NULL
+          AND block_time > now() - make_interval(days => $1)
         GROUP BY day
         ORDER BY day ASC
         "#,
     )
+    .bind(PLATFORM_TREND_WINDOW_DAYS as i32)
     .fetch_all(&state.pool)
     .await
     .map_err(crate::api::internal)?;
