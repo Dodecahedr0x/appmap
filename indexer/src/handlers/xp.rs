@@ -38,6 +38,12 @@ pub fn title_for_level(level: i32) -> &'static str {
 
 use sqlx::PgPool;
 
+/// Inserts the XpEvent and bumps `User.xp` atomically (same transaction),
+/// so a crash between the two statements can never leave a committed
+/// XpEvent (which would permanently block a retry via the unique index's
+/// `ON CONFLICT DO NOTHING`) with a `User.xp` that never got incremented.
+/// Mirrors the `pool.begin()` / `tx.commit()` pattern used for the
+/// settle-epoch invariant in `handlers/revenue.rs`.
 async fn record_event(
     pool: &PgPool,
     user_id: &str,
@@ -45,6 +51,8 @@ async fn record_event(
     target_id: Option<&str>,
     amount: i32,
 ) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
     let result = sqlx::query(
         r#"
         INSERT INTO "XpEvent" (id, "userId", kind, "targetId", amount, "createdAt")
@@ -56,7 +64,7 @@ async fn record_event(
     .bind(kind)
     .bind(target_id)
     .bind(amount)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     let inserted = result.rows_affected() > 0;
@@ -64,8 +72,12 @@ async fn record_event(
         sqlx::query(r#"UPDATE "User" SET xp = xp + $2 WHERE id = $1"#)
             .bind(user_id)
             .bind(amount)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
+    } else {
+        // Nothing to persist — roll back the no-op transaction.
+        tx.rollback().await?;
     }
     Ok(inserted)
 }
@@ -94,7 +106,22 @@ pub async fn award(
             .await?;
 
     if last_xp_date != Some(today) {
-        record_event(pool, user_id, "daily_bonus", None, XP_DAILY_BONUS).await?;
+        // Encode the UTC date into targetId so the existing unique index on
+        // ("userId", kind, "targetId") is the atomicity boundary — two
+        // concurrent award() calls racing past the lastXpDate read above
+        // both attempt this INSERT, but only one can win under
+        // `ON CONFLICT DO NOTHING` (Postgres never treats two NULLs as
+        // equal, which is why target_id must NOT be None here). The
+        // lastXpDate read/write above remains a pure optimization to skip
+        // the common case, not the correctness boundary.
+        record_event(
+            pool,
+            user_id,
+            "daily_bonus",
+            Some(&today.to_string()),
+            XP_DAILY_BONUS,
+        )
+        .await?;
         sqlx::query(r#"UPDATE "User" SET "lastXpDate" = $2 WHERE id = $1"#)
             .bind(user_id)
             .bind(today)
