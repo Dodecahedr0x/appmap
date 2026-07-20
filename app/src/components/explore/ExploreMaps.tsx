@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { TagGraph } from "@/lib/indexerClient";
@@ -68,8 +68,18 @@ export function ExploreMaps() {
   const [availableTags, setAvailableTags] = useState<TagGraphNode[]>([]);
   // Drives the Tags tab's "typing a tag selects it on the map" behavior —
   // see ForceMap's `selectRequest` doc comment for why this needs to be a
-  // fresh object every time rather than just the tag's id.
-  const [tagSelectRequest, setTagSelectRequest] = useState<{ id: string } | null>(null);
+  // fresh object every time rather than just the tag's id. Seeded from the
+  // URL on first render (lazy initializer, so it only ever runs once) when
+  // a tag chip elsewhere in the app deep-links straight to `?tab=tags&
+  // tags=<slug>` — see TagChip and ForceMap's `pendingSelectRequestRef` for
+  // how that reaches the map's own force simulation even though it's still
+  // loading at this point. Only the first selected tag applies: this tab's
+  // interaction model is single-select (unlike Apps/Group's multi-tag
+  // filter, which already reads every `tags=` value via `selectedTags`
+  // above).
+  const [tagSelectRequest, setTagSelectRequest] = useState<{ id: string } | null>(() =>
+    tab === "tags" && selectedTags[0] ? { id: selectedTags[0] } : null,
+  );
 
   useEffect(() => {
     fetch("/api/tags/graph")
@@ -87,9 +97,20 @@ export function ExploreMaps() {
   // fully remounts via the `key={tab}` below) and silently re-select
   // whatever was last picked — selection doesn't persist across tabs
   // anywhere else in this component either, so this shouldn't be the one
-  // exception. Runs on every tab change regardless of what triggered it
-  // (a click here, or a deep link landing directly on a different tab).
+  // exception. Runs only on an ACTUAL tab change: compares against the
+  // previous tab (`prevTabRef`, seeded to the mount-time tab) rather than a
+  // fires-once flag, because React's Strict Mode double-invokes every
+  // effect once in development (mount → simulated cleanup → mount again) —
+  // a flag that just flips `false` after its first run gets flipped by
+  // that first synthetic invocation and reads as "already past the first
+  // render" on the second one, clearing `tagSelectRequest`'s URL-seeded
+  // value before the map ever gets a chance to apply it. Comparing against
+  // the previous tab is idempotent across that double-invoke instead: both
+  // synthetic runs see the same (unchanged) tab and no-op.
+  const prevTabRef = useRef(tab);
   useEffect(() => {
+    if (prevTabRef.current === tab) return;
+    prevTabRef.current = tab;
     setSelection(null);
     setTagSelectRequest(null);
   }, [tab]);
