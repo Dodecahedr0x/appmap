@@ -44,6 +44,10 @@ async fn main() -> Result<()> {
     let backfill_result = backfill::run(&config.rpc_http_url, config.program_id, &pool).await?;
     reconcile::run(&pool, &backfill_result.decoded, config.vote_token_decimals).await?;
 
+    if let Err(e) = handlers::xp::backfill(&pool).await {
+        log::warn!("xp backfill failed: {e}");
+    }
+
     tokio::spawn(rollup::run(pool.clone(), config.rollup_interval_secs));
     tokio::spawn(crawler::run(
         config.rpc_http_url.clone(),
