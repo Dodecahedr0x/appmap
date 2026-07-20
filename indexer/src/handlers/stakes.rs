@@ -94,6 +94,18 @@ async fn create(State(state): State<Arc<ApiState>>, Json(req): Json<CreateReq>) 
     refresh_app_tag(&state.pool, &req.app_tag_id).await?;
     refresh_app(&state.pool, &app_id).await?;
 
+    if let Err(e) = crate::handlers::xp::award(
+        &state.pool,
+        &req.user_id,
+        "stake",
+        Some(&req.app_tag_id),
+        crate::handlers::xp::XP_STAKE,
+    )
+    .await
+    {
+        log::warn!("failed to award stake XP for user {}: {e}", req.user_id);
+    }
+
     Ok(Json(serde_json::json!({ "stake": { "id": id, "amount": req.amount } })))
 }
 
