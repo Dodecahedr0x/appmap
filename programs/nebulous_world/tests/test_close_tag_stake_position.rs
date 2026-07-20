@@ -46,6 +46,9 @@ struct Env {
     config: Pubkey,
     vault: Pubkey,
     vote_mint: Pubkey,
+    /// The admin's own token account — see `test_withdraw_vote.rs`'s
+    /// `Pdas::admin_token_account` doc comment.
+    admin_token_account: Pubkey,
 }
 
 struct TagPdas {
@@ -174,6 +177,9 @@ fn setup() -> (LiteSVM, Keypair, Env, Pubkey, TagPdas) {
     svm.send_transaction(tx)
         .expect("suggest_tag must succeed in test setup");
 
+    let admin_token_account = get_associated_token_address(&deployer.pubkey(), &vote_mint);
+    fund_token_account(&mut svm, admin_token_account, vote_mint, deployer.pubkey(), 0);
+
     (
         svm,
         deployer,
@@ -182,6 +188,7 @@ fn setup() -> (LiteSVM, Keypair, Env, Pubkey, TagPdas) {
             config,
             vault,
             vote_mint,
+            admin_token_account,
         },
         app,
         tag_pdas,
@@ -260,6 +267,7 @@ fn withdraw_tag_stake_ix(
             config: env.config,
             vault: env.vault,
             user_token_account: *user_token_account,
+            admin_token_account: env.admin_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
         }

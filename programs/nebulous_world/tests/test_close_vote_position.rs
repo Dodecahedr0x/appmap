@@ -45,6 +45,9 @@ struct Pdas {
     config: Pubkey,
     vault: Pubkey,
     app: Pubkey,
+    /// The admin's own token account — see `test_withdraw_vote.rs`'s
+    /// `Pdas::admin_token_account` doc comment.
+    admin_token_account: Pubkey,
 }
 
 /// Sets up a fresh LiteSVM instance with the nebulous_world program loaded, `Config`
@@ -130,7 +133,15 @@ fn setup() -> (LiteSVM, Keypair, Pubkey, Pdas) {
     svm.send_transaction(tx)
         .expect("init_app must succeed in test setup");
 
-    (svm, deployer, vote_mint, Pdas { config, vault, app })
+    let admin_token_account = get_associated_token_address(&deployer.pubkey(), &vote_mint);
+    fund_token_account(&mut svm, admin_token_account, vote_mint, deployer.pubkey(), 0);
+
+    (
+        svm,
+        deployer,
+        vote_mint,
+        Pdas { config, vault, app, admin_token_account },
+    )
 }
 
 fn fund_token_account(svm: &mut LiteSVM, pubkey: Pubkey, mint: Pubkey, owner: Pubkey, amount: u64) {
@@ -201,6 +212,7 @@ fn withdraw_vote_ix(
             config: pdas.config,
             vault: pdas.vault,
             user_token_account: *user_token_account,
+            admin_token_account: pdas.admin_token_account,
             user: *user,
             token_program: TOKEN_PROGRAM_ID,
         }
