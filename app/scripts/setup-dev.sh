@@ -245,6 +245,15 @@ fi
 log "Creating apps on-chain from scripts/appData/apps.json"
 npm run apps:create-onchain
 
+# More real on-chain activity, same reasoning as apps:create-onchain above —
+# buys NEB with the dev keypair's USDC through the just-launched DLMM pool,
+# then votes/stakes it across apps and tags at random weights so a fresh
+# environment already has some staking activity to look at, not just an
+# empty app list. Unlike apps:create-onchain this is NOT idempotent — it
+# adds more stake on every run, the same as a real user voting/staking again.
+log "Buying NEB and staking it to apps/tags at random weights"
+npm run seed:stakes
+
 log "Done"
 cat <<EOF
 
@@ -258,6 +267,8 @@ Local dev environment is ready:
   - database schema applied by the indexer itself, then populated by
     scripts/appData/apps.json's apps landing on-chain (there is no seed
     script — see AGENTS.md) — give the indexer a few seconds to catch up
+  - dev keypair's NEB voted/staked across apps and tags at random weights
+    (see scripts/seedStakes.ts), so votes/stakes already have activity too
 
 Next steps:
   - Run 'npm run dev' to start the app (http://localhost:3000) — apps should
@@ -266,5 +277,6 @@ Next steps:
   - Run 'npm run apps:discover -- --tag=<tag>' to use \`claude -p\` to find
     more apps for a given tag and append them to scripts/appData/apps.json,
     then 'npm run apps:create-onchain' to register the new ones
+  - Run 'npm run seed:stakes' again any time to add more random votes/stakes
   - Run 'npm run teardown:dev' to stop surfpool, the indexer, and local Postgres
 EOF
