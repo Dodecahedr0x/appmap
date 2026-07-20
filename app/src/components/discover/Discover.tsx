@@ -51,7 +51,10 @@ export function Discover({ initial }: Props) {
   const [loadedPage, setLoadedPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  // ?create=1 auto-opens the modal — lets other pages (e.g. the profile's
+  // "earn more XP today" panel) deep-link straight into the create flow
+  // instead of just landing here and requiring a manual click.
+  const [createOpen, setCreateOpen] = useState(() => params.get("create") === "1");
   // Bumped after a successful create to force the fetch effect below to
   // re-run against the current params (new app shows up immediately if it
   // matches the active filters/sort, and the count updates either way) —

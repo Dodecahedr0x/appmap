@@ -461,7 +461,11 @@ export interface UserXp {
   tagsSuggested: number;
   votesCast: number;
   stakesMade: number;
+  /** Task kinds already earned today (UTC) — excludes "daily_bonus", which isn't a user-initiated action. */
+  xpEarnedToday: XpTaskKind[];
 }
+
+export type XpTaskKind = "submit_app" | "suggest_tag" | "vote" | "stake";
 
 export async function fetchUserXp(userId: string): Promise<UserXp | null> {
   return (await getOrNull(`/xp/${encodeURIComponent(userId)}`)) as UserXp | null;

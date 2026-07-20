@@ -52,26 +52,38 @@ use std::sync::Arc;
 /// `ON CONFLICT DO NOTHING`) with a `User.xp` that never got incremented.
 /// Mirrors the `pool.begin()` / `tx.commit()` pattern used for the
 /// settle-epoch invariant in `handlers/revenue.rs`.
+///
+/// `created_at` is when the underlying action actually happened, not
+/// necessarily "now" — live callers (`award`) pass the current time,
+/// `backfill` passes the historical row's own `createdAt` so a batch of
+/// old actions lands on their true calendar days instead of all competing
+/// for "today"'s single slot under the ("userId", kind, "awardDate")
+/// unique index (see 007_xp_daily_cap.sql) that caps XP for a given
+/// (user, kind) at once per UTC day.
 async fn record_event(
     pool: &PgPool,
     user_id: &str,
     kind: &str,
     target_id: Option<&str>,
     amount: i32,
+    created_at: NaiveDateTime,
 ) -> Result<bool, sqlx::Error> {
+    let award_date = created_at.date();
     let mut tx = pool.begin().await?;
 
     let result = sqlx::query(
         r#"
-        INSERT INTO "XpEvent" (id, "userId", kind, "targetId", amount, "createdAt")
-        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, now())
-        ON CONFLICT ("userId", kind, "targetId") DO NOTHING
+        INSERT INTO "XpEvent" (id, "userId", kind, "targetId", amount, "createdAt", "awardDate")
+        VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6)
+        ON CONFLICT ("userId", kind, "awardDate") DO NOTHING
         "#,
     )
     .bind(user_id)
     .bind(kind)
     .bind(target_id)
     .bind(amount)
+    .bind(created_at)
+    .bind(award_date)
     .execute(&mut *tx)
     .await?;
 
@@ -90,11 +102,12 @@ async fn record_event(
     Ok(inserted)
 }
 
-/// Awards XP for a fresh (wallet, target) action, plus the once-per-UTC-day
-/// bonus if this wallet hasn't earned XP yet today. Best-effort by design —
-/// callers log and swallow errors rather than failing the underlying vote/
-/// stake/submit action over a gamification hiccup (cosmetic only, must never
-/// block or roll back a real on-chain-backed write).
+/// Awards XP for a fresh (wallet, kind) action today, plus the once-per-
+/// UTC-day bonus if this wallet hasn't earned XP yet today. Best-effort by
+/// design — callers log and swallow errors rather than failing the
+/// underlying vote/stake/submit action over a gamification hiccup
+/// (cosmetic only, must never block or roll back a real on-chain-backed
+/// write).
 pub async fn award(
     pool: &PgPool,
     user_id: &str,
@@ -102,11 +115,12 @@ pub async fn award(
     target_id: Option<&str>,
     amount: i32,
 ) -> Result<(), sqlx::Error> {
-    if !record_event(pool, user_id, kind, target_id, amount).await? {
+    let now = chrono::Utc::now().naive_utc();
+    if !record_event(pool, user_id, kind, target_id, amount, now).await? {
         return Ok(());
     }
 
-    let today = chrono::Utc::now().naive_utc().date();
+    let today = now.date();
     let last_xp_date: Option<chrono::NaiveDate> =
         sqlx::query_scalar(r#"SELECT "lastXpDate" FROM "User" WHERE id = $1"#)
             .bind(user_id)
@@ -114,22 +128,15 @@ pub async fn award(
             .await?;
 
     if last_xp_date != Some(today) {
-        // Encode the UTC date into targetId so the existing unique index on
-        // ("userId", kind, "targetId") is the atomicity boundary — two
-        // concurrent award() calls racing past the lastXpDate read above
-        // both attempt this INSERT, but only one can win under
-        // `ON CONFLICT DO NOTHING` (Postgres never treats two NULLs as
-        // equal, which is why target_id must NOT be None here). The
+        // The ("userId", kind, "awardDate") unique index is the atomicity
+        // boundary — two concurrent award() calls racing past the
+        // lastXpDate read above both attempt this INSERT, but only one can
+        // win under `ON CONFLICT DO NOTHING`. target_id can be None here
+        // (unlike the old per-target index, "awardDate" is NOT NULL so
+        // there's no null-never-equals-null gap to work around). The
         // lastXpDate read/write above remains a pure optimization to skip
         // the common case, not the correctness boundary.
-        record_event(
-            pool,
-            user_id,
-            "daily_bonus",
-            Some(&today.to_string()),
-            XP_DAILY_BONUS,
-        )
-        .await?;
+        record_event(pool, user_id, "daily_bonus", None, XP_DAILY_BONUS, now).await?;
         sqlx::query(r#"UPDATE "User" SET "lastXpDate" = $2 WHERE id = $1"#)
             .bind(user_id)
             .bind(today)
@@ -142,50 +149,57 @@ pub async fn award(
 
 /// One-off historical backfill so existing users don't start at 0 XP when
 /// this ships. Safe to call on every startup — `record_event`'s
-/// `ON CONFLICT DO NOTHING` makes every call after the first a no-op.
+/// `ON CONFLICT DO NOTHING` makes every call after the first a no-op. Each
+/// row is dated to its own original `createdAt` (not "now") so a user's old
+/// actions land on their true calendar days under the once-per-day cap,
+/// rather than all competing for today's single slot per kind — ordered
+/// oldest-first so, on the rare day a user did the same kind of action
+/// twice historically, the earlier one is the one that wins the slot.
 /// Deliberately does NOT grant daily bonuses for backfilled rows (there's no
 /// meaningful "day" for a historical action being processed today).
 pub async fn backfill(pool: &PgPool) -> Result<usize, sqlx::Error> {
     let mut granted = 0;
 
-    let votes: Vec<(String, String)> =
-        sqlx::query_as(r#"SELECT "userId", "appId" FROM "Vote""#)
-            .fetch_all(pool)
-            .await?;
-    for (user_id, app_id) in votes {
-        if record_event(pool, &user_id, "vote", Some(&app_id), XP_VOTE).await? {
-            granted += 1;
-        }
-    }
-
-    let stakes: Vec<(String, String)> =
-        sqlx::query_as(r#"SELECT "userId", "appTagId" FROM "Stake""#)
-            .fetch_all(pool)
-            .await?;
-    for (user_id, app_tag_id) in stakes {
-        if record_event(pool, &user_id, "stake", Some(&app_tag_id), XP_STAKE).await? {
-            granted += 1;
-        }
-    }
-
-    let apps: Vec<(String, String)> = sqlx::query_as(
-        r#"SELECT "submittedBy", id FROM "App" WHERE "submittedBy" IS NOT NULL"#,
+    let votes: Vec<(String, String, NaiveDateTime)> = sqlx::query_as(
+        r#"SELECT "userId", "appId", "createdAt" FROM "Vote" ORDER BY "createdAt" ASC"#,
     )
     .fetch_all(pool)
     .await?;
-    for (user_id, app_id) in apps {
-        if record_event(pool, &user_id, "submit_app", Some(&app_id), XP_SUBMIT_APP).await? {
+    for (user_id, app_id, created_at) in votes {
+        if record_event(pool, &user_id, "vote", Some(&app_id), XP_VOTE, created_at).await? {
             granted += 1;
         }
     }
 
-    let tags: Vec<(String, String)> = sqlx::query_as(
-        r#"SELECT "suggestedBy", id FROM "AppTag" WHERE "suggestedBy" IS NOT NULL"#,
+    let stakes: Vec<(String, String, NaiveDateTime)> = sqlx::query_as(
+        r#"SELECT "userId", "appTagId", "createdAt" FROM "Stake" ORDER BY "createdAt" ASC"#,
     )
     .fetch_all(pool)
     .await?;
-    for (user_id, app_tag_id) in tags {
-        if record_event(pool, &user_id, "suggest_tag", Some(&app_tag_id), XP_SUGGEST_TAG).await? {
+    for (user_id, app_tag_id, created_at) in stakes {
+        if record_event(pool, &user_id, "stake", Some(&app_tag_id), XP_STAKE, created_at).await? {
+            granted += 1;
+        }
+    }
+
+    let apps: Vec<(String, String, NaiveDateTime)> = sqlx::query_as(
+        r#"SELECT "submittedBy", id, "createdAt" FROM "App" WHERE "submittedBy" IS NOT NULL ORDER BY "createdAt" ASC"#,
+    )
+    .fetch_all(pool)
+    .await?;
+    for (user_id, app_id, created_at) in apps {
+        if record_event(pool, &user_id, "submit_app", Some(&app_id), XP_SUBMIT_APP, created_at).await? {
+            granted += 1;
+        }
+    }
+
+    let tags: Vec<(String, String, NaiveDateTime)> = sqlx::query_as(
+        r#"SELECT "suggestedBy", id, "createdAt" FROM "AppTag" WHERE "suggestedBy" IS NOT NULL ORDER BY "createdAt" ASC"#,
+    )
+    .fetch_all(pool)
+    .await?;
+    for (user_id, app_tag_id, created_at) in tags {
+        if record_event(pool, &user_id, "suggest_tag", Some(&app_tag_id), XP_SUGGEST_TAG, created_at).await? {
             granted += 1;
         }
     }
@@ -210,6 +224,12 @@ struct XpDto {
     tags_suggested: i64,
     votes_cast: i64,
     stakes_made: i64,
+    /// Task kinds (see XP_* consts) already earned today (UTC) —
+    /// `daily_bonus` excluded since it isn't a user-initiated action a
+    /// "still to do today" panel could link to. Drives the profile page's
+    /// "earn more XP today" panel: whatever's NOT in this list is still
+    /// available.
+    xp_earned_today: Vec<String>,
 }
 
 async fn get_xp(
@@ -243,6 +263,19 @@ async fn get_xp(
     .await
     .map_err(crate::api::internal)?;
 
+    let today = chrono::Utc::now().naive_utc().date();
+    let xp_earned_today: Vec<String> = sqlx::query_scalar(
+        r#"
+        SELECT DISTINCT kind FROM "XpEvent"
+        WHERE "userId" = $1 AND "awardDate" = $2 AND kind != 'daily_bonus'
+        "#,
+    )
+    .bind(&user_id)
+    .bind(today)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
     Ok(Json(XpDto {
         user_id,
         xp,
@@ -255,6 +288,7 @@ async fn get_xp(
         tags_suggested: counts.1,
         votes_cast: counts.2,
         stakes_made: counts.3,
+        xp_earned_today,
     }))
 }
 
