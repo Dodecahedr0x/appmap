@@ -4,7 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { ConnectButton } from "@/components/ConnectButton";
-import type { UserXp, XpActivityEntry } from "@/lib/indexerClient";
+import { timeAgo } from "@/lib/utils";
+import type { UserXp, XpActivityEntry, XpTaskKind } from "@/lib/indexerClient";
+
+// Kept in sync by hand with the XP_* consts in indexer/src/handlers/xp.rs —
+// this is presentation only (label/href), the point values here are for
+// display, the actual award still happens server-side.
+const XP_TASKS: { kind: XpTaskKind; xp: number; label: string; href: string }[] = [
+  { kind: "submit_app", xp: 100, label: "List an app", href: "/?create=1" },
+  { kind: "suggest_tag", xp: 40, label: "Suggest a tag on an app", href: "/" },
+  { kind: "vote", xp: 20, label: "Vote for an app", href: "/" },
+  { kind: "stake", xp: 30, label: "Stake on a tag", href: "/" },
+];
 
 function describeEvent(event: XpActivityEntry): string {
   switch (event.kind) {
@@ -84,9 +95,35 @@ export function XpProgress() {
   }
 
   const pct = Math.round(xp.progress * 100);
+  const remainingTasks = XP_TASKS.filter((t) => !xp.xpEarnedToday.includes(t.kind));
 
   return (
     <div className="space-y-6">
+      <section className="card space-y-2 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate">
+          Earn more XP today
+        </h2>
+        {remainingTasks.length === 0 ? (
+          <p className="text-sm text-slate">
+            You&apos;ve earned XP for everything today — nice work. Come back tomorrow for more.
+          </p>
+        ) : (
+          <ul className="divide-y divide-hairline">
+            {remainingTasks.map((t) => (
+              <li key={t.kind} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                <span className="text-sm text-ink">{t.label}</span>
+                <Link
+                  href={t.href}
+                  className="flex items-center gap-1 text-sm font-medium text-cobalt hover:underline"
+                >
+                  +{t.xp} XP <span aria-hidden="true">→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="card space-y-4 p-6">
         <div className="flex items-center justify-between">
           <span className="chip chip-active font-mono tabular-nums">
@@ -129,7 +166,10 @@ export function XpProgress() {
                 key={event.id}
                 className="flex items-center justify-between gap-3 rounded-lg border border-hairline p-3"
               >
-                <span className="text-sm text-ink">{describeEvent(event)}</span>
+                <div>
+                  <div className="text-sm text-ink">{describeEvent(event)}</div>
+                  <div className="text-xs text-slate-steel">{timeAgo(event.createdAt)}</div>
+                </div>
                 <span className="font-mono text-xs tabular-nums text-forest">+{event.amount} XP</span>
               </li>
             ))}
