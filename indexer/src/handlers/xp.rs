@@ -270,11 +270,21 @@ struct XpActivityEntry {
     created_at: String,
 }
 
+type ActivityRow = (
+    String,
+    String,
+    i32,
+    NaiveDateTime,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
 async fn get_activity(
     State(state): State<Arc<ApiState>>,
     Path(user_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let rows: Vec<(String, String, i32, NaiveDateTime, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+    let rows: Vec<ActivityRow> = sqlx::query_as(
         r#"
         SELECT
           e.id, e.kind, e.amount, e."createdAt",
@@ -298,15 +308,17 @@ async fn get_activity(
 
     let events: Vec<XpActivityEntry> = rows
         .into_iter()
-        .map(|(id, kind, amount, created_at, app_name, app_slug, tag_name)| XpActivityEntry {
-            id,
-            kind,
-            app_name,
-            app_slug,
-            tag_name,
-            amount,
-            created_at: crate::handlers::engine::to_rfc3339(created_at),
-        })
+        .map(
+            |(id, kind, amount, created_at, app_name, app_slug, tag_name)| XpActivityEntry {
+                id,
+                kind,
+                app_name,
+                app_slug,
+                tag_name,
+                amount,
+                created_at: crate::handlers::engine::to_rfc3339(created_at),
+            },
+        )
         .collect();
 
     Ok(Json(serde_json::json!({ "events": events })))
