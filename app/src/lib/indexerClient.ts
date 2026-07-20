@@ -428,6 +428,25 @@ export async function createStake(input: {
   return (await post("/stakes", input)) as { stake: { id: string; amount: number } };
 }
 
+export interface MyPosition {
+  kind: "vote" | "tagStake";
+  id: string;
+  amount: number;
+  appId: string;
+  appSlug: string;
+  appName: string;
+  tagSlug: string | null;
+  tagName: string | null;
+}
+
+/** Every active vote/tag-stake `userId` currently holds, across every app — see indexer/src/handlers/users.rs's get_positions. */
+export async function fetchMyPositions(userId: string): Promise<MyPosition[]> {
+  const { positions } = (await get(`/users/${encodeURIComponent(userId)}/positions`)) as {
+    positions: MyPosition[];
+  };
+  return positions;
+}
+
 export async function withdrawStake(stakeId: string, userId: string): Promise<{ withdrawn: boolean }> {
   return (await post(`/stakes/${encodeURIComponent(stakeId)}/withdraw`, { userId })) as { withdrawn: boolean };
 }
