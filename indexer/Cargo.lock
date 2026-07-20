@@ -2610,6 +2610,7 @@ dependencies = [
  "log",
  "nebulous_world",
  "rand 0.8.7",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

@@ -806,21 +806,13 @@ async fn update_metadata(
     Path(id): Path<String>,
     Json(req): Json<UpdateMetadataReq>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    sqlx::query(
-        r#"
-        UPDATE "App" SET
-            "iconUrl" = COALESCE($2, "iconUrl"),
-            tagline = COALESCE(NULLIF($3, ''), tagline),
-            description = COALESCE(NULLIF($4, ''), description),
-            "updatedAt" = now()
-        WHERE id = $1
-        "#,
+    crate::processors::product::apply_metadata_update(
+        &state.pool,
+        &id,
+        req.icon_url.as_deref(),
+        req.tagline.as_deref(),
+        req.description.as_deref(),
     )
-    .bind(&id)
-    .bind(&req.icon_url)
-    .bind(&req.tagline)
-    .bind(&req.description)
-    .execute(&state.pool)
     .await
     .map_err(crate::api::internal)?;
     Ok(Json(serde_json::json!({ "ok": true })))

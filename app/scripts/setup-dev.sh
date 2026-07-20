@@ -257,27 +257,6 @@ fi
 log "Creating apps on-chain from scripts/appData/apps.json"
 npm run apps:create-onchain
 
-# apps:create-onchain's transactions are all confirmed by the time it
-# returns, but the App/Tag rows those transactions produce only exist once
-# the crawler's own poll loop (CRAWLER_POLL_INTERVAL_SECS, 15s by default —
-# see indexer/src/config.rs) picks them up — see AGENTS.md on why there's no
-# seed script to write them directly. One full poll interval (+ margin) is
-# enough for the crawler to catch every signature from the burst above in a
-# single tick (it re-scans everything newer than its cursor each time, not
-# just an incremental delta), so og:backfill below sees the real app list
-# instead of racing an empty/partial one.
-log "Waiting for the indexer to catch up on the apps just created"
-sleep 20
-
-# scripts/appData/apps.json never carries iconUrl (only og:backfill's own
-# OpenGraph scrape can fill that in — see lib/opengraph.ts), so without this
-# every AppCard on a fresh environment falls back to its bare-letter avatar
-# instead of the app's real image. Safe to re-run (only touches apps still
-# missing icon/tagline/description), so a reused Surfnet's already-enriched
-# apps are skipped instantly.
-log "Backfilling app icons/taglines/descriptions from OpenGraph"
-npm run og:backfill
-
 # More real on-chain activity, same reasoning as apps:create-onchain above —
 # buys NEB with the dev keypair's USDC through the just-launched DLMM pool,
 # then votes/stakes it across apps and tags at random weights so a fresh
@@ -300,9 +279,9 @@ Local dev environment is ready:
   - database schema applied by the indexer itself, then populated by
     scripts/appData/apps.json's apps landing on-chain (there is no seed
     script — see AGENTS.md) — give the indexer a few seconds to catch up
-  - app icons/taglines/descriptions backfilled from each app's own
-    OpenGraph metadata (see scripts/backfillOpengraph.ts), so cards show
-    real images instead of the bare-letter fallback
+  - each app's icon/tagline/description automatically backfilled from its
+    own OpenGraph metadata as the indexer observes it (see
+    indexer/src/opengraph.rs), so cards show real images with no extra step
   - dev keypair's NEB voted/staked across apps and tags at random weights
     (see scripts/seedStakes.ts), so votes/stakes already have activity too
 
@@ -313,8 +292,8 @@ Next steps:
   - Run 'npm run apps:discover -- --tag=<tag>' to use \`claude -p\` to find
     more apps for a given tag and append them to scripts/appData/apps.json,
     then 'npm run apps:create-onchain' to register the new ones
-  - Run 'npm run og:backfill' again any time to fill in icons/taglines for
-    apps still missing them (e.g. ones OpenGraph didn't have data for yet)
+  - Run 'npm run og:backfill' to manually retry icons/taglines for any apps
+    whose live OpenGraph fetch failed (site was down, timed out, etc.)
   - Run 'npm run seed:stakes' again any time to add more random votes/stakes
   - Run 'npm run teardown:dev' to stop surfpool, the indexer, and local Postgres
 EOF
