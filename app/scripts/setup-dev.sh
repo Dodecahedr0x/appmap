@@ -76,10 +76,22 @@ fi
 if lsof -i ":$RPC_PORT" >/dev/null 2>&1; then
   log "A Surfnet (or something else) is already running on port $RPC_PORT, reusing it"
 else
-  log "Starting surfpool in the background, forking mainnet (logs: $SURFPOOL_LOG_DIR)"
+  # A premium datasource RPC (see .env.example) avoids the free public
+  # api.mainnet-beta.solana.com's rate limit, which the dev-setup's own
+  # transaction bursts (createAppsOnchain.ts, seedStakes.ts) easily trip —
+  # `--network mainnet` and `--rpc-url` are mutually exclusive on surfpool's
+  # own CLI, so pick whichever applies rather than passing both.
+  SURFPOOL_DATASOURCE_RPC_URL="$(grep -E '^SURFPOOL_DATASOURCE_RPC_URL="[^"]+"' .env | sed -E 's/^[^"]*"([^"]+)".*/\1/' || true)"
+  if [ -n "$SURFPOOL_DATASOURCE_RPC_URL" ]; then
+    log "Starting surfpool in the background, forking mainnet via the configured datasource RPC (logs: $SURFPOOL_LOG_DIR)"
+    DATASOURCE_ARGS=(--rpc-url "$SURFPOOL_DATASOURCE_RPC_URL")
+  else
+    log "Starting surfpool in the background, forking mainnet (logs: $SURFPOOL_LOG_DIR)"
+    DATASOURCE_ARGS=(--network mainnet)
+  fi
   mkdir -p "$(dirname "$SURFPOOL_PID_FILE")"
   surfpool start \
-    --network mainnet \
+    "${DATASOURCE_ARGS[@]}" \
     --no-tui --no-studio --no-deploy \
     --airdrop-keypair-path "$DEV_KEYPAIR" \
     --log-path "$SURFPOOL_LOG_DIR" \
