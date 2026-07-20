@@ -3,14 +3,21 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BN } from "@anchor-lang/core";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
 import { useCreateAppProgram } from "@/hooks/useCreateAppProgram";
+import { useClaimRewards } from "@/hooks/useClaimRewards";
 import { useMountTransition } from "@/hooks/useMountTransition";
 import { cn, formatToken, slugify } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
+import { isSimulationMode } from "@/lib/config";
 import { estimateUnstakeFee } from "@/lib/unstakeFee";
+import { settlePendingRaw } from "@/lib/rewards";
+import { fromRawAmount } from "@/lib/anchorClient";
+import { apiGet } from "@/lib/txClient";
+import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import type { TagDTO } from "@/lib/types";
 
 /**
@@ -30,6 +37,7 @@ export function TagStakePanel({
   const toast = useToast();
   const { stakeTag, withdrawTagStake } = useTagStakeProgram();
   const { suggestTag } = useCreateAppProgram();
+  const { claimTagReward } = useClaimRewards();
 
   const [stakingId, setStakingId] = useState<string | null>(null);
   const { rendered: revealRendered, visible: revealVisible } = useMountTransition(stakingId, 200);
@@ -43,6 +51,10 @@ export function TagStakePanel({
   // button. Fetched per-tag since only the indexed on-chain account (not
   // the Postgres `myStakes` row) carries this field.
   const [stakedAtByTag, setStakedAtByTag] = useState<Record<string, number>>({});
+  // appTagId -> pending NEB reward, settled live from the on-chain position
+  // + this app's tagsAccRewardPerShare (see lib/rewards.ts) — same claim
+  // path as the rewards page's ClaimRewards, surfaced here too.
+  const [pendingByTag, setPendingByTag] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user) {
@@ -66,35 +78,82 @@ export function TagStakePanel({
     const tagIds = Object.keys(myStakes);
     if (!user || tagIds.length === 0) {
       setStakedAtByTag({});
+      setPendingByTag({});
       return;
     }
     let cancelled = false;
-    Promise.all(
-      tagIds.map(async (tagId) => {
-        const tag = tags.find((t) => t.id === tagId);
-        if (!tag) return null;
+
+    async function load() {
+      // One shared app-level fetch (tagsAccRewardPerShare) rather than one
+      // per tag — every tag's pending reward is computed against the same
+      // accumulator, just combined with that tag's own position amount/
+      // rewardDebt below.
+      let app: AppAccountData | null = null;
+      if (!isSimulationMode()) {
         try {
-          const res = await fetch(
-            `/api/accounts/stake-position/${appId}/${tag.slug}?owner=${user.wallet}`,
-          );
-          const json = await res.json();
-          return json.ok && json.data.position
-            ? ([tagId, json.data.position.stakedAt as number] as const)
-            : null;
+          const { app: fetched } = await apiGet<{ app: AppAccountData | null }>(`/api/accounts/app/${appId}`);
+          app = fetched;
         } catch {
-          return null;
+          app = null;
         }
-      }),
-    ).then((entries) => {
+      }
+
+      const entries = await Promise.all(
+        tagIds.map(async (tagId) => {
+          const tag = tags.find((t) => t.id === tagId);
+          if (!tag) return null;
+          try {
+            const res = await fetch(
+              `/api/accounts/stake-position/${appId}/${tag.slug}?owner=${user!.wallet}`,
+            );
+            const json = await res.json();
+            const position: PositionData | null = json.ok ? json.data.position : null;
+            if (!position) return null;
+            const pending = app
+              ? fromRawAmount(
+                  settlePendingRaw(new BN(position.amount), new BN(position.rewardDebt), new BN(app.tagsAccRewardPerShare)),
+                )
+              : null;
+            return [tagId, position.stakedAt as number, pending] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
       if (cancelled) return;
-      const map: Record<string, number> = {};
-      for (const entry of entries) if (entry) map[entry[0]] = entry[1];
-      setStakedAtByTag(map);
-    });
+      const stakedAtMap: Record<string, number> = {};
+      const pendingMap: Record<string, number> = {};
+      for (const entry of entries) {
+        if (!entry) continue;
+        const [tagId, stakedAt, pending] = entry;
+        stakedAtMap[tagId] = stakedAt;
+        if (pending != null) pendingMap[tagId] = pending;
+      }
+      setStakedAtByTag(stakedAtMap);
+      setPendingByTag(pendingMap);
+    }
+
+    load();
     return () => {
       cancelled = true;
     };
   }, [appId, user, myStakes, tags]);
+
+  async function claimTag(tagId: string, tagSlug: string) {
+    setBusy(true);
+    try {
+      const { txSig, simulated } = await claimTagReward(appId, tagSlug);
+      toast.success(
+        simulated ? "Claimed (simulated) — running without a live deployment" : `Claimed your #${tagSlug} reward`,
+        txSig ? { txSig } : undefined,
+      );
+      setPendingByTag((prev) => ({ ...prev, [tagId]: 0 }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Claim failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function stake(appTagId: string, tagSlug: string) {
     if (stakeAmount <= 0) return;
@@ -196,7 +255,7 @@ export function TagStakePanel({
         <ul className="space-y-2">
           {tags.map((t) => (
             <li key={t.id} className="rounded-lg border border-hairline p-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <Link href={`/tags/${t.slug}`} className="font-medium text-ink hover:text-cobalt">
                     #{t.name}
@@ -212,6 +271,15 @@ export function TagStakePanel({
                     onClick={() => withdraw(t.id, t.slug)}
                   >
                     {busy ? "…" : `Withdraw ${myStakes[t.id]!.amount}`}
+                  </button>
+                )}
+                {user && myStakes[t.id] && !isSimulationMode() && (
+                  <button
+                    className="btn-primary text-xs"
+                    disabled={busy || !pendingByTag[t.id]}
+                    onClick={() => claimTag(t.id, t.slug)}
+                  >
+                    {busy ? "…" : pendingByTag[t.id] ? `Claim ${formatToken(pendingByTag[t.id], "")}` : "Claim"}
                   </button>
                 )}
                 {user && (

@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BN } from "@anchor-lang/core";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useVoteProgram } from "@/hooks/useVoteProgram";
+import { useClaimRewards } from "@/hooks/useClaimRewards";
 import { isSimulationMode } from "@/lib/config";
 import { TOKEN_SYMBOL } from "@/lib/constants";
+import { formatToken } from "@/lib/utils";
+import { fromRawAmount } from "@/lib/anchorClient";
 import { estimateUnstakeFee } from "@/lib/unstakeFee";
+import { settlePendingRaw } from "@/lib/rewards";
+import { apiGet } from "@/lib/txClient";
+import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import { ConnectButton } from "@/components/ConnectButton";
 
 const PRESETS = [10, 50, 100, 500];
@@ -21,6 +28,7 @@ export function VotePanel({ appId }: { appId: string }) {
   const router = useRouter();
   const toast = useToast();
   const { vote: castVote, withdrawVote } = useVoteProgram();
+  const { claimVoteReward } = useClaimRewards();
   const [amount, setAmount] = useState(50);
   const [busy, setBusy] = useState(false);
   const [myVote, setMyVote] = useState<{ id: string; amount: number } | null>(null);
@@ -29,6 +37,11 @@ export function VotePanel({ appId }: { appId: string }) {
   // separately from `myVote` (a Postgres row) since only the indexed
   // on-chain account carries this field.
   const [stakedAt, setStakedAt] = useState<number | null>(null);
+  // Pending NEB reward, settled live from the on-chain position + app
+  // accumulator (see lib/rewards.ts) — same claim path as the rewards
+  // page's ClaimRewards, surfaced here too so a user doesn't have to leave
+  // this app's page to claim what its own vote has earned.
+  const [pending, setPending] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -44,15 +57,66 @@ export function VotePanel({ appId }: { appId: string }) {
   useEffect(() => {
     if (!user || !myVote) {
       setStakedAt(null);
+      setPending(null);
       return;
     }
-    fetch(`/api/accounts/vote-position/${appId}?owner=${user.wallet}`)
-      .then((res) => res.json())
-      .then((json) => setStakedAt(json.ok ? (json.data.position?.stakedAt ?? null) : null))
-      .catch(() => setStakedAt(null));
+    let cancelled = false;
+
+    async function load() {
+      let position: PositionData | null = null;
+      try {
+        const res = await apiGet<{ position: PositionData | null }>(
+          `/api/accounts/vote-position/${appId}?owner=${user!.wallet}`,
+        );
+        position = res.position;
+      } catch {
+        position = null;
+      }
+      if (cancelled) return;
+      setStakedAt(position?.stakedAt ?? null);
+
+      if (!position || isSimulationMode()) {
+        setPending(null);
+        return;
+      }
+      try {
+        const { app } = await apiGet<{ app: AppAccountData | null }>(`/api/accounts/app/${appId}`);
+        if (cancelled) return;
+        setPending(
+          app
+            ? fromRawAmount(
+                settlePendingRaw(new BN(position.amount), new BN(position.rewardDebt), new BN(app.voteAccRewardPerShare)),
+              )
+            : null,
+        );
+      } catch {
+        if (!cancelled) setPending(null);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [appId, user, myVote]);
 
   const unstakeFee = myVote && stakedAt !== null ? estimateUnstakeFee(myVote.amount, stakedAt) : null;
+
+  async function claim() {
+    setBusy(true);
+    try {
+      const { txSig, simulated } = await claimVoteReward(appId);
+      toast.success(
+        simulated ? "Claimed (simulated) — running without a live deployment" : "Claimed your vote reward",
+        txSig ? { txSig } : undefined,
+      );
+      setPending(0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Claim failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function vote() {
     if (amount <= 0) return;
@@ -163,13 +227,22 @@ export function VotePanel({ appId }: { appId: string }) {
           </button>
           {myVote && (
             <div className="space-y-1">
-              <button
-                className="btn-secondary w-full"
-                disabled={busy}
-                onClick={withdraw}
-              >
-                {busy ? "Withdrawing…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  className="btn-secondary flex-1"
+                  disabled={busy}
+                  onClick={withdraw}
+                >
+                  {busy ? "…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  disabled={busy || isSimulationMode() || !pending}
+                  onClick={claim}
+                >
+                  {busy ? "…" : pending ? `Claim ${formatToken(pending, "")} ${TOKEN_SYMBOL}` : "Claim"}
+                </button>
+              </div>
               {unstakeFee && unstakeFee.feeBps > 0 && (
                 <p className="text-center text-xs text-slate-steel">
                   {(unstakeFee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
