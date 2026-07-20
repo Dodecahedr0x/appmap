@@ -85,6 +85,18 @@ async fn create(State(state): State<Arc<ApiState>>, Json(req): Json<CreateReq>) 
 
     refresh_app(&state.pool, &req.app_id).await?;
 
+    if let Err(e) = crate::handlers::xp::award(
+        &state.pool,
+        &req.user_id,
+        "vote",
+        Some(&req.app_id),
+        crate::handlers::xp::XP_VOTE,
+    )
+    .await
+    {
+        log::warn!("failed to award vote XP for user {}: {e}", req.user_id);
+    }
+
     let updated: (f64, i32, f64) = sqlx::query_as(
         r#"SELECT "voteWeight", "voteCount", "rankScore" FROM "App" WHERE id = $1"#,
     )
