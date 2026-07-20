@@ -26,6 +26,47 @@ const CURSOR_ID: &str = "program_instructions";
 /// getSignaturesForAddress's hard per-call cap.
 const SIGNATURES_PAGE_LIMIT: usize = 1000;
 
+/// Capped exponential backoff for `with_retry` below — five attempts spread
+/// over ~15s (500ms, 1s, 2s, 4s, 8s), long enough to ride out a rate-limit
+/// window without stalling a single tick for multiple poll intervals.
+const MAX_RETRIES: u32 = 5;
+const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
+
+/// Retries `f` with capped exponential backoff. Every RPC call this crawler
+/// makes (`getSignaturesForAddress`, `getTransaction`) goes through a local
+/// Surfnet that transparently proxies to the public `mainnet-beta` RPC for
+/// any address it doesn't already have full local history for (see this
+/// module's doc comment on why a fork is used at all) — and that public
+/// endpoint's rate limit is easily tripped by this app's own local-dev setup
+/// (scripts/createAppsOnchain.ts, scripts/seedStakes.ts each send hundreds
+/// of transactions in parallel). Without a retry, a single 429 mid-tick used
+/// to abort the whole tick via `?` *before* the cursor was ever saved — so
+/// nothing landed in Postgres (`App`/`Tag` rows only ever come from this
+/// crawler, see processors/product.rs) until a tick happened to land with
+/// zero contention, which wasn't guaranteed to ever happen while the setup
+/// script's own burst was still running.
+async fn with_retry<T, F, Fut>(mut f: F) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let mut backoff = INITIAL_BACKOFF;
+    for attempt in 1..=MAX_RETRIES {
+        match f().await {
+            Ok(v) => return Ok(v),
+            Err(e) if attempt < MAX_RETRIES => {
+                log::warn!(
+                    "crawler: RPC call failed (attempt {attempt}/{MAX_RETRIES}), retrying in {backoff:?}: {e}"
+                );
+                tokio::time::sleep(backoff).await;
+                backoff *= 2;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    unreachable!("loop always returns on the final attempt")
+}
+
 /// Polls `getSignaturesForAddress` + `getTransaction` for "our program
 /// changes" instead of the Carbon-provided `RpcBlockSubscribe` datasource:
 /// `blockSubscribe` is disabled by default on `solana-test-validator` and,
@@ -106,17 +147,21 @@ async fn fetch_new_signatures(
     let mut all = Vec::new();
     let mut before: Option<Signature> = None;
     loop {
-        let batch = client
-            .get_signatures_for_address_with_config(
-                &program_id,
-                GetConfirmedSignaturesForAddress2Config {
-                    before,
-                    until,
-                    limit: Some(SIGNATURES_PAGE_LIMIT),
-                    commitment: Some(CommitmentConfig::confirmed()),
-                },
-            )
-            .await?;
+        let batch = with_retry(|| async {
+            client
+                .get_signatures_for_address_with_config(
+                    &program_id,
+                    GetConfirmedSignaturesForAddress2Config {
+                        before,
+                        until,
+                        limit: Some(SIGNATURES_PAGE_LIMIT),
+                        commitment: Some(CommitmentConfig::confirmed()),
+                    },
+                )
+                .await
+                .map_err(Into::into)
+        })
+        .await?;
         let is_full_page = batch.len() == SIGNATURES_PAGE_LIMIT;
         let Some(oldest) = batch.last() else { break };
         before = Some(oldest.signature.parse()?);
@@ -167,16 +212,20 @@ async fn crawl_transaction(
     signature: Signature,
     slot: u64,
 ) -> Result<()> {
-    let response = client
-        .get_transaction_with_config(
-            &signature,
-            RpcTransactionConfig {
-                encoding: Some(UiTransactionEncoding::Base64),
-                commitment: Some(CommitmentConfig::confirmed()),
-                max_supported_transaction_version: Some(0),
-            },
-        )
-        .await?;
+    let response = with_retry(|| async {
+        client
+            .get_transaction_with_config(
+                &signature,
+                RpcTransactionConfig {
+                    encoding: Some(UiTransactionEncoding::Base64),
+                    commitment: Some(CommitmentConfig::confirmed()),
+                    max_supported_transaction_version: Some(0),
+                },
+            )
+            .await
+            .map_err(Into::into)
+    })
+    .await?;
 
     let Some(versioned_tx) = response.transaction.transaction.decode() else {
         log::warn!("crawler: could not decode transaction {signature}, skipping");
