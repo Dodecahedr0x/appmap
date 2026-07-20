@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { XpProgress } from "@/components/profile/XpProgress";
 import { SITE_URL } from "@/lib/constants";
+import { getSession } from "@/lib/session";
+
+// Reads the session cookie, so it must be rendered per-request.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -9,7 +14,10 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/profile` },
 };
 
-export default function ProfilePage() {
+export default async function ProfilePage() {
+  const session = await getSession();
+  if (!session) redirect("/");
+
   return (
     <div className="space-y-6">
       <PageHeader

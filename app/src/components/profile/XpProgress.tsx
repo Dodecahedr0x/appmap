@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { ConnectButton } from "@/components/ConnectButton";
+import { XpLeaderboard } from "@/components/profile/XpLeaderboard";
 import type { UserXp, XpActivityEntry } from "@/lib/indexerClient";
 
 function describeEvent(event: XpActivityEntry): string {
@@ -24,7 +25,7 @@ function describeEvent(event: XpActivityEntry): string {
 }
 
 export function XpProgress() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [xp, setXp] = useState<UserXp | null | undefined>(undefined);
   const [activity, setActivity] = useState<XpActivityEntry[] | null>(null);
 
@@ -57,6 +58,14 @@ export function XpProgress() {
       cancelled = true;
     };
   }, [user]);
+
+  if (authLoading) {
+    return (
+      <section className="card p-6">
+        <p className="text-sm text-slate">Loading your profile…</p>
+      </section>
+    );
+  }
 
   if (!user) {
     return (
@@ -109,6 +118,8 @@ export function XpProgress() {
           <Stat label="Tags staked" value={xp.stakesMade} />
         </div>
       </section>
+
+      <XpLeaderboard currentUserId={xp.userId} />
 
       <section className="card space-y-3 p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate">Activity</h2>
