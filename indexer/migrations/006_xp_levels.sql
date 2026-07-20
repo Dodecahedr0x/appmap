@@ -23,9 +23,11 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- One row per (user, kind, target): this is what makes vote/stake XP
 -- "first time per target only" (design doc Section 2), and it makes
 -- reprocessing (backfill re-run, startup) idempotent for submit_app/
--- suggest_tag too. daily_bonus rows have targetId = NULL, and Postgres
--- never treats two NULLs as equal in a unique index, so multiple
--- daily_bonus rows per user (one per day) are unaffected by this index.
+-- suggest_tag too. daily_bonus rows encode the UTC date (e.g. "2026-07-20")
+-- as targetId — NOT NULL, since Postgres never treats two NULLs as equal in
+-- a unique index, which would let concurrent award() calls both insert a
+-- daily_bonus row for the same day. Encoding the date makes this index the
+-- atomicity boundary that caps daily_bonus at one grant per user per day.
 CREATE UNIQUE INDEX IF NOT EXISTS "XpEvent_userId_kind_targetId_key"
     ON "XpEvent" ("userId", "kind", "targetId");
 
