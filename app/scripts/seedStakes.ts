@@ -48,6 +48,7 @@ import { deriveAppId, type AppEntry } from "./createAppsOnchain";
 import { parseFlags } from "./lib/parseFlags";
 import idl from "../../target/idl/nebulous_world.json";
 import type { NebulousWorld } from "../../target/types/nebulous_world";
+import type { AppDTO } from "../src/lib/types";
 
 const DEPLOYER_KEYPAIR_PATH =
   process.env.DEPLOYER_KEYPAIR_PATH || `${homedir()}/.config/solana/id.json`;
@@ -202,8 +203,85 @@ function stakeTagIx(
     .instruction();
 }
 
+/** Upserts (by wallet) and returns the `User.id` this script's transactions should be recorded under. */
+async function connectUser(indexerApiUrl: string, wallet: string): Promise<string> {
+  const res = await fetch(`${indexerApiUrl}/users/connect`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ wallet }),
+  });
+  if (!res.ok) throw new Error(`POST /users/connect failed (${res.status}): ${await res.text()}`);
+  const user = (await res.json()) as { id: string };
+  return user.id;
+}
+
+/**
+ * `appId`'s `AppTag.id` for `tagSlug`, waiting out the crawler's poll
+ * interval (see indexer/src/config.rs's `crawler_poll_interval_secs`) if
+ * this app was only just registered on-chain by createAppsOnchain.ts and
+ * hasn't been indexed into Postgres yet.
+ */
+async function resolveAppTagId(
+  indexerApiUrl: string,
+  appId: string,
+  tagSlug: string,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const res = await fetch(`${indexerApiUrl}/apps/by-id/${encodeURIComponent(appId)}`);
+    if (res.ok) {
+      const app = (await res.json()) as AppDTO;
+      const tag = app.tags.find((t) => t.slug === tagSlug);
+      if (tag) return tag.id;
+    } else if (res.status !== 404) {
+      throw new Error(`GET /apps/by-id/${appId} failed (${res.status}): ${await res.text()}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  return null;
+}
+
+/**
+ * Records a confirmed vote/stake_tag transaction in the off-chain ledger the
+ * same way the real UI's VotePanel/TagStakePanel do right after their own
+ * on-chain transfer settles (see votes/stakes `create()` in
+ * indexer/src/handlers/) — `App.stakeTotal`/`AppTag.stakeTotal` are computed
+ * from THIS ledger (`handlers::engine::refresh_app`/`refresh_app_tag`), not
+ * from the raw on-chain accounts, so a stake that only ever sends the
+ * on-chain transaction (as this script used to) leaves every app/tag showing
+ * 0 stake until the indexer's next restart-time reconcile pass happens to
+ * run after the fact.
+ */
+async function recordStakeOrVote(
+  indexerApiUrl: string,
+  userId: string,
+  target: StakeTarget,
+  amount: number,
+  txSig: string,
+): Promise<void> {
+  if (target.kind === "vote") {
+    const res = await fetch(`${indexerApiUrl}/votes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ appId: target.appId, userId, amount, txSig }),
+    });
+    if (!res.ok) throw new Error(`POST /votes failed (${res.status}): ${await res.text()}`);
+    return;
+  }
+
+  const appTagId = await resolveAppTagId(indexerApiUrl, target.appId, target.tagId!);
+  if (!appTagId) {
+    throw new Error(`tag ${target.tagId} on app ${target.appId} never appeared in the indexer`);
+  }
+  const res = await fetch(`${indexerApiUrl}/stakes`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ appTagId, userId, amount, txSig, simulationMode: false }),
+  });
+  if (!res.ok) throw new Error(`POST /stakes failed (${res.status}): ${await res.text()}`);
+}
+
 type SendResult =
-  | { status: "sent"; target: StakeTarget; amount: number; sig: string }
+  | { status: "sent"; target: StakeTarget; amount: number; sig: string; recordError?: string }
   | { status: "failed"; target: StakeTarget; amount: number; error: string };
 
 async function main() {
@@ -236,6 +314,7 @@ async function main() {
   const programId = new PublicKey(config.solana.programId);
 
   console.log(`🔑 Paying/signing with ${payer.publicKey.toBase58()}`);
+  const userId = await connectUser(config.indexerApiUrl, payer.publicKey.toBase58());
   console.log(`💵 Buying NEB with ${args.usdc} USDC`);
   const { sig: buySig, nebOut, nebMint } = await buyNeb(
     connection,
@@ -270,6 +349,24 @@ async function main() {
               );
         const tx = new Transaction({ feePayer: payer.publicKey, recentBlockhash: blockhash }).add(ix);
         const sig = await sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
+
+        // The on-chain transfer alone doesn't move App.stakeTotal/AppTag.
+        // stakeTotal — see recordStakeOrVote's doc comment — so record it
+        // in the ledger right away, same as the real UI would. A failure
+        // here doesn't unwind the (already-confirmed) on-chain transaction,
+        // it just means this one target's stake won't show up until the
+        // indexer's next restart-time reconcile pass.
+        try {
+          await recordStakeOrVote(config.indexerApiUrl, userId, target, amount, sig);
+        } catch (err) {
+          return {
+            status: "sent",
+            target,
+            amount,
+            sig,
+            recordError: err instanceof Error ? err.message : String(err),
+          };
+        }
         return { status: "sent", target, amount, sig };
       } catch (err) {
         return { status: "failed", target, amount, error: err instanceof Error ? err.message : String(err) };
@@ -278,6 +375,7 @@ async function main() {
   );
 
   let sent = 0;
+  let recordFailed = 0;
   let failed = 0;
   let totalStaked = 0;
   for (const result of results) {
@@ -289,7 +387,15 @@ async function main() {
     if (r.status === "sent") {
       sent++;
       totalStaked += r.amount;
-      console.log(`  ✓ ${r.target.kind} ${r.target.label}: ${r.amount.toFixed(4)} NEB (tx ${r.sig.slice(0, 12)}…)`);
+      if (r.recordError) {
+        recordFailed++;
+        console.error(
+          `  ⚠ ${r.target.kind} ${r.target.label}: on-chain tx confirmed (${r.sig.slice(0, 12)}…) but ` +
+            `recording it failed: ${r.recordError}`,
+        );
+      } else {
+        console.log(`  ✓ ${r.target.kind} ${r.target.label}: ${r.amount.toFixed(4)} NEB (tx ${r.sig.slice(0, 12)}…)`);
+      }
     } else {
       failed++;
       console.error(`  ✗ ${r.target.kind} ${r.target.label}: ${r.error}`);
@@ -297,9 +403,10 @@ async function main() {
   }
 
   console.log(
-    `${sent} sent (${totalStaked.toFixed(2)} NEB staked), ${failed} failed, out of ${targets.length}.`,
+    `${sent} sent (${totalStaked.toFixed(2)} NEB staked, ${recordFailed} unrecorded), ${failed} failed, ` +
+      `out of ${targets.length}.`,
   );
-  if (failed > 0) process.exitCode = 1;
+  if (failed > 0 || recordFailed > 0) process.exitCode = 1;
 }
 
 if (require.main === module) {
