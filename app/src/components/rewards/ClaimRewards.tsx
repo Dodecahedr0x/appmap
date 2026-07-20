@@ -7,12 +7,15 @@ import { BN } from "@anchor-lang/core";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useClaimRewards } from "@/hooks/useClaimRewards";
+import { useVoteProgram } from "@/hooks/useVoteProgram";
+import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
 import { ConnectButton } from "@/components/ConnectButton";
 import { isSimulationMode } from "@/lib/config";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
 import { fromRawAmount } from "@/lib/anchorClient";
-import { apiGet } from "@/lib/txClient";
+import { apiGet, apiPost } from "@/lib/txClient";
+import { estimateUnstakeFee } from "@/lib/unstakeFee";
 import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import { settlePendingRaw } from "@/lib/rewards";
 
@@ -39,10 +42,15 @@ interface ClaimRow {
   appId: string;
   appSlug: string;
   appName: string;
+  appTagId?: string;
   tagSlug?: string;
   tagName?: string;
   stakedAmount: number;
   pending: number | null; // null while loading or unavailable
+  /** On-chain position's `stakedAt` checkpoint (Unix seconds) — drives the
+      early-unstake fee estimate. Only known once the on-chain position is
+      fetched below; null until then or if it can't be found. */
+  stakedAt: number | null;
 }
 
 /**
@@ -57,9 +65,12 @@ export function ClaimRewards() {
   const wallet = useWallet();
   const toast = useToast();
   const { claimVoteReward, claimTagReward } = useClaimRewards();
+  const { withdrawVote } = useVoteProgram();
+  const { withdrawTagStake } = useTagStakeProgram();
 
   const [rows, setRows] = useState<ClaimRow[] | null>(null);
   const [claimingKey, setClaimingKey] = useState<string | null>(null);
+  const [unstakingKey, setUnstakingKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -86,6 +97,7 @@ export function ClaimRewards() {
           appName: v.appName,
           stakedAmount: v.amount,
           pending: null,
+          stakedAt: null,
         })),
         ...stakes.map((s) => ({
           key: `tag:${s.appTagId}`,
@@ -93,10 +105,12 @@ export function ClaimRewards() {
           appId: s.appId,
           appSlug: s.appSlug,
           appName: s.appName,
+          appTagId: s.appTagId,
           tagSlug: s.tagSlug,
           tagName: s.tagName,
           stakedAmount: s.amount,
           pending: null,
+          stakedAt: null,
         })),
       ];
       setRows(base);
@@ -122,7 +136,7 @@ export function ClaimRewards() {
                 new BN(position.rewardDebt),
                 new BN(app.voteAccRewardPerShare),
               );
-              return { ...row, pending: fromRawAmount(pending) };
+              return { ...row, pending: fromRawAmount(pending), stakedAt: position.stakedAt };
             }
             const { position } = await apiGet<{ position: PositionData | null }>(
               `/api/accounts/stake-position/${encodeURIComponent(row.appId)}/${encodeURIComponent(row.tagSlug!)}?owner=${owner}`,
@@ -133,7 +147,7 @@ export function ClaimRewards() {
               new BN(position.rewardDebt),
               new BN(app.tagsAccRewardPerShare),
             );
-            return { ...row, pending: fromRawAmount(pending) };
+            return { ...row, pending: fromRawAmount(pending), stakedAt: position.stakedAt };
           } catch {
             // Position/app not found on-chain yet (e.g. simulation-mode data
             // with no matching real account) — leave pending unknown rather
@@ -176,6 +190,38 @@ export function ClaimRewards() {
     }
   }
 
+  // Withdraws the FULL principal for this row — the on-chain call takes an
+  // arbitrary amount, but `row.stakedAmount` (from /api/rewards/positions)
+  // is already the sum of every active Vote/Stake row behind this one
+  // on-chain position, so a full withdrawal is the only amount that keeps
+  // the DB and on-chain state in sync afterward. The off-chain leg
+  // (withdraw-all) retires every one of those summed rows in one call —
+  // see indexer/src/handlers/votes.rs / stakes.rs's withdraw_all.
+  async function unstake(row: ClaimRow) {
+    setUnstakingKey(row.key);
+    try {
+      const { txSig, simulated } =
+        row.kind === "vote"
+          ? await withdrawVote(row.appId, row.stakedAmount)
+          : await withdrawTagStake(row.appId, row.tagSlug!, row.stakedAmount);
+
+      await apiPost(
+        row.kind === "vote" ? "/api/vote/withdraw-all" : "/api/stake/withdraw-all",
+        row.kind === "vote" ? { appId: row.appId } : { appTagId: row.appTagId },
+      );
+
+      toast.success(
+        simulated ? "Unstaked (simulated)" : "Unstaked — tokens returned",
+        txSig ? { txSig } : undefined,
+      );
+      setRows((prev) => prev?.filter((r) => r.key !== row.key) ?? null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unstake failed");
+    } finally {
+      setUnstakingKey(null);
+    }
+  }
+
   return (
     <section className="card space-y-4 p-6">
       <div>
@@ -184,7 +230,8 @@ export function ClaimRewards() {
         </h2>
         <p className="mt-1 text-xs text-slate-steel">
           Every vote and tag stake earns a share of that app&apos;s funded {TOKEN_SYMBOL} reward
-          pool, on top of your principal — claim anytime without withdrawing your stake.
+          pool, on top of your principal — claim anytime, or unstake to withdraw your principal
+          entirely (an early-unstake fee applies in the first week, shrinking to 0).
         </p>
       </div>
 
@@ -220,50 +267,62 @@ export function ClaimRewards() {
           ) : null}
 
           <ul className="space-y-2">
-            {rows.map((row) => (
-              <li
-                key={row.key}
-                className="flex items-center justify-between gap-3 rounded-lg border border-hairline p-3"
-              >
-                <div>
-                  <Link
-                    href={`/app/${row.appSlug}`}
-                    className="font-medium text-ink hover:text-cobalt"
-                  >
-                    {row.appName}
-                  </Link>
-                  <div className="text-xs text-slate-steel">
-                    {row.kind === "vote" ? (
-                      <>Vote · {formatToken(row.stakedAmount, TOKEN_SYMBOL)} staked</>
-                    ) : (
-                      <>
-                        #{row.tagName} tag · {formatToken(row.stakedAmount, TOKEN_SYMBOL)} staked
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-xs text-slate-steel">Pending</div>
-                    <div className="font-mono text-sm font-medium tabular-nums text-ink">
-                      {row.pending == null ? "—" : formatToken(row.pending, TOKEN_SYMBOL)}
+            {rows.map((row) => {
+              const fee =
+                row.stakedAt != null ? estimateUnstakeFee(row.stakedAmount, row.stakedAt) : null;
+              const busy = claimingKey === row.key || unstakingKey === row.key;
+              return (
+                <li key={row.key} className="rounded-lg border border-hairline p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Link
+                        href={`/app/${row.appSlug}`}
+                        className="font-medium text-ink hover:text-cobalt"
+                      >
+                        {row.appName}
+                      </Link>
+                      <div className="text-xs text-slate-steel">
+                        {row.kind === "vote" ? (
+                          <>Vote · {formatToken(row.stakedAmount, TOKEN_SYMBOL)} staked</>
+                        ) : (
+                          <>
+                            #{row.tagName} tag · {formatToken(row.stakedAmount, TOKEN_SYMBOL)} staked
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-xs text-slate-steel">Pending</div>
+                        <div className="font-mono text-sm font-medium tabular-nums text-ink">
+                          {row.pending == null ? "—" : formatToken(row.pending, TOKEN_SYMBOL)}
+                        </div>
+                      </div>
+                      <button
+                        className="btn-secondary text-xs"
+                        disabled={busy || (!isSimulationMode() && !wallet.publicKey)}
+                        onClick={() => unstake(row)}
+                      >
+                        {unstakingKey === row.key ? "Unstaking…" : "Unstake"}
+                      </button>
+                      <button
+                        className="btn-primary text-xs"
+                        disabled={busy || isSimulationMode() || !wallet.publicKey || !row.pending}
+                        onClick={() => claim(row)}
+                      >
+                        {claimingKey === row.key ? "Claiming…" : "Claim"}
+                      </button>
                     </div>
                   </div>
-                  <button
-                    className="btn-primary text-xs"
-                    disabled={
-                      claimingKey === row.key ||
-                      isSimulationMode() ||
-                      !wallet.publicKey ||
-                      !row.pending
-                    }
-                    onClick={() => claim(row)}
-                  >
-                    {claimingKey === row.key ? "Claiming…" : "Claim"}
-                  </button>
-                </div>
-              </li>
-            ))}
+                  {fee && fee.feeBps > 0 && (
+                    <p className="mt-2 text-xs text-slate-steel">
+                      {(fee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
+                      receive ~{fee.net.toFixed(2)} {TOKEN_SYMBOL}. Shrinks to 0 over a week.
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

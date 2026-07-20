@@ -22,6 +22,19 @@ export const unvoteSchema = z.object({
   voteId: z.string().min(1),
 });
 
+// Withdraws every active Vote/Stake row for a (user, target) at once,
+// rather than a single row by id — see indexer/src/handlers/votes.rs and
+// stakes.rs's withdraw_all doc comments. Used by the rewards page's "Your
+// rewards" unstake action, which withdraws the same aggregated amount
+// on-chain that these rows sum to.
+export const unstakeAllSchema = z.object({
+  appTagId: z.string().min(1),
+});
+
+export const unvoteAllSchema = z.object({
+  appId: z.string().min(1),
+});
+
 export const trackViewSchema = z.object({
   appId: z.string().min(1),
   path: z.string().max(300).optional().default("/"),
