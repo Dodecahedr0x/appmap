@@ -484,6 +484,22 @@ export async function fetchXpActivity(userId: string): Promise<XpActivityEntry[]
   return result.events;
 }
 
+export interface XpLeaderboardEntry {
+  userId: string;
+  wallet: string;
+  handle: string | null;
+  xp: number;
+  level: number;
+  title: string;
+}
+
+export async function fetchXpLeaderboard(limit = 10): Promise<XpLeaderboardEntry[]> {
+  const result = (await get(`/xp/leaderboard?limit=${encodeURIComponent(limit)}`)) as {
+    entries: XpLeaderboardEntry[];
+  };
+  return result.entries;
+}
+
 export interface VisitorInfo {
   visitorId: string;
   sessionId: string;

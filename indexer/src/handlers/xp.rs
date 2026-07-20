@@ -39,11 +39,11 @@ pub fn title_for_level(level: i32) -> &'static str {
 use sqlx::PgPool;
 
 use crate::api::{ApiError, ApiState};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use chrono::NaiveDateTime;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Inserts the XpEvent and bumps `User.xp` atomically (same transaction),
@@ -324,8 +324,67 @@ async fn get_activity(
     Ok(Json(serde_json::json!({ "events": events })))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LeaderboardEntry {
+    user_id: String,
+    wallet: String,
+    handle: Option<String>,
+    xp: i32,
+    level: i32,
+    title: &'static str,
+}
+
+#[derive(Deserialize)]
+struct LeaderboardQuery {
+    limit: Option<i64>,
+}
+
+/// Top wallets by lifetime XP — cosmetic status only, same as everything
+/// else in this module (never derived from or feeding into vote weight,
+/// stake, or rank score). `limit` defaults to 10 and is clamped to 50 to
+/// keep this a cheap, bounded read.
+async fn get_leaderboard(
+    State(state): State<Arc<ApiState>>,
+    Query(q): Query<LeaderboardQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let limit = q.limit.unwrap_or(10).clamp(1, 50);
+
+    let rows: Vec<(String, String, Option<String>, i32)> = sqlx::query_as(
+        r#"
+        SELECT id, wallet, handle, xp
+        FROM "User"
+        WHERE xp > 0
+        ORDER BY xp DESC, id ASC
+        LIMIT $1
+        "#,
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    let entries: Vec<LeaderboardEntry> = rows
+        .into_iter()
+        .map(|(user_id, wallet, handle, xp)| {
+            let level = level_for_xp(xp);
+            LeaderboardEntry {
+                user_id,
+                wallet,
+                handle,
+                xp,
+                level,
+                title: title_for_level(level),
+            }
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "entries": entries })))
+}
+
 pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
+        .route("/xp/leaderboard", get(get_leaderboard))
         .route("/xp/:user_id", get(get_xp))
         .route("/xp/:user_id/activity", get(get_activity))
 }
