@@ -19,6 +19,7 @@ pub struct WithdrawVoteInstructionAccounts {
     pub config: solana_pubkey::Pubkey,
     pub vault: solana_pubkey::Pubkey,
     pub user_token_account: solana_pubkey::Pubkey,
+    pub admin_token_account: solana_pubkey::Pubkey,
     pub user: solana_pubkey::Pubkey,
     pub token_program: solana_pubkey::Pubkey,
     pub remaining: Vec<solana_instruction::AccountMeta>,
@@ -55,6 +56,7 @@ impl ArrangeAccounts for WithdrawVote {
         let config = next_account(&mut iter)?;
         let vault = next_account(&mut iter)?;
         let user_token_account = next_account(&mut iter)?;
+        let admin_token_account = next_account(&mut iter)?;
         let user = next_account(&mut iter)?;
         let token_program = next_account(&mut iter)?;
 
@@ -66,6 +68,7 @@ impl ArrangeAccounts for WithdrawVote {
             config,
             vault,
             user_token_account,
+            admin_token_account,
             user,
             token_program,
             remaining: remaining.to_vec(),

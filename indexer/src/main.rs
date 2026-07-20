@@ -10,8 +10,9 @@ mod processors;
 mod reconcile;
 mod rollup;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use carbon_core::pipeline::{Pipeline, ShutdownStrategy};
+use carbon_nebulous_world_decoder::accounts::NebulousWorldAccount;
 use carbon_nebulous_world_decoder::NebulousWorldDecoder;
 use carbon_rpc_program_subscribe_datasource::{Filters as ProgramFilters, RpcProgramSubscribe};
 use config::Config;
@@ -44,6 +45,23 @@ async fn main() -> Result<()> {
     let backfill_result = backfill::run(&config.rpc_http_url, config.program_id, &pool).await?;
     reconcile::run(&pool, &backfill_result.decoded, config.vote_token_decimals).await?;
 
+    // `Config.authority` is the admin pubkey `build_withdraw_vote`/
+    // `build_withdraw_tag_stake` pay the unstake fee to (see
+    // WithdrawVote::admin_token_account's doc comment in the program crate)
+    // — read once here from the backfill's already-fetched account data
+    // (Config never changes after `initialize`) rather than adding a
+    // dedicated RPC round trip per withdrawal build. Missing entirely means
+    // `initialize` hasn't run yet, which every other admin-gated flow in
+    // this app already assumes has happened before the indexer is useful.
+    let admin_authority = backfill_result
+        .decoded
+        .iter()
+        .find_map(|(_, account)| match account {
+            NebulousWorldAccount::Config(program_config) => Some(program_config.authority),
+            _ => None,
+        })
+        .context("Config account not found — has `initialize` been called yet?")?;
+
     if let Err(e) = handlers::xp::backfill(&pool).await {
         log::warn!("xp backfill failed: {e}");
     }
@@ -75,6 +93,7 @@ async fn main() -> Result<()> {
         http: reqwest::Client::new(),
         program_id: config.program_id,
         vote_token_mint: config.vote_token_mint.unwrap_or_default(),
+        admin_authority,
         dlmm_bridge_url: config.dlmm_bridge_url.clone(),
     });
     let api_port = config.api_port;

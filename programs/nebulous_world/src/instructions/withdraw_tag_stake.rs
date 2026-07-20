@@ -4,7 +4,7 @@ use anchor_spl::token::{Token, TokenAccount};
 
 use crate::constants::{APP_SEED, APP_TAG_STAKE_SEED, CONFIG_SEED, STAKE_POSITION_SEED};
 use crate::error::ErrorCode;
-use crate::reward_math::{bump_accumulator, reward_debt_for, settle_pending, transfer_from_vault};
+use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
 use crate::state::{AppAccount, AppTagStake, Config, StakePosition};
 use crate::unstake_fee::{linear_decay_fee_bps, unstake_fee};
 
@@ -46,6 +46,17 @@ pub struct WithdrawTagStake<'info> {
     pub vault: Account<'info, TokenAccount>,
     #[account(mut, token::mint = config.vote_mint)]
     pub user_token_account: Account<'info, TokenAccount>,
+    /// The admin's own token account — see `WithdrawVote::admin_token_account`'s
+    /// doc comment, same constraints and same reasoning. Boxed for the same
+    /// reason too: this struct has one more `Account<'info, _>` field than
+    /// `WithdrawVote` (`app_tag_stake`), which is what actually pushes
+    /// `try_accounts` over SBF's 4096-byte stack frame limit without it.
+    #[account(
+        mut,
+        address = get_associated_token_address(&config.authority, &config.vote_mint),
+        token::mint = config.vote_mint,
+    )]
+    pub admin_token_account: Box<Account<'info, TokenAccount>>,
     pub user: Signer<'info>,
     pub token_program: Program<'info, Token>,
 }
@@ -57,11 +68,12 @@ pub struct WithdrawTagStake<'info> {
 /// unconditional here for the same reason documented there (an existing
 /// position always has `amount > 0`).
 ///
-/// Charges the same linearly-decaying unstake fee as `withdraw_vote`'s
-/// (1% -> 0% over a week — see `unstake_fee.rs`), redistributed to whoever
-/// remains staked on this tag via `bump_accumulator` against the SHARED
-/// tags-pool accumulator (`app.tags_acc_reward_per_share`) — the same pool
-/// `stake_tag`/`claim_tag_reward` already read/write, not anything per-tag.
+/// Charges the same linearly-decaying unstake fee as `withdraw_vote`'s (1%
+/// -> 0% over a week — see `unstake_fee.rs`), paid directly to
+/// `admin_token_account` — see that field's doc comment and the matching
+/// note on `withdraw_vote`'s handler for why this is a straight treasury
+/// skim with no "pool is empty" edge case, unlike the reward pools this
+/// instruction otherwise interacts with.
 pub fn handler(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
     require!(amount > 0, ErrorCode::ZeroAmount);
     require!(
@@ -100,30 +112,27 @@ pub fn handler(ctx: Context<WithdrawTagStake>, amount: u64) -> Result<()> {
         .total_tag_stake
         .checked_sub(amount)
         .ok_or(ErrorCode::MathOverflow)?;
-    // Checkpointed against the pre-fee-bump accumulator — see the matching
-    // comment in withdraw_vote.rs for why that's the correct order.
     position.reward_debt = reward_debt_for(position.amount, app.tags_acc_reward_per_share)?;
 
-    // Redistribute the fee across the shared tags pool. If this withdrawal
-    // empties it (the last tag-staker withdrawing everything, across ALL of
-    // this app's tags — see the design note on `AppTagStake`), waive the fee
-    // rather than strand it with no accumulator claim on it.
-    let net_amount = if fee > 0 && app.total_tag_stake > 0 {
-        app.tags_acc_reward_per_share =
-            bump_accumulator(fee, app.total_tag_stake, app.tags_acc_reward_per_share)?;
-        amount - fee
-    } else {
-        amount
-    };
+    // Pay the fee straight to the admin, signed by `config`.
+    // `transfer_from_vault` no-ops when `fee` is 0.
+    transfer_from_vault(
+        &ctx.accounts.vault,
+        &ctx.accounts.admin_token_account,
+        &ctx.accounts.config.to_account_info(),
+        ctx.accounts.config.bump,
+        &ctx.accounts.token_program,
+        fee,
+    )?;
 
-    // Return principal (net of any unstake fee), signed by `config`.
+    // Return principal (net of the unstake fee), signed by `config`.
     transfer_from_vault(
         &ctx.accounts.vault,
         &ctx.accounts.user_token_account,
         &ctx.accounts.config.to_account_info(),
         ctx.accounts.config.bump,
         &ctx.accounts.token_program,
-        net_amount,
+        amount - fee,
     )?;
 
     Ok(())

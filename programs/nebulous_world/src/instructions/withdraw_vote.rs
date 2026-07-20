@@ -4,7 +4,7 @@ use anchor_spl::token::{Token, TokenAccount};
 
 use crate::constants::{APP_SEED, CONFIG_SEED, VOTE_POSITION_SEED};
 use crate::error::ErrorCode;
-use crate::reward_math::{bump_accumulator, reward_debt_for, settle_pending, transfer_from_vault};
+use crate::reward_math::{reward_debt_for, settle_pending, transfer_from_vault};
 use crate::state::{AppAccount, Config, VotePosition};
 use crate::unstake_fee::{linear_decay_fee_bps, unstake_fee};
 
@@ -38,6 +38,26 @@ pub struct WithdrawVote<'info> {
     pub vault: Account<'info, TokenAccount>,
     #[account(mut, token::mint = config.vote_mint)]
     pub user_token_account: Account<'info, TokenAccount>,
+    /// The admin's own token account (an ATA for `config.authority`) —
+    /// where the unstake fee is paid directly, see the handler's doc
+    /// comment. `token::mint =` is the same defense-in-depth as every other
+    /// caller-supplied token account here (see `Vote::user_token_account`'s
+    /// doc comment); `address =` additionally pins the OWNER to
+    /// `config.authority` specifically, so a withdrawer can't redirect the
+    /// fee to an ATA they control themselves.
+    ///
+    /// Boxed (heap, not stack): this is the 7th `Account<'info, _>` field on
+    /// this struct, and `WithdrawTagStake`'s equivalent (one more account —
+    /// `app_tag_stake` — than this struct) overflows SBF's 4096-byte stack
+    /// frame limit in `try_accounts` by a handful of bytes without it. Boxed
+    /// here too for consistency between the two mirrored instructions, not
+    /// because `WithdrawVote` alone is currently over the limit.
+    #[account(
+        mut,
+        address = get_associated_token_address(&config.authority, &config.vote_mint),
+        token::mint = config.vote_mint,
+    )]
+    pub admin_token_account: Box<Account<'info, TokenAccount>>,
     pub user: Signer<'info>,
     pub token_program: Program<'info, Token>,
 }
@@ -54,10 +74,12 @@ pub struct WithdrawVote<'info> {
 /// withdrawn `amount` — 1% right after staking, decaying to 0% over the
 /// following week — deducted from what's paid out, not from the `amount`
 /// recorded as unstaked (`position.amount`/`app.total_vote_stake` both still
-/// move by the full `amount`, keeping the accumulator math exactly as before).
-/// The fee itself is redistributed to whoever remains in the vote pool via
-/// the same `bump_accumulator` mechanism `fund_app_rewards` uses, so it
-/// isn't a burn or a treasury skim — it accrues to other vote-stakers.
+/// move by the full `amount`, keeping the accumulator math exactly as
+/// before). The fee is paid directly to `admin_token_account`, a straight
+/// treasury skim — unlike the reward pools, it never touches
+/// `vote_acc_reward_per_share`, so there's no "pool is empty, nobody to pay"
+/// edge case to special-case: the fee is owed to the admin regardless of
+/// how many other stakers remain.
 pub fn handler(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
     require!(amount > 0, ErrorCode::ZeroAmount);
     require!(
@@ -91,35 +113,28 @@ pub fn handler(ctx: Context<WithdrawVote>, amount: u64) -> Result<()> {
         .total_vote_stake
         .checked_sub(amount)
         .ok_or(ErrorCode::MathOverflow)?;
-    // Checkpointed against the accumulator's value BEFORE the fee-funding
-    // bump below, same as every other checkpoint-then-fund ordering in this
-    // program: if this position still holds stake, it starts accruing a
-    // share of the fee just funded from this point forward, like any other
-    // pool member — no special-casing needed for "am I the one who just paid
-    // this fee".
     position.reward_debt = reward_debt_for(position.amount, app.vote_acc_reward_per_share)?;
 
-    // Redistribute the fee to whoever remains in the vote pool. If this
-    // withdrawal empties it (the last staker withdrawing everything), there
-    // is nobody left to receive it — waive the fee rather than strand it in
-    // the vault with no accumulator claim on it.
-    let net_amount = if fee > 0 && app.total_vote_stake > 0 {
-        app.vote_acc_reward_per_share =
-            bump_accumulator(fee, app.total_vote_stake, app.vote_acc_reward_per_share)?;
-        amount - fee
-    } else {
-        amount
-    };
+    // Pay the fee straight to the admin, signed by `config` — the vault's
+    // only authority. `transfer_from_vault` no-ops when `fee` is 0 (the
+    // common case once a position has fully decayed past the fee window).
+    transfer_from_vault(
+        &ctx.accounts.vault,
+        &ctx.accounts.admin_token_account,
+        &ctx.accounts.config.to_account_info(),
+        ctx.accounts.config.bump,
+        &ctx.accounts.token_program,
+        fee,
+    )?;
 
-    // Return principal (net of any unstake fee), signed by `config` — the
-    // vault's only authority.
+    // Return principal (net of the unstake fee), signed by `config`.
     transfer_from_vault(
         &ctx.accounts.vault,
         &ctx.accounts.user_token_account,
         &ctx.accounts.config.to_account_info(),
         ctx.accounts.config.bump,
         &ctx.accounts.token_program,
-        net_amount,
+        amount - fee,
     )?;
 
     Ok(())

@@ -67,6 +67,12 @@ pub struct ApiState {
     pub http: reqwest::Client,
     pub program_id: Pubkey,
     pub vote_token_mint: Pubkey,
+    /// `Config.authority` — the admin `build_withdraw_vote`/
+    /// `build_withdraw_tag_stake` pay the unstake fee to directly (see
+    /// `WithdrawVote::admin_token_account`'s doc comment in the program
+    /// crate). Read once at startup in main.rs from the backfill's already-
+    /// fetched `Config` account, not re-fetched per request.
+    pub admin_authority: Pubkey,
     /// Base URL of the dlmm-bridge sidecar (e.g. http://127.0.0.1:8091) —
     /// see dlmm-bridge/README.md for why DLMM pool reads/swap-building are
     /// proxied there instead of implemented natively in Rust.
@@ -915,6 +921,7 @@ async fn build_withdraw_vote(
     let config = config_pda(&state.program_id);
     let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
+    let admin_token_account = associated_token_address(&state.admin_authority, &state.vote_token_mint);
 
     let mut data = WITHDRAW_VOTE_DISC.to_vec();
     data.extend_from_slice(&amount.to_le_bytes());
@@ -930,6 +937,7 @@ async fn build_withdraw_vote(
         AccountMeta::new_readonly(config, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
+        AccountMeta::new(admin_token_account, false),
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
     ];
@@ -937,9 +945,14 @@ async fn build_withdraw_vote(
     // withdraws (voting already requires it — see `build_vote`), but a
     // wallet could have closed it in between while it sat empty (all its
     // balance moved into `vault` at vote time) — see
-    // `ata_create_idempotent_ix`'s doc comment.
+    // `ata_create_idempotent_ix`'s doc comment. `admin_token_account` has no
+    // such prior-vote guarantee — the admin may never have received a fee
+    // before — so it needs the same idempotent-create treatment, just paid
+    // for by `user` (the withdrawer) rather than the admin themselves, same
+    // as every other caller-created ATA this API idempotently provisions.
     let instructions = vec![
         ata_create_idempotent_ix(&user, &user, &state.vote_token_mint),
+        ata_create_idempotent_ix(&user, &state.admin_authority, &state.vote_token_mint),
         Instruction::new_with_bytes(state.program_id, &data, accounts),
     ];
     let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
@@ -1037,6 +1050,7 @@ async fn build_withdraw_tag_stake(
     let config = config_pda(&state.program_id);
     let vault = vault_address(&config, &state.vote_token_mint);
     let user_token_account = associated_token_address(&user, &state.vote_token_mint);
+    let admin_token_account = associated_token_address(&state.admin_authority, &state.vote_token_mint);
 
     let mut data = WITHDRAW_TAG_STAKE_DISC.to_vec();
     data.extend_from_slice(&amount.to_le_bytes());
@@ -1048,12 +1062,14 @@ async fn build_withdraw_tag_stake(
         AccountMeta::new_readonly(config, false),
         AccountMeta::new(vault, false),
         AccountMeta::new(user_token_account, false),
+        AccountMeta::new(admin_token_account, false),
         AccountMeta::new_readonly(user, true),
         AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
     ];
     // See `build_withdraw_vote`'s comment on the same pattern.
     let instructions = vec![
         ata_create_idempotent_ix(&user, &user, &state.vote_token_mint),
+        ata_create_idempotent_ix(&user, &state.admin_authority, &state.vote_token_mint),
         Instruction::new_with_bytes(state.program_id, &data, accounts),
     ];
     let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
