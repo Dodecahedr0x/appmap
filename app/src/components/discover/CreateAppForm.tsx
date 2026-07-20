@@ -1,17 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { ConnectButton } from "@/components/ConnectButton";
 import { AppCard } from "@/components/AppCard";
-import { cn } from "@/lib/utils";
-import { pollUntilIndexed } from "@/lib/txClient";
+import { TagAutocomplete, type TagOption } from "@/components/explore/TagAutocomplete";
+import { cn, slugify } from "@/lib/utils";
+import { apiGet, pollUntilIndexed } from "@/lib/txClient";
+import { fetchTags } from "@/lib/indexerClient";
 import { useCreateAppProgram } from "@/hooks/useCreateAppProgram";
-import { CATEGORIES, CHAINS } from "@/lib/constants";
 import type { AppDTO } from "@/lib/types";
+import type { OpenGraphData } from "@/lib/opengraph";
 
 const MAX_TAGS = 10;
+// MAX_TAG_ID_LEN in programs/nebulous_world/src/constants.rs — tag ids are
+// on-chain PDA seeds, hard-capped at 32 bytes.
+const MAX_TAG_ID_LEN = 32;
+// Keep in sync with buildCreateAppTxSchema's tagline/description limits
+// (src/lib/validation.ts) — the same bound lib/opengraph.ts's own
+// enrichWithOpenGraph truncates to.
+const TAGLINE_MAX = 140;
+const DESCRIPTION_MAX = 4000;
+const OG_DEBOUNCE_MS = 600;
 // Kept in sync with .chip-pop's transition duration in globals.css — a
 // removed tag stays in `tags` (marked `chip-leaving`) this long so its exit
 // can actually play before it's spliced out for real.
@@ -22,70 +34,126 @@ interface Props {
 }
 
 /**
- * The app-submission form. Only name/url are required; everything else is
- * optional. Submitting builds a single on-chain transaction (`init_app` +
- * one `suggest_tag` per initial tag, see useCreateAppProgram) which the
- * connected wallet signs directly — there is no database write here at
- * all. The `App`/`Tag`/`AppTag` rows (and any OpenGraph-derived
- * tagline/description/icon left blank here) only exist once the indexer
- * observes the confirmed transaction and, later, `og:backfill` fills in
- * imagery — see AGENTS.md.
+ * The app-submission form: just a URL and its tags. Everything a card
+ * needs to display (name/tagline/description/icon) is pulled live from the
+ * URL's own OpenGraph metadata (see /api/og, lib/opengraph.ts) rather than
+ * typed by hand — the preview on the right shows exactly what gets
+ * submitted. Submitting builds a single on-chain transaction (`init_app` +
+ * one `suggest_tag` per tag, see useCreateAppProgram) which the connected
+ * wallet signs directly — there is no database write here at all. The
+ * `App`/`Tag`/`AppTag` rows only exist once the indexer observes the
+ * confirmed transaction — see AGENTS.md.
  */
 export function CreateAppForm({ onSuccess }: Props) {
+  const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
   const { createApp } = useCreateAppProgram();
 
-  const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [tagline, setTagline] = useState("");
-  const [description, setDescription] = useState("");
-  const [iconUrl, setIconUrl] = useState("");
-  const [category, setCategory] = useState<string>("other");
-  const [chain, setChain] = useState<string>("solana");
-  const [tags, setTags] = useState<string[]>([]);
+  const [og, setOg] = useState<OpenGraphData | null>(null);
+  const [ogLoading, setOgLoading] = useState(false);
+
+  const [allTags, setAllTags] = useState<TagOption[]>([]);
+  const [tags, setTags] = useState<TagOption[]>([]);
   // Tags mid-removal: still in `tags` (rendered with `chip-leaving`) so their
   // exit transition can play before the actual splice below.
   const [leavingTags, setLeavingTags] = useState<Set<string>>(new Set());
-  const [tagInput, setTagInput] = useState("");
   const [busy, setBusy] = useState(false);
 
-  function addTag() {
-    const t = tagInput.trim().toLowerCase();
-    if (!t || tags.includes(t) || tags.length >= MAX_TAGS) {
-      setTagInput("");
+  // Preloaded once so the tag picker can rank by closeness client-side as
+  // the user types, with no round trip per keystroke — see
+  // TagAutocomplete's `fuzzy` mode and lib/fuzzy.ts.
+  useEffect(() => {
+    fetchTags()
+      .then((res) => setAllTags(res.tags.map((t) => ({ id: t.id, name: t.name }))))
+      .catch(() => {});
+  }, []);
+
+  // Debounced live OpenGraph fetch as the URL settles — this is now the
+  // ONLY source of the app's name/tagline/description/icon (see previewApp
+  // and handleSubmit below), so the preview genuinely shows what the
+  // created card will look like rather than a stand-in.
+  useEffect(() => {
+    const trimmed = url.trim();
+    let parsed: URL | null = null;
+    try {
+      parsed = trimmed ? new URL(trimmed) : null;
+    } catch {
+      parsed = null;
+    }
+    if (!parsed) {
+      setOg(null);
+      setOgLoading(false);
       return;
     }
+    let cancelled = false;
+    setOgLoading(true);
+    const timer = setTimeout(() => {
+      apiGet<{ og: OpenGraphData | null }>(`/api/og?url=${encodeURIComponent(parsed!.toString())}`)
+        .then((res) => {
+          if (!cancelled) setOg(res.og);
+        })
+        .catch(() => {
+          if (!cancelled) setOg(null);
+        })
+        .finally(() => {
+          if (!cancelled) setOgLoading(false);
+        });
+    }, OG_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [url]);
+
+  function addTag(t: TagOption) {
+    if (tags.length >= MAX_TAGS || tags.some((x) => x.id === t.id)) return;
     setTags((prev) => [...prev, t]);
-    setTagInput("");
   }
 
-  function removeTag(t: string) {
-    setLeavingTags((prev) => new Set(prev).add(t));
+  function createTag(raw: string) {
+    const id = slugify(raw).slice(0, MAX_TAG_ID_LEN);
+    if (!id) return;
+    addTag({ id, name: raw.trim() });
+  }
+
+  function removeTag(id: string) {
+    setLeavingTags((prev) => new Set(prev).add(id));
     setTimeout(() => {
-      setTags((prev) => prev.filter((x) => x !== t));
+      setTags((prev) => prev.filter((t) => t.id !== id));
       setLeavingTags((prev) => {
         const next = new Set(prev);
-        next.delete(t);
+        next.delete(id);
         return next;
       });
     }, CHIP_EXIT_MS);
   }
 
-  // Mirrors what the indexer will eventually store (see
-  // useCreateAppProgram/buildCreateAppTxSchema) so the preview never lies
-  // about what the real card will show once the transaction is indexed.
+  // The app's own https:// url with the protocol trimmed off, same as what
+  // the indexer stores on-chain and falls back to as a name when no memo
+  // name is given (see programs/nebulous_world's AppAccount.url and
+  // indexer/src/processors/product.rs's sync_app_from_init) — so this
+  // fallback matches what the real card will show even when OpenGraph
+  // comes back empty.
+  const strippedUrl = url.trim().replace(/^https?:\/\//, "");
+  const ogTagline = (og?.description ?? "").trim().slice(0, TAGLINE_MAX);
+  const ogDescription = (og?.description ?? "").trim().slice(0, DESCRIPTION_MAX);
+
+  // Mirrors what the indexer will eventually store (see useCreateAppProgram
+  // and buildCreateAppTxSchema) so the preview never lies about what the
+  // real card will show once the transaction is indexed.
   const previewApp: AppDTO = useMemo(
     () => ({
       id: "preview",
       slug: "preview",
-      name: name.trim() || "Your app name",
-      tagline: tagline.trim(),
-      description: description.trim(),
+      name: og?.title?.trim() || strippedUrl || "Your app name",
+      tagline: ogTagline,
+      description: ogDescription,
       url: url.trim(),
-      iconUrl: iconUrl.trim() || null,
-      category,
-      chain,
+      iconUrl: og?.imageUrl?.trim() || null,
+      category: "other",
+      chain: "solana",
       status: "pending",
       createdAt: "",
       submittedBy: null,
@@ -95,18 +163,18 @@ export function CreateAppForm({ onSuccess }: Props) {
       viewCount: 0,
       rankScore: 0,
       tags: tags.map((t) => ({
-        id: t,
-        tagId: t,
-        slug: t,
-        name: t,
+        id: t.id,
+        tagId: t.id,
+        slug: t.id,
+        name: t.name,
         stakeTotal: 0,
         suggestedBy: null,
       })),
     }),
-    [name, tagline, description, url, iconUrl, category, chain, tags],
+    [og, strippedUrl, ogTagline, ogDescription, url, tags],
   );
 
-  const canSubmit = name.trim().length >= 2 && url.trim().length > 0 && !busy;
+  const canSubmit = url.trim().length > 0 && !busy;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,23 +189,21 @@ export function CreateAppForm({ onSuccess }: Props) {
       const txSig = await createApp({
         appId,
         url: url.trim(),
-        tags,
-        name: name.trim() || undefined,
-        tagline: tagline.trim() || undefined,
-        description: description.trim() || undefined,
-        iconUrl: iconUrl.trim() || undefined,
-        category,
-        chain,
+        tags: tags.map((t) => t.id),
+        name: og?.title?.trim() || undefined,
+        tagline: ogTagline || undefined,
+        description: ogDescription || undefined,
+        iconUrl: og?.imageUrl?.trim() || undefined,
       });
 
-      const indexed = await pollUntilIndexed<{ app: { name: string } }>(
-        `/api/apps/by-id/${appId}`,
-      );
-      toast.success(
-        indexed ? `${indexed.app.name} is live` : "App created — indexing…",
-        { txSig },
-      );
+      const indexed = await pollUntilIndexed<AppDTO>(`/api/apps/by-id/${appId}`);
+      toast.success(indexed ? `${indexed.name} is live` : "App created — indexing…", { txSig });
       onSuccess();
+      // Land the creator straight on the app's own page — that's where
+      // voting and tag staking actually live (VotePanel/TagStakePanel on
+      // app/[slug]/page.tsx), so this is the flow's "way to stake to the
+      // app and its tags" rather than duplicating that UI inside the modal.
+      if (indexed) router.push(`/app/${indexed.slug}`);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not create the app",
@@ -160,21 +226,6 @@ export function CreateAppForm({ onSuccess }: Props) {
     <div className="grid gap-6 lg:grid-cols-2">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="app-name" className="text-sm font-medium text-ink">
-            Name
-          </label>
-          <input
-            id="app-name"
-            className="input mt-1"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={80}
-            required
-            placeholder="Jupiter"
-          />
-        </div>
-
-        <div>
           <label htmlFor="app-url" className="text-sm font-medium text-ink">
             URL
           </label>
@@ -188,94 +239,11 @@ export function CreateAppForm({ onSuccess }: Props) {
             required
             placeholder="https://jup.ag"
           />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label
-              htmlFor="app-category"
-              className="text-sm font-medium text-ink"
-            >
-              Category
-            </label>
-            <select
-              id="app-category"
-              className="input mt-1"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="app-chain" className="text-sm font-medium text-ink">
-              Chain
-            </label>
-            <select
-              id="app-chain"
-              className="input mt-1"
-              value={chain}
-              onChange={(e) => setChain(e.target.value)}
-            >
-              {CHAINS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="app-tagline" className="text-sm font-medium text-ink">
-            Tagline{" "}
-            <span className="font-normal text-slate-steel">(optional)</span>
-          </label>
-          <input
-            id="app-tagline"
-            className="input mt-1"
-            value={tagline}
-            onChange={(e) => setTagline(e.target.value)}
-            maxLength={140}
-            placeholder="Left blank, we'll pull one from the site itself"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="app-description"
-            className="text-sm font-medium text-ink"
-          >
-            Description{" "}
-            <span className="font-normal text-slate-steel">(optional)</span>
-          </label>
-          <textarea
-            id="app-description"
-            className="input mt-1 min-h-24"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            maxLength={4000}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="app-icon" className="text-sm font-medium text-ink">
-            Icon URL{" "}
-            <span className="font-normal text-slate-steel">(optional)</span>
-          </label>
-          <input
-            id="app-icon"
-            type="url"
-            className="input mt-1"
-            value={iconUrl}
-            onChange={(e) => setIconUrl(e.target.value)}
-            maxLength={300}
-            placeholder="Left blank, we'll use the site's own OpenGraph image"
-          />
+          <p className="mt-1 text-xs text-slate-steel">
+            {ogLoading
+              ? "Loading preview…"
+              : "We pull the name, description, and image straight from the site."}
+          </p>
         </div>
 
         <div>
@@ -285,46 +253,39 @@ export function CreateAppForm({ onSuccess }: Props) {
               (optional, up to {MAX_TAGS})
             </span>
           </label>
-          <div className="mt-1 flex items-center gap-2">
-            <input
-              id="app-tags"
-              className="input"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTag();
-                }
+          <div className="mt-1">
+            <TagAutocomplete
+              options={allTags}
+              excludeIds={tags.map((t) => t.id)}
+              onSelect={(id) => {
+                const existing = allTags.find((t) => t.id === id);
+                if (existing) addTag(existing);
               }}
-              maxLength={40}
-              placeholder="defi"
+              onCreate={createTag}
+              allowCreate={tags.length < MAX_TAGS}
               disabled={tags.length >= MAX_TAGS}
+              fuzzy
+              placeholder={
+                tags.length >= MAX_TAGS ? `${MAX_TAGS} tags added` : "defi"
+              }
+              ariaLabel="Search or create a tag"
             />
-            <button
-              type="button"
-              className="btn-secondary shrink-0"
-              onClick={addTag}
-              disabled={!tagInput.trim() || tags.length >= MAX_TAGS}
-            >
-              Add
-            </button>
           </div>
           {tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {tags.map((t) => (
                 <button
-                  key={t}
+                  key={t.id}
                   type="button"
-                  onClick={() => removeTag(t)}
-                  disabled={leavingTags.has(t)}
+                  onClick={() => removeTag(t.id)}
+                  disabled={leavingTags.has(t.id)}
                   className={cn(
                     "chip chip-active chip-pop",
-                    leavingTags.has(t) && "chip-leaving",
+                    leavingTags.has(t.id) && "chip-leaving",
                   )}
                   title="Remove"
                 >
-                  #{t} ✕
+                  #{t.name} ✕
                 </button>
               ))}
             </div>
