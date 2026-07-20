@@ -169,8 +169,8 @@ export function TagStakePanel({
       if (!json.ok) throw new Error(json.error || "Stake failed");
       toast.success(
         simulated
-          ? `Staked ${stakeAmount} ${TOKEN_SYMBOL} (simulated)`
-          : `Staked ${stakeAmount} ${TOKEN_SYMBOL}`,
+          ? `Staked ${stakeAmount.toFixed(2)} ${TOKEN_SYMBOL} (simulated)`
+          : `Staked ${stakeAmount.toFixed(2)} ${TOKEN_SYMBOL}`,
         txSig ? { txSig } : undefined,
       );
       setStakingId(null);
@@ -270,7 +270,7 @@ export function TagStakePanel({
                     disabled={busy}
                     onClick={() => withdraw(t.id, t.slug)}
                   >
-                    {busy ? "…" : `Withdraw ${myStakes[t.id]!.amount}`}
+                    {busy ? "…" : `Withdraw ${myStakes[t.id]!.amount.toFixed(2)}`}
                   </button>
                 )}
                 {user && myStakes[t.id] && !isSimulationMode() && (

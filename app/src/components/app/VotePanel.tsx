@@ -136,8 +136,8 @@ export function VotePanel({ appId }: { appId: string }) {
 
       toast.success(
         simulated
-          ? `Voted ${amount} ${TOKEN_SYMBOL} (simulated)`
-          : `Voted ${amount} ${TOKEN_SYMBOL} — tx confirmed`,
+          ? `Voted ${amount.toFixed(2)} ${TOKEN_SYMBOL} (simulated)`
+          : `Voted ${amount.toFixed(2)} ${TOKEN_SYMBOL} — tx confirmed`,
         txSig ? { txSig } : undefined,
       );
       router.refresh();
@@ -223,7 +223,7 @@ export function VotePanel({ appId }: { appId: string }) {
             disabled={busy || amount <= 0}
             onClick={vote}
           >
-            {busy ? "Voting…" : `Vote ${amount} ${TOKEN_SYMBOL}`}
+            {busy ? "Voting…" : `Vote ${amount.toFixed(2)} ${TOKEN_SYMBOL}`}
           </button>
           {myVote && (
             <div className="space-y-1">
@@ -233,7 +233,7 @@ export function VotePanel({ appId }: { appId: string }) {
                   disabled={busy}
                   onClick={withdraw}
                 >
-                  {busy ? "…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
+                  {busy ? "…" : `Withdraw ${myVote.amount.toFixed(2)} ${TOKEN_SYMBOL}`}
                 </button>
                 <button
                   className="btn-primary flex-1"

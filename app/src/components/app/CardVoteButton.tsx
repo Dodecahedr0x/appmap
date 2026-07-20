@@ -58,8 +58,8 @@ export function CardVoteButton({
       if (!json.ok) throw new Error(json.error || "Vote failed");
       toast.success(
         simulated
-          ? `Voted ${amount} ${TOKEN_SYMBOL} (simulated)`
-          : `Voted ${amount} ${TOKEN_SYMBOL} — tx confirmed`,
+          ? `Voted ${amount.toFixed(2)} ${TOKEN_SYMBOL} (simulated)`
+          : `Voted ${amount.toFixed(2)} ${TOKEN_SYMBOL} — tx confirmed`,
         txSig ? { txSig } : undefined,
       );
     } catch (err) {
