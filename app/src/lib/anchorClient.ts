@@ -40,6 +40,22 @@ export function appTagStakePda(programId: PublicKey, app: PublicKey, tag: Public
   )[0];
 }
 
+/** A user's vote position on one app — seeds = [VOTE_POSITION_SEED, app, user] (see state/vote_position.rs). */
+export function votePositionPda(programId: PublicKey, app: PublicKey, user: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("vote_pos"), app.toBuffer(), user.toBuffer()],
+    programId,
+  )[0];
+}
+
+/** A user's tag-stake position on one (app, tag) pair — seeds = [STAKE_POSITION_SEED, app_tag_stake, user] (see state/stake_position.rs). */
+export function stakePositionPda(programId: PublicKey, appTagStake: PublicKey, user: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("stake_pos"), appTagStake.toBuffer(), user.toBuffer()],
+    programId,
+  )[0];
+}
+
 export function toRawAmount(amount: number): BN {
   return new BN(Math.round(amount * 10 ** config.solana.voteTokenDecimals));
 }
