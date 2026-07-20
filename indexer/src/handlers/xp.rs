@@ -38,6 +38,14 @@ pub fn title_for_level(level: i32) -> &'static str {
 
 use sqlx::PgPool;
 
+use crate::api::{ApiError, ApiState};
+use axum::extract::{Path, State};
+use axum::routing::get;
+use axum::{Json, Router};
+use chrono::NaiveDateTime;
+use serde::Serialize;
+use std::sync::Arc;
+
 /// Inserts the XpEvent and bumps `User.xp` atomically (same transaction),
 /// so a crash between the two statements can never leave a committed
 /// XpEvent (which would permanently block a retry via the unique index's
@@ -186,6 +194,128 @@ pub async fn backfill(pool: &PgPool) -> Result<usize, sqlx::Error> {
         log::info!("xp backfill: granted {granted} historical XpEvents");
     }
     Ok(granted)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct XpDto {
+    user_id: String,
+    xp: i32,
+    level: i32,
+    title: &'static str,
+    xp_into_level: i32,
+    xp_for_next_level: i32,
+    progress: f64,
+    apps_submitted: i64,
+    tags_suggested: i64,
+    votes_cast: i64,
+    stakes_made: i64,
+}
+
+async fn get_xp(
+    State(state): State<Arc<ApiState>>,
+    Path(user_id): Path<String>,
+) -> Result<Json<XpDto>, ApiError> {
+    let xp: i32 = sqlx::query_scalar(r#"SELECT xp FROM "User" WHERE id = $1"#)
+        .bind(&user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(crate::api::internal)?
+        .ok_or_else(|| crate::api::not_found("User not found"))?;
+
+    let level = level_for_xp(xp);
+    let title = title_for_level(level);
+    let level_floor = cumulative_xp_for_level(level);
+    let level_ceiling = cumulative_xp_for_level(level + 1);
+
+    let counts: (i64, i64, i64, i64) = sqlx::query_as(
+        r#"
+        SELECT
+          COUNT(*) FILTER (WHERE kind = 'submit_app'),
+          COUNT(*) FILTER (WHERE kind = 'suggest_tag'),
+          COUNT(*) FILTER (WHERE kind = 'vote'),
+          COUNT(*) FILTER (WHERE kind = 'stake')
+        FROM "XpEvent" WHERE "userId" = $1
+        "#,
+    )
+    .bind(&user_id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    Ok(Json(XpDto {
+        user_id,
+        xp,
+        level,
+        title,
+        xp_into_level: xp - level_floor,
+        xp_for_next_level: level_ceiling - level_floor,
+        progress: (xp - level_floor) as f64 / (level_ceiling - level_floor) as f64,
+        apps_submitted: counts.0,
+        tags_suggested: counts.1,
+        votes_cast: counts.2,
+        stakes_made: counts.3,
+    }))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct XpActivityEntry {
+    id: String,
+    kind: String,
+    app_name: Option<String>,
+    app_slug: Option<String>,
+    tag_name: Option<String>,
+    amount: i32,
+    created_at: String,
+}
+
+async fn get_activity(
+    State(state): State<Arc<ApiState>>,
+    Path(user_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let rows: Vec<(String, String, i32, NaiveDateTime, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT
+          e.id, e.kind, e.amount, e."createdAt",
+          COALESCE(a.name, a2.name) AS app_name,
+          COALESCE(a.slug, a2.slug) AS app_slug,
+          t.name AS tag_name
+        FROM "XpEvent" e
+        LEFT JOIN "App" a ON e.kind IN ('vote', 'submit_app') AND a.id = e."targetId"
+        LEFT JOIN "AppTag" at ON e.kind IN ('stake', 'suggest_tag') AND at.id = e."targetId"
+        LEFT JOIN "App" a2 ON at."appId" = a2.id
+        LEFT JOIN "Tag" t ON at."tagId" = t.id
+        WHERE e."userId" = $1
+        ORDER BY e."createdAt" DESC
+        LIMIT 50
+        "#,
+    )
+    .bind(&user_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    let events: Vec<XpActivityEntry> = rows
+        .into_iter()
+        .map(|(id, kind, amount, created_at, app_name, app_slug, tag_name)| XpActivityEntry {
+            id,
+            kind,
+            app_name,
+            app_slug,
+            tag_name,
+            amount,
+            created_at: crate::handlers::engine::to_rfc3339(created_at),
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "events": events })))
+}
+
+pub fn routes() -> Router<Arc<ApiState>> {
+    Router::new()
+        .route("/xp/:user_id", get(get_xp))
+        .route("/xp/:user_id/activity", get(get_activity))
 }
 
 #[cfg(test)]
