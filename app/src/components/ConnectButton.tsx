@@ -7,7 +7,9 @@ import { shortAddress } from "@/lib/utils";
 
 /**
  * A single control: connect the wallet, and that's it — no separate sign-in
- * step. Once connected, shows the wallet + a disconnect affordance.
+ * step. Once connected, this same button shows the wallet identity, and
+ * clicking it disconnects — one toggle, not a separate "sign out" control
+ * to notice.
  */
 export function ConnectButton() {
   const { connected, publicKey, connecting } = useWallet();
@@ -27,18 +29,15 @@ export function ConnectButton() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="chip chip-active font-mono">
-        {user?.handle ??
-          shortAddress(user?.wallet ?? publicKey?.toBase58() ?? "")}
-      </span>
-      <button
-        className="btn-ghost text-xs"
-        disabled={connectingSession}
-        onClick={() => signOut()}
-      >
-        Sign out
-      </button>
-    </div>
+    <button
+      type="button"
+      className="chip chip-active font-mono transition-colors duration-150 hover:border-negative/60 hover:text-negative"
+      disabled={connectingSession}
+      onClick={() => signOut()}
+      title="Click to disconnect"
+    >
+      {user?.handle ??
+        shortAddress(user?.wallet ?? publicKey?.toBase58() ?? "")}
+    </button>
   );
 }
