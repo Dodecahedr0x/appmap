@@ -449,6 +449,41 @@ export async function fetchRewardsPositions(userId: string): Promise<RewardsPosi
   return (await get(`/rewards/positions?userId=${encodeURIComponent(userId)}`)) as RewardsPositions;
 }
 
+export interface UserXp {
+  userId: string;
+  xp: number;
+  level: number;
+  title: string;
+  xpIntoLevel: number;
+  xpForNextLevel: number;
+  progress: number;
+  appsSubmitted: number;
+  tagsSuggested: number;
+  votesCast: number;
+  stakesMade: number;
+}
+
+export async function fetchUserXp(userId: string): Promise<UserXp | null> {
+  return (await getOrNull(`/xp/${encodeURIComponent(userId)}`)) as UserXp | null;
+}
+
+export interface XpActivityEntry {
+  id: string;
+  kind: "submit_app" | "suggest_tag" | "vote" | "stake" | "daily_bonus";
+  appName: string | null;
+  appSlug: string | null;
+  tagName: string | null;
+  amount: number;
+  createdAt: string;
+}
+
+export async function fetchXpActivity(userId: string): Promise<XpActivityEntry[]> {
+  const result = (await get(`/xp/${encodeURIComponent(userId)}/activity`)) as {
+    events: XpActivityEntry[];
+  };
+  return result.events;
+}
+
 export interface VisitorInfo {
   visitorId: string;
   sessionId: string;

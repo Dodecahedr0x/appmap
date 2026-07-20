@@ -176,6 +176,19 @@ pub async fn sync_app_from_init(
     .await?;
 
     log::info!("synced App {} (slug {slug}) from init_app", decoded.app_id);
+
+    if let Err(e) = crate::handlers::xp::award(
+        pool,
+        &submitted_by,
+        "submit_app",
+        Some(&decoded.app_id),
+        crate::handlers::xp::XP_SUBMIT_APP,
+    )
+    .await
+    {
+        log::warn!("failed to award submit_app XP for user {submitted_by}: {e}");
+    }
+
     Ok(())
 }
 
@@ -231,6 +244,19 @@ pub async fn sync_tag_from_suggest(
         "synced Tag {} + AppTag {app_tag_id} from suggest_tag",
         decoded.tag_id
     );
+
+    if let Err(e) = crate::handlers::xp::award(
+        pool,
+        &suggested_by,
+        "suggest_tag",
+        Some(&app_tag_id),
+        crate::handlers::xp::XP_SUGGEST_TAG,
+    )
+    .await
+    {
+        log::warn!("failed to award suggest_tag XP for user {suggested_by}: {e}");
+    }
+
     Ok(())
 }
 
