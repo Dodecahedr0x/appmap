@@ -206,7 +206,7 @@ export function ClaimRewards() {
           {rows.map((row) => (
             <li
               key={row.key}
-              className="flex items-center justify-between gap-2 rounded-lg border border-hairline p-2"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hairline p-2"
             >
               <div className="flex min-w-0 items-center gap-1.5">
                 <Link href={`/app/${row.appSlug}`} className="truncate text-sm font-medium text-ink hover:text-cobalt">

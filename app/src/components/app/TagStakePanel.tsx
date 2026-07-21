@@ -325,7 +325,7 @@ export function TagStakePanel({
               {revealRendered === t.id && (
                 <div
                   className={cn(
-                    "mt-3 flex items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+                    "mt-3 flex flex-wrap items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
                     revealVisible
                       ? "opacity-100 motion-safe:translate-y-0"
                       : "opacity-0 motion-safe:-translate-y-1",
@@ -334,7 +334,7 @@ export function TagStakePanel({
                   <input
                     type="number"
                     min={1}
-                    className="input"
+                    className="input min-w-0 flex-1"
                     value={stakeAmount}
                     onChange={(e) =>
                       setStakeAmount(Math.max(0, Number(e.target.value)))
@@ -353,7 +353,7 @@ export function TagStakePanel({
               {withdrawRevealRendered === t.id && myStakes[t.id] && (
                 <div
                   className={cn(
-                    "mt-3 flex items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+                    "mt-3 flex flex-wrap items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
                     withdrawRevealVisible
                       ? "opacity-100 motion-safe:translate-y-0"
                       : "opacity-0 motion-safe:-translate-y-1",
@@ -362,7 +362,7 @@ export function TagStakePanel({
                   <input
                     type="number"
                     disabled
-                    className="input"
+                    className="input min-w-0 flex-1"
                     value={myStakes[t.id]!.amount.toFixed(2)}
                     aria-label="Withdraw amount"
                   />

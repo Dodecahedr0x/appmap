@@ -159,7 +159,7 @@ export function FilterPanel({
         <div
           id="discover-filter-panel"
           className={cn(
-            "card mt-0 max-h-[75vh] w-72 origin-top-right space-y-5 overflow-y-auto rounded-tr-none p-4 transition-opacity duration-150 motion-safe:transition-[opacity,transform]",
+            "card mt-0 max-h-[75vh] w-[calc(100vw-2rem)] origin-top-right space-y-5 overflow-y-auto rounded-tr-none p-4 transition-opacity duration-150 motion-safe:transition-[opacity,transform] sm:w-72",
             panelVisible ? "opacity-100 motion-safe:scale-100" : "opacity-0 motion-safe:scale-95",
           )}
         >

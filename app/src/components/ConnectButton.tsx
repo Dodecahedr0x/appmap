@@ -19,11 +19,18 @@ export function ConnectButton() {
   if (!connected) {
     return (
       <button
-        className="btn-primary"
+        className="btn-primary shrink-0 whitespace-nowrap px-3 py-2 md:px-6 md:py-3"
         disabled={connecting}
         onClick={() => setVisible(true)}
       >
-        {connecting ? "Connecting…" : "Connect wallet"}
+        {connecting ? (
+          "Connecting…"
+        ) : (
+          <>
+            <span className="md:hidden">Connect</span>
+            <span className="hidden md:inline">Connect wallet</span>
+          </>
+        )}
       </button>
     );
   }
@@ -31,7 +38,7 @@ export function ConnectButton() {
   return (
     <button
       type="button"
-      className="chip chip-active font-mono transition-colors duration-150 hover:border-negative/60 hover:text-negative"
+      className="chip chip-active shrink-0 whitespace-nowrap font-mono transition-colors duration-150 hover:border-negative/60 hover:text-negative"
       disabled={connectingSession}
       onClick={() => signOut()}
       title="Click to disconnect"
