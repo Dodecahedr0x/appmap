@@ -3,17 +3,22 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { BN } from "@anchor-lang/core";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useVoteProgram } from "@/hooks/useVoteProgram";
 import { useTagStakeProgram } from "@/hooks/useTagStakeProgram";
+import { useClaimRewards } from "@/hooks/useClaimRewards";
+import { useMountTransition } from "@/hooks/useMountTransition";
 import { ConnectButton } from "@/components/ConnectButton";
 import { isSimulationMode } from "@/lib/config";
 import { TOKEN_SYMBOL } from "@/lib/constants";
-import { formatToken } from "@/lib/utils";
+import { cn, formatToken } from "@/lib/utils";
+import { fromRawAmount } from "@/lib/anchorClient";
 import { apiGet, apiPost } from "@/lib/txClient";
 import { estimateUnstakeFee } from "@/lib/unstakeFee";
-import type { PositionData } from "@/lib/indexerClient";
+import { settlePendingRaw } from "@/lib/rewards";
+import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import { UnstakeFeeNotice } from "@/components/UnstakeFeeNotice";
 
 interface VotePositionDTO {
@@ -47,19 +52,29 @@ interface StakeRow {
       fee notice below. Only known once fetched (real deployment + connected
       wallet); null otherwise, which just hides the notice. */
   stakedAt: number | null;
+  /** Pending NEB reward, settled live from the on-chain position + this
+      app's reward accumulator — same source ClaimRewards uses. Null while
+      loading or unavailable (simulation mode, no wallet). */
+  pending: number | null;
+}
+
+interface AppGroup {
+  appId: string;
+  appSlug: string;
+  appName: string;
+  voteRow?: StakeRow;
+  tagRows: StakeRow[];
 }
 
 /**
  * "Your stakes" — every app vote and tag stake the signed-in user currently
- * has open, in one compact, scrollable list so it can sit on the Profile
- * page without pushing everything else below the fold (unlike ClaimRewards
- * on the Rewards page, which is the fuller claim/search/bulk-action
- * workspace this deliberately doesn't duplicate — see the link at the
- * bottom). Same `/api/rewards/positions` data source as ClaimRewards, but
- * skips its pending-reward on-chain fetch entirely (that's a claim-specific
- * concern); the one on-chain read this does make is `stakedAt`, cheap and
- * needed either way to show the early-unstake fee before someone commits to
- * unstaking from here.
+ * has open, grouped by app, in one compact, scrollable list so it can sit on
+ * the Profile page without pushing everything else below the fold. This is
+ * the full stake-management surface (unstake — full or partial — and claim);
+ * the Rewards page's ClaimRewards is now just a short "what's ready to
+ * claim" list that links back here for anything requiring unstaking. Same
+ * `/api/rewards/positions` data source as ClaimRewards, plus the same
+ * pending-reward on-chain fetch (so Claim can live here too).
  */
 export function MyStakes() {
   const { user } = useAuth();
@@ -67,9 +82,18 @@ export function MyStakes() {
   const toast = useToast();
   const { withdrawVote } = useVoteProgram();
   const { withdrawTagStake } = useTagStakeProgram();
+  const { claimVoteReward, claimTagReward } = useClaimRewards();
 
   const [rows, setRows] = useState<StakeRow[] | null>(null);
+  const [claimingKey, setClaimingKey] = useState<string | null>(null);
   const [unstakingKey, setUnstakingKey] = useState<string | null>(null);
+  // Which row's unstake amount panel is open, and the amount currently
+  // entered there — partial unstaking means this can be less than the
+  // row's full stakedAmount (see indexer/src/handlers/votes.rs's/
+  // stakes.rs's withdraw_partial).
+  const [openUnstakeKey, setOpenUnstakeKey] = useState<string | null>(null);
+  const { rendered: unstakeRendered, visible: unstakeVisible } = useMountTransition(openUnstakeKey, 200);
+  const [unstakeAmount, setUnstakeAmount] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -96,6 +120,7 @@ export function MyStakes() {
           appName: v.appName,
           stakedAmount: v.amount,
           stakedAt: null,
+          pending: null,
         })),
         ...stakes.map((s) => ({
           key: `tag:${s.appTagId}`,
@@ -108,6 +133,7 @@ export function MyStakes() {
           tagName: s.tagName,
           stakedAmount: s.amount,
           stakedAt: null,
+          pending: null,
         })),
       ];
       setRows(base);
@@ -115,24 +141,35 @@ export function MyStakes() {
       if (isSimulationMode() || !wallet.publicKey) return;
 
       const owner = wallet.publicKey.toBase58();
-      const withStakedAt = await Promise.all(
+      const withDetail = await Promise.all(
         base.map(async (row) => {
           try {
+            const { app } = await apiGet<{ app: AppAccountData | null }>(`/api/accounts/app/${row.appId}`);
             const path =
               row.kind === "vote"
                 ? `/api/accounts/vote-position/${encodeURIComponent(row.appId)}?owner=${owner}`
                 : `/api/accounts/stake-position/${encodeURIComponent(row.appId)}/${encodeURIComponent(row.tagSlug!)}?owner=${owner}`;
             const { position } = await apiGet<{ position: PositionData | null }>(path);
-            return position ? { ...row, stakedAt: position.stakedAt } : row;
+            if (!position) return row;
+            const pending = app
+              ? fromRawAmount(
+                  settlePendingRaw(
+                    new BN(position.amount),
+                    new BN(position.rewardDebt),
+                    new BN(row.kind === "vote" ? app.voteAccRewardPerShare : app.tagsAccRewardPerShare),
+                  ),
+                )
+              : null;
+            return { ...row, stakedAt: position.stakedAt, pending };
           } catch {
             // Position not found on-chain yet (e.g. simulation-seeded data
-            // with no matching real account) — leave the fee notice hidden
+            // with no matching real account) — leave fee/pending hidden
             // rather than erroring the whole list.
             return row;
           }
         }),
       );
-      if (!cancelled) setRows(withStakedAt);
+      if (!cancelled) setRows(withDetail);
     }
 
     load().catch(() => setRows([]));
@@ -144,33 +181,158 @@ export function MyStakes() {
 
   const walletReady = isSimulationMode() || !!wallet.publicKey;
 
-  // Withdraws the FULL principal for this row, same reasoning as
-  // ClaimRewards' unstake(): `row.stakedAmount` is already the sum of every
-  // active Vote/Stake row behind this on-chain position, and the off-chain
-  // withdraw-all call retires all of them together.
+  function openUnstake(row: StakeRow) {
+    setUnstakeAmount(row.stakedAmount);
+    setOpenUnstakeKey(openUnstakeKey === row.key ? null : row.key);
+  }
+
   async function unstake(row: StakeRow) {
+    if (unstakeAmount <= 0 || unstakeAmount > row.stakedAmount) return;
     setUnstakingKey(row.key);
     try {
       const { txSig, simulated } =
         row.kind === "vote"
-          ? await withdrawVote(row.appId, row.stakedAmount)
-          : await withdrawTagStake(row.appId, row.tagSlug!, row.stakedAmount);
+          ? await withdrawVote(row.appId, unstakeAmount)
+          : await withdrawTagStake(row.appId, row.tagSlug!, unstakeAmount);
 
       await apiPost(
-        row.kind === "vote" ? "/api/vote/withdraw-all" : "/api/stake/withdraw-all",
-        row.kind === "vote" ? { appId: row.appId } : { appTagId: row.appTagId },
+        row.kind === "vote" ? "/api/vote/withdraw-partial" : "/api/stake/withdraw-partial",
+        row.kind === "vote"
+          ? { appId: row.appId, amount: unstakeAmount }
+          : { appTagId: row.appTagId, amount: unstakeAmount },
       );
 
+      const full = unstakeAmount >= row.stakedAmount;
       toast.success(
         simulated ? "Unstaked (simulated)" : "Unstaked — tokens returned",
         txSig ? { txSig } : undefined,
       );
-      setRows((prev) => prev?.filter((r) => r.key !== row.key) ?? null);
+      setRows((prev) =>
+        prev
+          ?.map((r) =>
+            r.key === row.key
+              ? full
+                ? null
+                // withdrawVote/withdrawTagStake settle (and pay out) any
+                // pending reward unconditionally before moving principal —
+                // see withdraw_vote.rs/withdraw_tag_stake.rs — so a partial
+                // unstake already zeroed it on-chain too, not just the
+                // withdrawn amount.
+                : { ...r, stakedAmount: r.stakedAmount - unstakeAmount, pending: 0 }
+              : r,
+          )
+          .filter((r): r is StakeRow => r !== null) ?? null,
+      );
+      setOpenUnstakeKey(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Unstake failed");
     } finally {
       setUnstakingKey(null);
     }
+  }
+
+  async function claim(row: StakeRow) {
+    setClaimingKey(row.key);
+    try {
+      const { txSig, simulated } =
+        row.kind === "vote"
+          ? await claimVoteReward(row.appId)
+          : await claimTagReward(row.appId, row.tagSlug!);
+      toast.success(
+        simulated ? "Claimed (simulated) — running without a live deployment" : `Claimed your ${row.appName} reward`,
+        txSig ? { txSig } : undefined,
+      );
+      setRows((prev) => prev?.map((r) => (r.key === row.key ? { ...r, pending: 0 } : r)) ?? null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Claim failed");
+    } finally {
+      setClaimingKey(null);
+    }
+  }
+
+  const groups: AppGroup[] = [];
+  const groupByApp = new Map<string, AppGroup>();
+  for (const row of rows ?? []) {
+    let group = groupByApp.get(row.appId);
+    if (!group) {
+      group = { appId: row.appId, appSlug: row.appSlug, appName: row.appName, tagRows: [] };
+      groupByApp.set(row.appId, group);
+      groups.push(group);
+    }
+    if (row.kind === "vote") group.voteRow = row;
+    else group.tagRows.push(row);
+  }
+
+  function renderRow(row: StakeRow) {
+    const fee = row.stakedAt != null ? estimateUnstakeFee(row.stakedAmount, row.stakedAt) : null;
+    const busy = unstakingKey === row.key || claimingKey === row.key;
+    return (
+      <li key={row.key}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {row.kind === "tag" ? (
+              <Link href={`/tags/${row.tagSlug}`} className="chip chip-active shrink-0 text-[10px]">
+                #{row.tagName}
+              </Link>
+            ) : (
+              <span className="chip shrink-0 text-[10px]">Vote</span>
+            )}
+            <span className="font-mono text-xs tabular-nums text-slate-steel">
+              {formatToken(row.stakedAmount, TOKEN_SYMBOL)}
+            </span>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <div className="flex items-center gap-1.5">
+              <button
+                className="btn-secondary px-2.5 py-1 text-[11px]"
+                disabled={busy || !walletReady}
+                onClick={() => openUnstake(row)}
+              >
+                {openUnstakeKey === row.key ? "Cancel" : "Unstake"}
+              </button>
+              {fee && <UnstakeFeeNotice feeBps={fee.feeBps} />}
+            </div>
+            {!isSimulationMode() && (
+              <button
+                className="btn-primary px-2.5 py-1 text-[11px]"
+                disabled={busy || !wallet.publicKey || !row.pending}
+                onClick={() => claim(row)}
+              >
+                {claimingKey === row.key ? "…" : row.pending ? `Claim ${formatToken(row.pending, "")}` : "Claim"}
+              </button>
+            )}
+          </div>
+        </div>
+        {unstakeRendered === row.key && (
+          <div
+            className={cn(
+              "mt-2 flex items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+              unstakeVisible
+                ? "opacity-100 motion-safe:translate-y-0"
+                : "opacity-0 motion-safe:-translate-y-1",
+            )}
+          >
+            <input
+              type="number"
+              min={0}
+              max={row.stakedAmount}
+              step="any"
+              className="input py-1 text-xs"
+              value={unstakeAmount}
+              onChange={(e) => setUnstakeAmount(Math.max(0, Number(e.target.value)))}
+              aria-label="Unstake amount"
+            />
+            <button
+              className="btn-primary shrink-0 px-2.5 py-1 text-[11px]"
+              disabled={unstakingKey === row.key || unstakeAmount <= 0 || unstakeAmount > row.stakedAmount}
+              onClick={() => unstake(row)}
+            >
+              {unstakingKey === row.key ? "…" : "Confirm"}
+            </button>
+          </div>
+        )}
+      </li>
+    );
   }
 
   return (
@@ -189,7 +351,7 @@ export function MyStakes() {
         </div>
       ) : rows === null ? (
         <p className="text-sm text-slate">Loading your stakes…</p>
-      ) : rows.length === 0 ? (
+      ) : groups.length === 0 ? (
         <p className="text-sm text-slate">
           You haven&apos;t voted or staked on any apps yet.{" "}
           <Link href="/" className="font-medium text-cobalt hover:underline">
@@ -201,50 +363,22 @@ export function MyStakes() {
         // Capped height + scroll is the whole point: a wallet with a dozen+
         // positions must not push the rest of the Profile page below the
         // fold — see this component's own doc comment.
-        <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
-          {rows.map((row) => {
-            const fee = row.stakedAt != null ? estimateUnstakeFee(row.stakedAmount, row.stakedAt) : null;
-            const busy = unstakingKey === row.key;
-            return (
-              <li key={row.key} className="rounded-lg border border-hairline p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <Link
-                      href={`/app/${row.appSlug}`}
-                      className="truncate text-sm font-medium text-ink hover:text-cobalt"
-                    >
-                      {row.appName}
-                    </Link>
-                    {row.kind === "tag" ? (
-                      <Link href={`/tags/${row.tagSlug}`} className="chip chip-active shrink-0 text-[10px]">
-                        #{row.tagName}
-                      </Link>
-                    ) : (
-                      <span className="chip shrink-0 text-[10px]">Vote</span>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="font-mono text-xs tabular-nums text-slate-steel">
-                      {formatToken(row.stakedAmount, TOKEN_SYMBOL)}
-                    </span>
-                    <button
-                      className="btn-secondary text-xs"
-                      disabled={busy || !walletReady}
-                      onClick={() => unstake(row)}
-                    >
-                      {busy ? "…" : "Unstake"}
-                    </button>
-                  </div>
-                </div>
-                {fee && (
-                  <div className="mt-1">
-                    <UnstakeFeeNotice feeBps={fee.feeBps} />
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
+          {groups.map((group) => (
+            <div key={group.appId} className="rounded-lg border border-hairline p-2">
+              <Link
+                href={`/app/${group.appSlug}`}
+                className="text-sm font-medium text-ink hover:text-cobalt"
+              >
+                {group.appName}
+              </Link>
+              <ul className="mt-1.5 space-y-2 border-l border-hairline pl-2">
+                {group.voteRow && renderRow(group.voteRow)}
+                {group.tagRows.map(renderRow)}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
     </section>
   );

@@ -153,34 +153,68 @@ async fn withdraw(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct WithdrawAllReq {
+struct WithdrawPartialReq {
     app_id: String,
     user_id: String,
+    amount: f64,
 }
 
-/// Marks every active `Vote` row for this (user, app) withdrawn in one
-/// shot, rather than one row by id (`withdraw` above) — a user can vote on
-/// the same app more than once over time (each `vote()` call just adds to
-/// the single on-chain VotePosition, see programs/nebulous_world), so a
-/// full on-chain withdrawal of the whole position needs to retire every DB
-/// row behind it, not just one. Used by the rewards page's "Your rewards"
-/// list, which sums exactly these rows (see handlers/rewards.rs) — the
-/// on-chain withdraw call there always withdraws that same summed amount.
-async fn withdraw_all(
+/// Withdraws `amount` (up to the full active total) off this (user, app)'s
+/// possibly-several active `Vote` rows — a user can vote on the same app
+/// more than once over time (each `vote()` call just adds to the single
+/// on-chain VotePosition, see programs/nebulous_world), so this consumes
+/// rows oldest-first, fully deactivating each until `amount` is covered and
+/// partially reducing the last one it touches. Subsumes what a former
+/// `withdraw_all` did (the special case of `amount` == the full total).
+/// Used by the profile page's "Your stakes" list, which sums exactly these
+/// rows (see handlers/rewards.rs) — the on-chain withdraw call there always
+/// withdraws this same `amount`.
+async fn withdraw_partial(
     State(state): State<Arc<ApiState>>,
-    Json(req): Json<WithdrawAllReq>,
+    Json(req): Json<WithdrawPartialReq>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let result = sqlx::query(
-        r#"UPDATE "Vote" SET active = false, "withdrawnAt" = now() WHERE "userId" = $1 AND "appId" = $2 AND active = true"#,
+    if req.amount <= 0.0 {
+        return Err(crate::api::bad_request("amount must be positive"));
+    }
+
+    let rows: Vec<(String, f64)> = sqlx::query_as(
+        r#"SELECT id, amount FROM "Vote" WHERE "userId" = $1 AND "appId" = $2 AND active = true ORDER BY "createdAt" ASC"#,
     )
     .bind(&req.user_id)
     .bind(&req.app_id)
-    .execute(&state.pool)
+    .fetch_all(&state.pool)
     .await
     .map_err(crate::api::internal)?;
 
-    if result.rows_affected() == 0 {
-        return Err(crate::api::not_found("No active vote to withdraw"));
+    // Tolerance against float drift accumulated through UI-unit conversions
+    // — same magnitude as a fraction of a raw unit at this mint's decimals,
+    // nowhere near enough to matter for a real withdrawal amount.
+    const EPS: f64 = 1e-9;
+    let mut remaining = req.amount;
+    for (id, row_amount) in rows {
+        if remaining <= EPS {
+            break;
+        }
+        if row_amount <= remaining + EPS {
+            sqlx::query(r#"UPDATE "Vote" SET active = false, "withdrawnAt" = now() WHERE id = $1"#)
+                .bind(&id)
+                .execute(&state.pool)
+                .await
+                .map_err(crate::api::internal)?;
+            remaining -= row_amount;
+        } else {
+            sqlx::query(r#"UPDATE "Vote" SET amount = amount - $2 WHERE id = $1"#)
+                .bind(&id)
+                .bind(remaining)
+                .execute(&state.pool)
+                .await
+                .map_err(crate::api::internal)?;
+            remaining = 0.0;
+        }
+    }
+
+    if remaining > EPS {
+        return Err(crate::api::bad_request("amount exceeds your active vote on this app"));
     }
 
     refresh_app(&state.pool, &req.app_id).await?;
@@ -192,5 +226,5 @@ pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
         .route("/votes", get(get_vote).post(create))
         .route("/votes/:id/withdraw", post(withdraw))
-        .route("/votes/withdraw-all", post(withdraw_all))
+        .route("/votes/withdraw-partial", post(withdraw_partial))
 }
