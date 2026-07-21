@@ -107,7 +107,7 @@ export function MetricTrendCard({
   const [amount, unit] = splitValueUnit(value);
 
   return (
-    <div className="card flex flex-col">
+    <div className="card flex flex-col justify-between">
       <div className="min-w-0 p-6 pb-0">
         <div className="text-caption font-semibold uppercase tracking-wide text-slate">
           {label}
