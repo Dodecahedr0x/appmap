@@ -18,6 +18,7 @@ import { settlePendingRaw } from "@/lib/rewards";
 import { fromRawAmount } from "@/lib/anchorClient";
 import { apiGet } from "@/lib/txClient";
 import type { AppAccountData, PositionData } from "@/lib/indexerClient";
+import { UnstakeFeeNotice } from "@/components/UnstakeFeeNotice";
 import type { TagDTO } from "@/lib/types";
 
 /**
@@ -293,19 +294,13 @@ export function TagStakePanel({
                   </button>
                 )}
               </div>
-              {user &&
-                myStakes[t.id] &&
-                stakedAtByTag[t.id] !== undefined &&
-                (() => {
-                  const fee = estimateUnstakeFee(myStakes[t.id]!.amount, stakedAtByTag[t.id]!);
-                  if (fee.feeBps === 0) return null;
-                  return (
-                    <p className="mt-1 text-xs text-slate-steel">
-                      {(fee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
-                      receive ~{fee.net.toFixed(2)} {TOKEN_SYMBOL}. Shrinks to 0 over a week.
-                    </p>
-                  );
-                })()}
+              {user && myStakes[t.id] && stakedAtByTag[t.id] !== undefined && (
+                <div className="mt-1">
+                  <UnstakeFeeNotice
+                    feeBps={estimateUnstakeFee(myStakes[t.id]!.amount, stakedAtByTag[t.id]!).feeBps}
+                  />
+                </div>
+              )}
               {revealRendered === t.id && (
                 <div
                   className={cn(

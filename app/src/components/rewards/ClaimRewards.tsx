@@ -18,6 +18,7 @@ import { apiGet, apiPost } from "@/lib/txClient";
 import { estimateUnstakeFee } from "@/lib/unstakeFee";
 import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import { settlePendingRaw } from "@/lib/rewards";
+import { UnstakeFeeNotice } from "@/components/UnstakeFeeNotice";
 
 interface VotePositionDTO {
   appId: string;
@@ -499,11 +500,10 @@ export function ClaimRewards() {
                           </button>
                         </div>
                       </div>
-                      {fee && fee.feeBps > 0 && (
-                        <p className="mt-1 pl-[28px] text-xs text-slate-steel">
-                          {(fee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
-                          receive ~{fee.net.toFixed(2)} {TOKEN_SYMBOL}. Shrinks to 0 over a week.
-                        </p>
+                      {fee && (
+                        <div className="mt-1 pl-[28px]">
+                          <UnstakeFeeNotice feeBps={fee.feeBps} />
+                        </div>
                       )}
                     </li>
                   );

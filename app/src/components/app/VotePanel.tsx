@@ -16,6 +16,7 @@ import { settlePendingRaw } from "@/lib/rewards";
 import { apiGet } from "@/lib/txClient";
 import type { AppAccountData, PositionData } from "@/lib/indexerClient";
 import { ConnectButton } from "@/components/ConnectButton";
+import { UnstakeFeeNotice } from "@/components/UnstakeFeeNotice";
 
 const PRESETS = [10, 50, 100, 500];
 
@@ -243,12 +244,10 @@ export function VotePanel({ appId }: { appId: string }) {
                   {busy ? "…" : pending ? `Claim ${formatToken(pending, "")} ${TOKEN_SYMBOL}` : "Claim"}
                 </button>
               </div>
-              {unstakeFee && unstakeFee.feeBps > 0 && (
-                <p className="text-center text-xs text-slate-steel">
-                  {(unstakeFee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
-                  receive ~{unstakeFee.net.toFixed(2)} {TOKEN_SYMBOL}. The fee shrinks to 0 over a
-                  week and goes to other stakers, not a treasury.
-                </p>
+              {unstakeFee && (
+                <div className="flex justify-center">
+                  <UnstakeFeeNotice feeBps={unstakeFee.feeBps} />
+                </div>
               )}
             </div>
           )}
