@@ -500,12 +500,13 @@ export async function withdrawPartialStakes(
 }
 
 export interface RewardsPositions {
-  votes: { appId: string; appSlug: string; appName: string; amount: number }[];
+  votes: { appId: string; appSlug: string; appName: string; appIconUrl: string | null; amount: number }[];
   stakes: {
     appTagId: string;
     appId: string;
     appSlug: string;
     appName: string;
+    appIconUrl: string | null;
     tagSlug: string;
     tagName: string;
     amount: number;

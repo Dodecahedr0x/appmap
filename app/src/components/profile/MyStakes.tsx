@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -25,6 +26,7 @@ interface VotePositionDTO {
   appId: string;
   appSlug: string;
   appName: string;
+  appIconUrl: string | null;
   amount: number;
 }
 
@@ -33,6 +35,7 @@ interface StakePositionDTO {
   appId: string;
   appSlug: string;
   appName: string;
+  appIconUrl: string | null;
   tagSlug: string;
   tagName: string;
   amount: number;
@@ -44,6 +47,7 @@ interface StakeRow {
   appId: string;
   appSlug: string;
   appName: string;
+  appIconUrl: string | null;
   appTagId?: string;
   tagSlug?: string;
   tagName?: string;
@@ -62,6 +66,7 @@ interface AppGroup {
   appId: string;
   appSlug: string;
   appName: string;
+  appIconUrl: string | null;
   voteRow?: StakeRow;
   tagRows: StakeRow[];
 }
@@ -118,6 +123,7 @@ export function MyStakes() {
           appId: v.appId,
           appSlug: v.appSlug,
           appName: v.appName,
+          appIconUrl: v.appIconUrl,
           stakedAmount: v.amount,
           stakedAt: null,
           pending: null,
@@ -128,6 +134,7 @@ export function MyStakes() {
           appId: s.appId,
           appSlug: s.appSlug,
           appName: s.appName,
+          appIconUrl: s.appIconUrl,
           appTagId: s.appTagId,
           tagSlug: s.tagSlug,
           tagName: s.tagName,
@@ -255,7 +262,13 @@ export function MyStakes() {
   for (const row of rows ?? []) {
     let group = groupByApp.get(row.appId);
     if (!group) {
-      group = { appId: row.appId, appSlug: row.appSlug, appName: row.appName, tagRows: [] };
+      group = {
+        appId: row.appId,
+        appSlug: row.appSlug,
+        appName: row.appName,
+        appIconUrl: row.appIconUrl,
+        tagRows: [],
+      };
       groupByApp.set(row.appId, group);
       groups.push(group);
     }
@@ -371,8 +384,17 @@ export function MyStakes() {
             <div key={group.appId} className="rounded-lg border border-hairline p-2">
               <Link
                 href={`/app/${group.appSlug}`}
-                className="text-sm font-medium text-ink hover:text-cobalt"
+                className="flex items-center gap-2 text-sm font-medium text-ink hover:text-cobalt"
               >
+                <span className="relative h-5 w-5 shrink-0 overflow-hidden rounded-full bg-mist">
+                  {group.appIconUrl ? (
+                    <Image src={group.appIconUrl} alt="" fill sizes="20px" className="object-cover" />
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-[10px] font-bold text-violet">
+                      {group.appName.charAt(0).toUpperCase() || "?"}
+                    </span>
+                  )}
+                </span>
                 {group.appName}
               </Link>
               <ul className="mt-1.5 space-y-2 border-l border-hairline pl-2">
