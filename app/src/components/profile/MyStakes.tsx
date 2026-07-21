@@ -268,7 +268,7 @@ export function MyStakes() {
     const busy = unstakingKey === row.key || claimingKey === row.key;
     return (
       <li key={row.key}>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             {row.kind === "tag" ? (
               <Link href={`/tags/${row.tagSlug}`} className="chip chip-active shrink-0 text-[10px]">
@@ -277,21 +277,24 @@ export function MyStakes() {
             ) : (
               <span className="chip shrink-0 text-[10px]">Vote</span>
             )}
-            <span className="font-mono text-xs tabular-nums text-slate-steel">
+            <span className="whitespace-nowrap font-mono text-xs tabular-nums text-slate-steel">
               {formatToken(row.stakedAmount, TOKEN_SYMBOL)}
             </span>
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <div className="flex items-center gap-1.5">
-              <button
-                className="btn-secondary px-2.5 py-1 text-[11px]"
-                disabled={busy || !walletReady}
-                onClick={() => openUnstake(row)}
-              >
-                {openUnstakeKey === row.key ? "Cancel" : "Unstake"}
-              </button>
-              {fee && <UnstakeFeeNotice feeBps={fee.feeBps} />}
-            </div>
+          {/* flex-wrap here (not just on the row above) — the fee notice's
+              text can be too long to sit next to the Unstake button even
+              within this column's own width once it wraps below the left
+              side on a narrow card, so it needs its own fallback to drop to
+              a second line rather than overflow. */}
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <button
+              className="btn-secondary px-2.5 py-1 text-[11px]"
+              disabled={busy || !walletReady}
+              onClick={() => openUnstake(row)}
+            >
+              {openUnstakeKey === row.key ? "Cancel" : "Unstake"}
+            </button>
+            {fee && <UnstakeFeeNotice feeBps={fee.feeBps} />}
             {!isSimulationMode() && (
               <button
                 className="btn-primary px-2.5 py-1 text-[11px]"
@@ -317,7 +320,7 @@ export function MyStakes() {
               min={0}
               max={row.stakedAmount}
               step="any"
-              className="input py-1 text-xs"
+              className="input min-w-0 py-1 text-xs"
               value={unstakeAmount}
               onChange={(e) => setUnstakeAmount(Math.max(0, Number(e.target.value)))}
               aria-label="Unstake amount"
