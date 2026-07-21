@@ -271,37 +271,49 @@ export function TagStakePanel({
                     {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
                   </span>
                 </div>
-                {user && myStakes[t.id] && (
-                  <button
-                    className="btn-secondary text-xs"
-                    onClick={() => {
-                      setStakingId(null);
-                      setWithdrawingId(withdrawingId === t.id ? null : t.id);
-                    }}
-                  >
-                    Withdraw
-                  </button>
-                )}
-                {user && myStakes[t.id] && !isSimulationMode() && (
-                  <button
-                    className="btn-primary text-xs"
-                    disabled={busy || !pendingByTag[t.id]}
-                    onClick={() => claimTag(t.id, t.slug)}
-                  >
-                    {busy ? "…" : pendingByTag[t.id] ? `Claim ${formatToken(pendingByTag[t.id], "")}` : "Claim"}
-                  </button>
-                )}
-                {user && (
-                  <button
-                    className="btn-secondary text-xs"
-                    onClick={() => {
-                      setWithdrawingId(null);
-                      setStakingId(stakingId === t.id ? null : t.id);
-                    }}
-                  >
-                    {stakingId === t.id ? "Cancel" : "Stake"}
-                  </button>
-                )}
+                {/* One flex item for the whole action-button group — not
+                    three separate siblings of the outer justify-between row
+                    — so the buttons stay clustered together on the right
+                    and line up consistently across tag rows regardless of
+                    how many of the three are actually shown (a row with a
+                    stake shows Withdraw+Stake, +Claim once a real
+                    deployment has a pending reward; a row without one shows
+                    only Stake). Three siblings directly in a
+                    justify-between row would each get spread out by that
+                    row's own item count instead. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {user && myStakes[t.id] && (
+                    <button
+                      className="btn-secondary text-xs"
+                      onClick={() => {
+                        setStakingId(null);
+                        setWithdrawingId(withdrawingId === t.id ? null : t.id);
+                      }}
+                    >
+                      Withdraw
+                    </button>
+                  )}
+                  {user && myStakes[t.id] && !isSimulationMode() && (
+                    <button
+                      className="btn-primary text-xs"
+                      disabled={busy || !pendingByTag[t.id]}
+                      onClick={() => claimTag(t.id, t.slug)}
+                    >
+                      {busy ? "…" : pendingByTag[t.id] ? `Claim ${formatToken(pendingByTag[t.id], "")}` : "Claim"}
+                    </button>
+                  )}
+                  {user && (
+                    <button
+                      className="btn-secondary text-xs"
+                      onClick={() => {
+                        setWithdrawingId(null);
+                        setStakingId(stakingId === t.id ? null : t.id);
+                      }}
+                    >
+                      {stakingId === t.id ? "Cancel" : "Stake"}
+                    </button>
+                  )}
+                </div>
               </div>
               {user && myStakes[t.id] && stakedAtByTag[t.id] !== undefined && (
                 <div className="mt-1">
