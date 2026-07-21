@@ -42,6 +42,11 @@ export function TagStakePanel({
 
   const [stakingId, setStakingId] = useState<string | null>(null);
   const { rendered: revealRendered, visible: revealVisible } = useMountTransition(stakingId, 200);
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const { rendered: withdrawRevealRendered, visible: withdrawRevealVisible } = useMountTransition(
+    withdrawingId,
+    200,
+  );
   const [stakeAmount, setStakeAmount] = useState(100);
   const [busy, setBusy] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -207,6 +212,7 @@ export function TagStakePanel({
         delete next[appTagId];
         return next;
       });
+      setWithdrawingId(null);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Withdraw failed");
@@ -268,10 +274,12 @@ export function TagStakePanel({
                 {user && myStakes[t.id] && (
                   <button
                     className="btn-secondary text-xs"
-                    disabled={busy}
-                    onClick={() => withdraw(t.id, t.slug)}
+                    onClick={() => {
+                      setStakingId(null);
+                      setWithdrawingId(withdrawingId === t.id ? null : t.id);
+                    }}
                   >
-                    {busy ? "…" : `Withdraw ${myStakes[t.id]!.amount.toFixed(2)}`}
+                    Withdraw
                   </button>
                 )}
                 {user && myStakes[t.id] && !isSimulationMode() && (
@@ -286,9 +294,10 @@ export function TagStakePanel({
                 {user && (
                   <button
                     className="btn-secondary text-xs"
-                    onClick={() =>
-                      setStakingId(stakingId === t.id ? null : t.id)
-                    }
+                    onClick={() => {
+                      setWithdrawingId(null);
+                      setStakingId(stakingId === t.id ? null : t.id);
+                    }}
                   >
                     {stakingId === t.id ? "Cancel" : "Stake"}
                   </button>
@@ -326,6 +335,38 @@ export function TagStakePanel({
                     onClick={() => stake(t.id, t.slug)}
                   >
                     {busy ? "…" : "Confirm"}
+                  </button>
+                </div>
+              )}
+              {withdrawRevealRendered === t.id && myStakes[t.id] && (
+                <div
+                  className={cn(
+                    "mt-3 flex items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+                    withdrawRevealVisible
+                      ? "opacity-100 motion-safe:translate-y-0"
+                      : "opacity-0 motion-safe:-translate-y-1",
+                  )}
+                >
+                  <input
+                    type="number"
+                    disabled
+                    className="input"
+                    value={myStakes[t.id]!.amount.toFixed(2)}
+                    aria-label="Withdraw amount"
+                  />
+                  <button
+                    className="btn-primary shrink-0 text-sm"
+                    disabled={busy}
+                    onClick={() => withdraw(t.id, t.slug)}
+                  >
+                    {busy ? "…" : "Confirm"}
+                  </button>
+                  <button
+                    className="btn-secondary shrink-0 text-sm"
+                    disabled={busy}
+                    onClick={() => setWithdrawingId(null)}
+                  >
+                    Cancel
                   </button>
                 </div>
               )}
