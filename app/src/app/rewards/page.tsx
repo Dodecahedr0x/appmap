@@ -67,21 +67,20 @@ export default async function RewardsPage() {
 
       <div className="space-y-6">
         <BuyPanel />
+        <PlatformMetrics
+          stats={stats}
+          appsTrend={appsTrend}
+          tagsTrend={tagsTrend}
+          votesTrend={votesTrend}
+          stakeTrend={stakeTrend}
+          viewsTrend={viewsTrendPoints}
+          revenueTrend={revenueTrendPoints}
+          revenueTotal={revenueTotal}
+          wide
+        />
         <ClaimRewards />
         <CloseZeroStakeAccounts />
       </div>
-
-      <PlatformMetrics
-        stats={stats}
-        appsTrend={appsTrend}
-        tagsTrend={tagsTrend}
-        votesTrend={votesTrend}
-        stakeTrend={stakeTrend}
-        viewsTrend={viewsTrendPoints}
-        revenueTrend={revenueTrendPoints}
-        revenueTotal={revenueTotal}
-        wide
-      />
     </div>
   );
 }
