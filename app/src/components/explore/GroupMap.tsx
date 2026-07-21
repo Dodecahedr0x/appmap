@@ -28,12 +28,33 @@ const FALLBACK_PACK: TagPack = {
   ],
 };
 
-const TAG_FILL_SHALLOW: [number, number, number] = [99, 102, 241];
-const TAG_FILL_DEEP: [number, number, number] = [55, 47, 176];
+// Both opaque (unlike the old alpha-blended fill) so a nested tag circle's
+// color never compounds with whatever's behind it — d3.pack draws every
+// circle in a fully-enclosed parent/child stack, so an alpha fill here
+// would darken with each extra level of nesting regardless of this
+// function's own depth/maxDepth interpolation, eventually going dark
+// enough that LABEL_INK (a light-background color, see its own comment)
+// stopped reading against it. Both endpoints are light enough to keep
+// LABEL_INK's contrast comfortably above WCAG AA (4.5:1) at every depth —
+// TAG_FILL_SHALLOW is the exact `indigo-soft` design token already used by
+// `.chip-active` in globals.css, so a shallow tag circle matches that
+// existing "selected filter" chip look.
+const TAG_FILL_SHALLOW: [number, number, number] = [238, 240, 253];
+const TAG_FILL_DEEP: [number, number, number] = [216, 219, 250];
+// The brand's cobalt accent — same value as .btn-primary's bg-cobalt.
 const APP_FILL = "#4338ca";
 const SELECTED_RING = "#372fb0";
+// Tag circles are always light (see TAG_FILL_SHALLOW/DEEP above), so a dark
+// ink reads clearly on every one of them regardless of depth — this used to
+// also be the app-leaf label color, but APP_FILL is a solid, saturated
+// cobalt fill that near-black text has nowhere near enough contrast
+// against (WCAG ratio ~2.5:1, well under the 4.5:1 AA minimum for text
+// this size) — see APP_LABEL_INK for that case instead.
 const LABEL_INK = "#0d0e12";
-const LABEL_DIM = "#565a66";
+// App leaves sit on a solid cobalt (APP_FILL) circle — the same light
+// "text-cream" color .btn-primary already pairs with that exact background
+// color elsewhere in the design system, comfortably >7:1 contrast.
+const APP_LABEL_INK = "#ffffff";
 const MAX_SIBLINGS = 6;
 // Floor for an app's normalized pack value (see the `appPackValue` comment
 // at its call site) — a fraction of the biggest app's own value (which is
@@ -84,7 +105,7 @@ function tagFill(depth: number, maxDepth: number): string {
   const r = Math.round(r1 + (r2 - r1) * t);
   const g = Math.round(g1 + (g2 - g1) * t);
   const b = Math.round(b1 + (b2 - b1) * t);
-  return `rgba(${r}, ${g}, ${b}, ${0.25 + t * 0.25})`;
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 // Lazily created, cached — a single offscreen canvas 2D context is enough
@@ -608,7 +629,7 @@ export function GroupMap({
                         y={(isApp ? 4 : -screenR + TAG_LABEL_Y_OFFSET) / view.k}
                         fontSize={(isApp ? APP_LABEL_FONT_SIZE : TAG_LABEL_FONT_SIZE) / view.k}
                         fontWeight={isApp ? APP_LABEL_FONT_WEIGHT : TAG_LABEL_FONT_WEIGHT}
-                        fill={isApp ? LABEL_INK : LABEL_DIM}
+                        fill={isApp ? APP_LABEL_INK : LABEL_INK}
                         className="pointer-events-none select-none"
                       >
                         {isApp ? n.data.name : `#${n.data.name}`}
