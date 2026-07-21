@@ -10,7 +10,10 @@ import { TagMap } from "./TagMap";
 import { GroupMap } from "./GroupMap";
 import { RelatedApps, type MapSelection } from "./RelatedApps";
 import { TagAutocomplete } from "./TagAutocomplete";
+import { MapFilterPanel } from "./MapFilterPanel";
 import type { MapNode } from "./ForceMap";
+import { EMPTY_RANGE_FILTERS, type RangeFilters } from "@/components/discover/FilterPanel";
+import type { MapRangeFilters } from "@/lib/indexerClient";
 
 type TabKey = "apps" | "tags" | "group";
 
@@ -40,6 +43,27 @@ const TABS: { key: TabKey; label: string; description: string }[] = [
 // barely-used ones) would make the picker itself unusable.
 const MAX_FILTER_TAGS = 30;
 
+// Only these 3 of Discover's 4 range pairs apply to the maps' advanced
+// search (no "tags stake") — see MapFilterPanel's own doc comment. Typed
+// against both RangeFilters and MapRangeFilters so `toMapRangeFilters`
+// below can index either with the same key.
+const RANGE_KEYS: (keyof RangeFilters & keyof MapRangeFilters)[] = [
+  "appStakeMin",
+  "appStakeMax",
+  "tagsCountMin",
+  "tagsCountMax",
+  "pageviewsMin",
+  "pageviewsMax",
+];
+
+function toMapRangeFilters(ranges: RangeFilters): MapRangeFilters {
+  const out: MapRangeFilters = {};
+  for (const key of RANGE_KEYS) {
+    if (ranges[key]) out[key] = ranges[key];
+  }
+  return out;
+}
+
 /**
  * Everything the Explore page's constellation maps need, in one panel: a
  * tab bar switching between the app map and the tag map (only the active
@@ -63,6 +87,11 @@ export function ExploreMaps() {
   const rawTab = params.get("tab");
   const tab: TabKey = rawTab === "tags" || rawTab === "group" ? rawTab : "apps";
   const selectedTags = useMemo(() => params.getAll("tags"), [params]);
+  const [ranges, setRanges] = useState<RangeFilters>(() => {
+    const next = { ...EMPTY_RANGE_FILTERS };
+    for (const key of RANGE_KEYS) next[key] = params.get(key) ?? "";
+    return next;
+  });
 
   const [selection, setSelection] = useState<MapSelection | null>(null);
   const [availableTags, setAvailableTags] = useState<TagGraphNode[]>([]);
@@ -115,7 +144,11 @@ export function ExploreMaps() {
     setTagSelectRequest(null);
   }, [tab]);
 
-  function pushParams(next: { tab?: TabKey; tags?: string[] }) {
+  function pushParams(next: {
+    tab?: TabKey;
+    tags?: string[];
+    ranges?: Partial<Record<keyof RangeFilters, string>>;
+  }) {
     const sp = new URLSearchParams(params.toString());
     if (next.tab !== undefined) {
       if (next.tab === "apps") sp.delete("tab");
@@ -125,8 +158,33 @@ export function ExploreMaps() {
       sp.delete("tags");
       for (const t of next.tags) sp.append("tags", t);
     }
+    if (next.ranges !== undefined) {
+      for (const key of RANGE_KEYS) {
+        const value = next.ranges[key];
+        if (value === undefined) continue;
+        if (value) sp.set(key, value);
+        else sp.delete(key);
+      }
+    }
     const qs = sp.toString();
     router.push(qs ? `/rankings?${qs}` : "/rankings", { scroll: false });
+  }
+
+  // One timer per range field, same reasoning as Discover's identical
+  // pattern — a single shared timer would let typing in a second field
+  // cancel a still-pending navigate for the first.
+  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  function onRangeChange(key: keyof RangeFilters, value: string) {
+    setRanges((prev) => ({ ...prev, [key]: value }));
+    clearTimeout(debounceRefs.current[key]);
+    debounceRefs.current[key] = setTimeout(() => pushParams({ ranges: { [key]: value } }), 300);
+  }
+
+  function clearRanges() {
+    setRanges({ ...EMPTY_RANGE_FILTERS });
+    const cleared: Partial<Record<keyof RangeFilters, string>> = {};
+    for (const key of RANGE_KEYS) cleared[key] = "";
+    pushParams({ ranges: cleared });
   }
 
   function switchTab(next: TabKey) {
@@ -251,6 +309,9 @@ export function ExploreMaps() {
                   </button>
                 </div>
               )}
+              <div className="mt-2">
+                <MapFilterPanel ranges={ranges} onRangeChange={onRangeChange} onClear={clearRanges} />
+              </div>
             </div>
           )}
 
@@ -272,11 +333,16 @@ export function ExploreMaps() {
 
           <div key={tab} className="animate-fade-in-fast">
             {tab === "apps" ? (
-              <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} />
+              <AppMap onSelect={handleAppSelect} selectedTags={selectedTags} ranges={toMapRangeFilters(ranges)} />
             ) : tab === "tags" ? (
               <TagMap onSelect={handleTagSelect} selectRequest={tagSelectRequest} />
             ) : (
-              <GroupMap onSelect={handleGroupSelect} selectedTags={selectedTags} onToggleTag={toggleTagFilter} />
+              <GroupMap
+                onSelect={handleGroupSelect}
+                selectedTags={selectedTags}
+                onToggleTag={toggleTagFilter}
+                ranges={toMapRangeFilters(ranges)}
+              />
             )}
           </div>
         </div>

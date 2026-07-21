@@ -132,10 +132,46 @@ fn top_neighbor_keys(edges: &[AppGraphEdge], weight_of: impl Fn(&AppGraphEdge) -
     keep
 }
 
+/// The maps' "advanced search" — min/max app stake, min/max tag count,
+/// min/max pageviews. Same param names and semantics as `apps::SearchInput`
+/// (which the Discover list's `FilterPanel` already exposes; see
+/// `apps::in_range`, reused here), just applied over the graph/pack app
+/// subsets instead of the full paginated search.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct RangeQuery {
+    #[serde(default)]
+    app_stake_min: Option<f64>,
+    #[serde(default)]
+    app_stake_max: Option<f64>,
+    #[serde(default)]
+    tags_count_min: Option<i64>,
+    #[serde(default)]
+    tags_count_max: Option<i64>,
+    #[serde(default)]
+    pageviews_min: Option<f64>,
+    #[serde(default)]
+    pageviews_max: Option<f64>,
+}
+
+impl RangeQuery {
+    fn matches(&self, stake: f64, view_count: i32, tag_count: i64) -> bool {
+        crate::handlers::apps::in_range(stake, self.app_stake_min, self.app_stake_max)
+            && crate::handlers::apps::in_range(view_count as f64, self.pageviews_min, self.pageviews_max)
+            && crate::handlers::apps::in_range(
+                tag_count as f64,
+                self.tags_count_min.map(|v| v as f64),
+                self.tags_count_max.map(|v| v as f64),
+            )
+    }
+}
+
 #[derive(Deserialize)]
 struct GraphQuery {
     #[serde(default)]
     tags: Option<String>,
+    #[serde(flatten)]
+    ranges: RangeQuery,
 }
 
 async fn app_graph(State(state): State<Arc<ApiState>>, Query(q): Query<GraphQuery>) -> Result<Json<serde_json::Value>, ApiError> {
@@ -169,6 +205,10 @@ async fn app_graph(State(state): State<Arc<ApiState>>, Query(q): Query<GraphQuer
             if !tag_slugs.iter().all(|s| slugs.contains(s.as_str())) {
                 continue;
             }
+        }
+
+        if !q.ranges.matches(stake_total, view_count, tag_rows.len() as i64) {
+            continue;
         }
 
         apps.push(AppNode {
@@ -285,7 +325,29 @@ struct TagPackAppDto {
 /// circles = next-most-common" by sorting each app's own tags into that
 /// same global order (see app/src/lib/tagPack.ts's `buildTagPackTree`).
 /// Same join as `tag_graph`, grouped by app instead of collapsed into edges.
-async fn tag_pack(State(state): State<Arc<ApiState>>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn tag_pack(State(state): State<Arc<ApiState>>, Query(ranges): Query<RangeQuery>) -> Result<Json<serde_json::Value>, ApiError> {
+    // Which apps pass the range filters, decided up front — tag count needs
+    // each app's full tag list, not available from the "App" table alone,
+    // and deciding this first (rather than filtering the accumulated `apps`
+    // map afterward) keeps `tag_stats`'s per-tag app-count/stake aggregates
+    // consistent with the apps actually returned below.
+    let app_rows: Vec<(String, f64, i32, i64)> = sqlx::query_as(
+        r#"
+        SELECT a.slug, a."stakeTotal", a."viewCount",
+               (SELECT COUNT(*) FROM "AppTag" at WHERE at."appId" = a.id)
+        FROM "App" a
+        WHERE a.status = 'approved'
+        "#,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+    let passing: HashSet<String> = app_rows
+        .into_iter()
+        .filter(|(_, stake, views, tag_count)| ranges.matches(*stake, *views, *tag_count))
+        .map(|(slug, ..)| slug)
+        .collect();
+
     let rows: Vec<(String, String, f64, String, String, f64)> = sqlx::query_as(
         r#"
         SELECT a.slug, a.name, a."stakeTotal", t.slug, t.name, at."stakeTotal"
@@ -302,6 +364,10 @@ async fn tag_pack(State(state): State<Arc<ApiState>>) -> Result<Json<serde_json:
     let mut tag_stats: HashMap<String, (String, i64, f64)> = HashMap::new(); // tagSlug -> (name, appCount, stake)
     let mut apps: HashMap<String, (String, f64, Vec<String>)> = HashMap::new(); // appSlug -> (name, stake, tagSlugs)
     for (app_slug, app_name, app_stake, tag_slug, tag_name, tag_stake) in rows {
+        if !passing.contains(&app_slug) {
+            continue;
+        }
+
         let tag_entry = tag_stats.entry(tag_slug.clone()).or_insert((tag_name, 0, 0.0));
         tag_entry.1 += 1;
         tag_entry.2 += tag_stake;
@@ -325,6 +391,9 @@ async fn tag_pack(State(state): State<Arc<ApiState>>) -> Result<Json<serde_json:
     .await
     .map_err(crate::api::internal)?;
     for (slug, name, stake) in untagged_rows {
+        if !passing.contains(&slug) {
+            continue;
+        }
         apps.entry(slug).or_insert((name, stake, Vec::new()));
     }
 

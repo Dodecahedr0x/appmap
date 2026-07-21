@@ -5,7 +5,7 @@ import { hierarchy, pack, type HierarchyCircularNode, type HierarchyNode } from 
 import { cn, formatToken, formatNumber } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { buildTagPackTree, type PackNode, type PackTagNode, type PackAppNode } from "@/lib/tagPack";
-import type { TagPack } from "@/lib/indexerClient";
+import type { TagPack, MapRangeFilters } from "@/lib/indexerClient";
 import type { MapSelection } from "./RelatedApps";
 
 // Representative fallback so the map is never empty if the API route is
@@ -249,10 +249,13 @@ export function GroupMap({
   onSelect,
   selectedTags = [],
   onToggleTag,
+  ranges,
 }: {
   onSelect?: (selection: MapSelection | null) => void;
   selectedTags?: string[];
   onToggleTag?: (slug: string) => void;
+  /** Advanced-search range filters (min/max app stake, tag count, pageviews) — applied server-side, see /api/tags/pack. */
+  ranges?: MapRangeFilters;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -275,11 +278,17 @@ export function GroupMap({
   const panStartRef = useRef({ pointerX: 0, pointerY: 0, viewX: 0, viewY: 0 });
   const draggedRef = useRef(false);
 
+  const rangesKey = JSON.stringify(ranges ?? {});
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setIsEmpty(false);
-    fetch("/api/tags/pack")
+    const sp = new URLSearchParams();
+    for (const [key, value] of Object.entries(ranges ?? {})) {
+      if (value) sp.set(key, value);
+    }
+    const qs = sp.toString();
+    fetch(`/api/tags/pack${qs ? `?${qs}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((body: { data?: TagPack }) => {
         if (cancelled) return;
@@ -310,7 +319,8 @@ export function GroupMap({
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangesKey]);
 
   useEffect(() => {
     const el = containerRef.current;

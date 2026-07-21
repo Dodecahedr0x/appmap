@@ -534,7 +534,10 @@ fn tags_stake_value(app: &AppDto, selected: &[String]) -> f64 {
     }
 }
 
-fn in_range(value: f64, min: Option<f64>, max: Option<f64>) -> bool {
+/// Shared with `handlers::platform`'s app-graph/tag-pack range filters
+/// (the maps' "advanced search") — same range-check, applied over a
+/// different app subset than `search_apps` below.
+pub(crate) fn in_range(value: f64, min: Option<f64>, max: Option<f64>) -> bool {
     if let Some(min) = min {
         if value < min {
             return false;

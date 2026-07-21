@@ -44,7 +44,8 @@ interface Props {
   onClear: () => void;
 }
 
-function RangeRow({
+/** Exported for reuse by the maps' advanced-search panel (see explore/MapFilterPanel.tsx) — same min/max number-input pair UI. */
+export function RangeRow({
   label,
   minKey,
   maxKey,
