@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { XpProgress } from "@/components/profile/XpProgress";
+import { MyStakes } from "@/components/profile/MyStakes";
 import { SITE_URL } from "@/lib/constants";
 import { getSession } from "@/lib/session";
 
@@ -25,6 +26,7 @@ export default async function ProfilePage() {
         description="Your level and XP reflect how much you've contributed — voting, staking, submitting apps, and suggesting tags. It's cosmetic status only: it never affects vote weight, fees, or ranking."
       />
       <XpProgress />
+      <MyStakes />
     </div>
   );
 }
