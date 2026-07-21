@@ -33,10 +33,14 @@ interface Props {
 /**
  * A collapsible "advanced search" for the Apps/Group maps — min/max app
  * stake, min/max tag count, min/max pageviews, restricting which apps
- * appear as nodes. Reuses Discover's `RangeRow`/`RangeFilters` rather than
- * inventing a second min/max-input UI (see FilterPanel.tsx); starts
- * collapsed since most visits to the map don't need it, unlike the tag
- * filter above it which is common enough to always show.
+ * appear as nodes. Reuses Discover's `RangeRow`/`RangeFilters` and matches
+ * its `FilterPanel` toggle button styling (icon, badge, the same
+ * merged-corner button/panel treatment) for visual consistency, and anchors
+ * the panel as an absolutely-positioned dropdown rather than an inline
+ * expansion — this section sits above the map, so pushing it down every
+ * time the panel opens/closes would shift (and visually jolt) the map on
+ * every toggle. Starts collapsed since most visits to the map don't need
+ * it, unlike the tag filter above it which is common enough to always show.
  */
 export function MapFilterPanel({ ranges, onRangeChange, onClear }: Props) {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,36 +49,34 @@ export function MapFilterPanel({ ranges, onRangeChange, onClear }: Props) {
   const activeCount = countActiveMapFilters(ranges);
 
   return (
-    <div>
+    <div className="relative inline-block">
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="btn-secondary gap-2 text-xs"
+        className={cn(
+          "btn-secondary gap-2 rounded-pill text-xs",
+          panelRendered && "rounded-b-none border-b-0",
+        )}
         aria-expanded={isOpen}
         aria-controls="map-filter-panel"
       >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M6 12h12M10 20h4" />
+        </svg>
         Advanced search
         {activeCount > 0 && (
           <span className="grid h-5 min-w-5 place-items-center rounded-full bg-cobalt px-1 text-[11px] font-semibold text-cream">
             {activeCount}
           </span>
         )}
-        <svg
-          className={cn("h-3.5 w-3.5 transition-transform duration-150", isOpen && "rotate-180")}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
       {panelRendered && (
         <div
           id="map-filter-panel"
           className={cn(
-            "card mt-2 grid max-w-xl gap-4 p-4 transition-opacity duration-150 motion-safe:transition-[opacity,transform] sm:grid-cols-3",
-            panelVisible ? "opacity-100 motion-safe:translate-y-0" : "opacity-0 motion-safe:-translate-y-1",
+            "card absolute left-0 top-full z-20 grid w-[min(36rem,calc(100vw-2rem))] origin-top-left gap-4 rounded-tl-none p-4 transition-opacity duration-150 motion-safe:transition-[opacity,transform] sm:grid-cols-3",
+            panelVisible ? "opacity-100 motion-safe:scale-100" : "opacity-0 motion-safe:scale-95",
           )}
         >
           <RangeRow label="App stake" minKey="appStakeMin" maxKey="appStakeMax" ranges={ranges} onRangeChange={onRangeChange} />

@@ -166,15 +166,48 @@ impl RangeQuery {
     }
 }
 
+// `RangeQuery`'s fields are repeated here rather than `#[serde(flatten)]`ed
+// in — axum's query-string extractor (serde_urlencoded under the hood)
+// doesn't support flatten: every field query-deserializes fine standalone,
+// but flattening it into a sibling struct makes deserialization fail with
+// "invalid type: string ..., expected f64" for every request that includes
+// even one range param (i.e. every "Advanced search" filter on the Apps
+// map tab, unlike Group's tag_pack below, which takes `RangeQuery` directly
+// and was never flattened, hence never demonstrated bug).
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct GraphQuery {
     #[serde(default)]
     tags: Option<String>,
-    #[serde(flatten)]
-    ranges: RangeQuery,
+    #[serde(default)]
+    app_stake_min: Option<f64>,
+    #[serde(default)]
+    app_stake_max: Option<f64>,
+    #[serde(default)]
+    tags_count_min: Option<i64>,
+    #[serde(default)]
+    tags_count_max: Option<i64>,
+    #[serde(default)]
+    pageviews_min: Option<f64>,
+    #[serde(default)]
+    pageviews_max: Option<f64>,
+}
+
+impl GraphQuery {
+    fn ranges(&self) -> RangeQuery {
+        RangeQuery {
+            app_stake_min: self.app_stake_min,
+            app_stake_max: self.app_stake_max,
+            tags_count_min: self.tags_count_min,
+            tags_count_max: self.tags_count_max,
+            pageviews_min: self.pageviews_min,
+            pageviews_max: self.pageviews_max,
+        }
+    }
 }
 
 async fn app_graph(State(state): State<Arc<ApiState>>, Query(q): Query<GraphQuery>) -> Result<Json<serde_json::Value>, ApiError> {
+    let ranges = q.ranges();
     let tag_slugs: Vec<String> = q.tags.map(|s| s.split(',').filter(|x| !x.is_empty()).map(String::from).collect()).unwrap_or_default();
 
     let rows: Vec<(String, String, f64, i32, f64)> = sqlx::query_as(
@@ -207,7 +240,7 @@ async fn app_graph(State(state): State<Arc<ApiState>>, Query(q): Query<GraphQuer
             }
         }
 
-        if !q.ranges.matches(stake_total, view_count, tag_rows.len() as i64) {
+        if !ranges.matches(stake_total, view_count, tag_rows.len() as i64) {
             continue;
         }
 
