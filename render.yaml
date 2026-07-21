@@ -126,7 +126,13 @@ services:
     name: nebulous-world-indexer
     runtime: docker
     repo: https://github.com/Dodecahedr0x/appmap
-    dockerContext: indexer
+    # Repo root, not `indexer` — indexer/Cargo.toml is now a member of the
+    # root Cargo workspace (see /Cargo.toml), so the build needs the root
+    # manifest/lockfile plus every workspace member's source (indexer/
+    # depends on both `programs/nebulous_world` and `indexer/decoder` via
+    # workspace-relative path deps) — see indexer/Dockerfile's own COPY
+    # steps, which are root-relative to match.
+    dockerContext: .
     dockerfilePath: indexer/Dockerfile
     plan: starter
     region: oregon

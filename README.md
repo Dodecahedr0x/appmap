@@ -37,6 +37,10 @@ sharing**.
 
 This is an Anchor workspace at the repo root (`Anchor.toml`, `Cargo.toml`,
 `programs/`, `tests/`) with the Next.js web app contained in [`app/`](app/).
+The root `Cargo.toml`'s `[workspace]` covers every Rust crate in the repo,
+not just the on-chain program — `programs/nebulous_world`, `indexer`, and
+`indexer/decoder` are all members, sharing one `Cargo.lock` — so `cargo
+build`/`test`/`clippy --workspace` from the repo root covers all three.
 Anchor-related commands (`anchor build`, `anchor deploy`, `anchor test`) run
 from the repo root. App commands (`npm run dev`, `npm test`, etc.) also run
 from the repo root — the root `package.json` proxies every `app/package.json`
