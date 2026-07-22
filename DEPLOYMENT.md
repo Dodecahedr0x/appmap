@@ -20,6 +20,15 @@ The indexer is the app's *only* path to Solana RPC (see `indexer/README.md`)
 matters: the chain-side pieces (1–2) must exist before the infra pieces (3)
 have anything real to point at.
 
+**Automating this:** `app/scripts/deploy/` runs phases 1–4 below (program
+deploy, NEB launch, Config init, app seeding) plus 5b's env var sync end to
+end from one JSONC config, instead of by hand — see `app/README.md`'s
+"Production deploy" section. It still leaves 5a (the one-time Blueprint
+launch) and 5c/hardening to you. Useful for redeploys or once you've already
+read through this guide once; read the phases below first regardless, since
+the script's config fields assume the same context this document covers
+(ordering, the bricking warning in phase 3, mainnet vs devnet differences).
+
 ## At a glance: devnet vs mainnet
 
 | | Devnet | Mainnet-beta |
