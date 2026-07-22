@@ -300,6 +300,7 @@ export function MyStakes() {
               side on a narrow card, so it needs its own fallback to drop to
               a second line rather than overflow. */}
           <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {fee && <UnstakeFeeNotice feeBps={fee.feeBps} />}
             <button
               className="btn-secondary px-2.5 py-1 text-[11px]"
               disabled={busy || !walletReady}
@@ -307,7 +308,6 @@ export function MyStakes() {
             >
               {openUnstakeKey === row.key ? "Cancel" : "Unstake"}
             </button>
-            {fee && <UnstakeFeeNotice feeBps={fee.feeBps} />}
             {!isSimulationMode() && (
               <button
                 className="btn-primary px-2.5 py-1 text-[11px]"
