@@ -58,6 +58,13 @@ services:
       - key: AD_CPM
         value: "2.5"
 
+      # Google AdSense site tag (Auto ads) — see
+      # src/components/ads/AdSenseScript.tsx and .env.example's comment.
+      # Not secret (it's emitted into every page's HTML regardless), so this
+      # is set directly rather than sync: false.
+      - key: NEXT_PUBLIC_ADSENSE_PUBLISHER_ID
+        value: ca-pub-3646035530294447
+
       # --- Cloudflare Turnstile (leave unset to run without bot verification;
       # page views are then recorded as not revenue-eligible) ---
       - key: NEXT_PUBLIC_TURNSTILE_SITE_KEY
