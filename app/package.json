@@ -24,7 +24,8 @@
     "test:anchor": "cd .. && npx anchor test",
     "settle:epoch": "tsx scripts/settleEpoch.ts",
     "snapshot:daily": "tsx scripts/dailySnapshot.ts",
-    "launch:neb": "tsx scripts/launch-neb/index.ts"
+    "launch:neb": "tsx scripts/launch-neb/index.ts",
+    "deploy": "tsx scripts/deploy/index.ts"
   },
   "overrides": {
     "@types/react": "18.3.31",
