@@ -261,60 +261,68 @@ export function TagStakePanel({
       ) : (
         <ul className="space-y-2">
           {tags.map((t) => (
-            <li key={t.id} className="rounded-lg border border-hairline p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <Link href={`/tags/${t.slug}`} className="font-medium text-ink hover:text-cobalt">
-                    #{t.name}
-                  </Link>
-                  <span className="ml-2 text-xs text-slate-steel">
-                    {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
-                  </span>
-                </div>
-                {/* One flex item for the whole action-button group — not
-                    three separate siblings of the outer justify-between row
-                    — so the buttons stay clustered together on the right
-                    and line up consistently across tag rows regardless of
-                    how many of the three are actually shown (a row with a
-                    stake shows Withdraw+Stake, +Claim once a real
-                    deployment has a pending reward; a row without one shows
-                    only Stake). Three siblings directly in a
-                    justify-between row would each get spread out by that
-                    row's own item count instead. */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {user && myStakes[t.id] && (
-                    <button
-                      className="btn-secondary text-xs"
-                      onClick={() => {
-                        setStakingId(null);
-                        setWithdrawingId(withdrawingId === t.id ? null : t.id);
-                      }}
-                    >
-                      Withdraw
-                    </button>
-                  )}
-                  {user && myStakes[t.id] && !isSimulationMode() && (
-                    <button
-                      className="btn-primary text-xs"
-                      disabled={busy || !pendingByTag[t.id]}
-                      onClick={() => claimTag(t.id, t.slug)}
-                    >
-                      {busy ? "…" : pendingByTag[t.id] ? `Claim ${formatToken(pendingByTag[t.id], "")}` : "Claim"}
-                    </button>
-                  )}
-                  {user && (
-                    <button
-                      className="btn-secondary text-xs"
-                      onClick={() => {
-                        setWithdrawingId(null);
-                        setStakingId(stakingId === t.id ? null : t.id);
-                      }}
-                    >
-                      {stakingId === t.id ? "Cancel" : "Stake"}
-                    </button>
-                  )}
-                </div>
+            <li key={t.id} className="space-y-2 rounded-lg border border-hairline p-3">
+              <div>
+                <Link href={`/tags/${t.slug}`} className="font-medium text-ink hover:text-cobalt">
+                  #{t.name}
+                </Link>
+                <span className="ml-2 text-xs text-slate-steel">
+                  {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
+                </span>
               </div>
+              {/* This panel sits in the app page's sidebar column — narrow
+                  enough that three buttons (Withdraw, Claim, Stake) never
+                  fit on one line next to the tag info above, so this always
+                  stacks info above a button grid rather than trying to keep
+                  them side by side and wrapping unpredictably when there
+                  isn't room (a plain flex-wrap group used to drop to its own
+                  line under the info text, then wrap AGAIN inside itself,
+                  leaving whichever button didn't fit stranded alone). A
+                  2-column grid gives a controlled result at any count
+                  instead: pairs stack cleanly, and a leftover odd button
+                  (only Stake, or Withdraw+Claim+Stake) spans the full row
+                  rather than sitting alone in one half. */}
+              {(() => {
+                const buttonCount =
+                  (user && myStakes[t.id] ? 1 : 0) +
+                  (user && myStakes[t.id] && !isSimulationMode() ? 1 : 0) +
+                  (user ? 1 : 0);
+                return (
+                  <div className={cn("grid grid-cols-2 gap-2", buttonCount % 2 === 1 && "[&>:last-child]:col-span-2")}>
+                    {user && myStakes[t.id] && (
+                      <button
+                        className="btn-secondary text-xs"
+                        onClick={() => {
+                          setStakingId(null);
+                          setWithdrawingId(withdrawingId === t.id ? null : t.id);
+                        }}
+                      >
+                        Withdraw
+                      </button>
+                    )}
+                    {user && myStakes[t.id] && !isSimulationMode() && (
+                      <button
+                        className="btn-primary text-xs"
+                        disabled={busy || !pendingByTag[t.id]}
+                        onClick={() => claimTag(t.id, t.slug)}
+                      >
+                        {busy ? "…" : pendingByTag[t.id] ? `Claim ${formatToken(pendingByTag[t.id], "")}` : "Claim"}
+                      </button>
+                    )}
+                    {user && (
+                      <button
+                        className="btn-secondary text-xs"
+                        onClick={() => {
+                          setWithdrawingId(null);
+                          setStakingId(stakingId === t.id ? null : t.id);
+                        }}
+                      >
+                        {stakingId === t.id ? "Cancel" : "Stake"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
               {user && myStakes[t.id] && stakedAtByTag[t.id] !== undefined && (
                 <div className="mt-1">
                   <UnstakeFeeNotice
@@ -353,33 +361,39 @@ export function TagStakePanel({
               {withdrawRevealRendered === t.id && myStakes[t.id] && (
                 <div
                   className={cn(
-                    "mt-3 flex flex-wrap items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+                    "mt-3 space-y-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
                     withdrawRevealVisible
                       ? "opacity-100 motion-safe:translate-y-0"
                       : "opacity-0 motion-safe:-translate-y-1",
                   )}
                 >
-                  <input
-                    type="number"
-                    disabled
-                    className="input min-w-0 flex-1"
-                    value={myStakes[t.id]!.amount.toFixed(2)}
-                    aria-label="Withdraw amount"
-                  />
-                  <button
-                    className="btn-primary shrink-0 text-sm"
-                    disabled={busy}
-                    onClick={() => withdraw(t.id, t.slug)}
-                  >
-                    {busy ? "…" : "Confirm"}
-                  </button>
-                  <button
-                    className="btn-secondary shrink-0 text-sm"
-                    disabled={busy}
-                    onClick={() => setWithdrawingId(null)}
-                  >
-                    Cancel
-                  </button>
+                  {/* A disabled number input here (the amount isn't
+                      editable — withdrawal is always the full stake)
+                      used to sit in the same row as Confirm/Cancel, but
+                      this sidebar is too narrow for all three to share a
+                      row: the input's flex-basis got squeezed down to a
+                      couple of characters, showing a truncated "3"
+                      instead of "365.86". Plain text on its own line has
+                      no width to clip against. */}
+                  <p className="text-sm text-slate">
+                    Withdraw all {formatToken(myStakes[t.id]!.amount, TOKEN_SYMBOL)}?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className="btn-primary text-sm"
+                      disabled={busy}
+                      onClick={() => withdraw(t.id, t.slug)}
+                    >
+                      {busy ? "…" : "Confirm"}
+                    </button>
+                    <button
+                      className="btn-secondary text-sm"
+                      disabled={busy}
+                      onClick={() => setWithdrawingId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </li>
