@@ -102,6 +102,16 @@ export const buildClaimTagRewardTxSchema = z.object({
   user: pubkeyString,
 });
 
+const claimItemSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("vote"), appId: z.string().min(1) }),
+  z.object({ kind: z.literal("tag"), appId: z.string().min(1), tagSlug: z.string().min(1) }),
+]);
+
+export const buildClaimAllRewardsTxSchema = z.object({
+  claims: z.array(claimItemSchema).min(1),
+  user: pubkeyString,
+});
+
 // Closing a zero-stake VotePosition/StakePosition — the position's own
 // pubkey is enough (see indexer/src/api.rs's build_close_vote_position doc
 // comment): the on-chain instruction re-derives its seeds from the

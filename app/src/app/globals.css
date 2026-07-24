@@ -31,6 +31,22 @@ body {
   border-radius: 8px;
 }
 
+/* The Explore maps panel (ExploreMaps.tsx) fullscreens itself via the native
+   Fullscreen API — the browser stretches that element to the viewport on
+   its own, but the map surface underneath (ForceMap's canvas, GroupMap's
+   circle-packing div) still carries its normal fixed height (h-24rem/30rem)
+   unless overridden here, so it wouldn't actually grow to fill the extra
+   space. */
+:fullscreen {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background-color: #ffffff;
+}
+:fullscreen .explore-map-surface {
+  height: calc(100vh - 14rem);
+}
+
 @layer components {
   /* Elevation comes from a hairline border plus a real (subtle) shadow now
      — see DESIGN.md. `.card` is the static/at-rest surface; `.card-interactive`

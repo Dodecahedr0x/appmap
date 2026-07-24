@@ -35,3 +35,9 @@ yarn-error.log*
 
 # git worktrees
 /.worktrees
+
+# impeccable design skill — local live-mode session state and hook cache,
+# not project config (that's just /.impeccable/live/config.json, tracked)
+/.impeccable/live/sessions
+/.impeccable/live/accept-receipts
+/.impeccable/hook.cache.json

@@ -110,6 +110,7 @@ pub fn router(state: Arc<ApiState>) -> Router {
         .route("/tx/withdraw-tag-stake", post(build_withdraw_tag_stake))
         .route("/tx/claim-vote-reward", post(build_claim_vote_reward))
         .route("/tx/claim-tag-reward", post(build_claim_tag_reward))
+        .route("/tx/claim-all-rewards", post(build_claim_all_rewards))
         .route("/tx/close-vote-position", post(build_close_vote_position))
         .route(
             "/tx/close-tag-stake-position",
@@ -1311,6 +1312,142 @@ async fn build_claim_tag_reward(
     ];
     let tx = unsigned_tx_base64(&state.rpc, &user, instructions).await?;
     Ok(Json(BuiltTxDto { transaction: tx }))
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+enum ClaimItem {
+    Vote { app_id: String },
+    Tag { app_id: String, tag_slug: String },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClaimAllReq {
+    claims: Vec<ClaimItem>,
+    user: String,
+}
+
+#[derive(Serialize)]
+struct BuiltTxsDto {
+    transactions: Vec<String>,
+}
+
+/// Solana's hard cap on a serialized transaction (`PACKET_DATA_SIZE`) —
+/// signatures + message must fit in one UDP packet.
+const MAX_TX_BYTES: usize = 1232;
+
+/// Serialized size of `instructions` as a single-signer (`fee_payer`)
+/// transaction, without an RPC round trip: a real blockhash is exactly 32
+/// bytes like the placeholder one, and an unsigned `Transaction`'s signature
+/// slots are already the right count/size (64-byte zeroed `Signature`s), so
+/// this exactly matches what the eventual signed, real-blockhash transaction
+/// will serialize to.
+fn estimated_tx_size(instructions: &[Instruction], fee_payer: &Pubkey) -> usize {
+    let message = Message::new_with_blockhash(instructions, Some(fee_payer), &Hash::default());
+    let tx = Transaction::new_unsigned(message);
+    bincode::serialize(&tx).map(|b| b.len()).unwrap_or(usize::MAX)
+}
+
+/// Builds the *minimum* number of transactions that pack every claim in
+/// `req.claims`, so a caller can get every pending reward signed in one
+/// `wallet.signAllTransactions()` prompt instead of one popup per claim (see
+/// `ClaimRewards.tsx`'s "Claim all" button). Each claim contributes the same
+/// idempotent-ATA-create + claim-instruction pair `build_claim_vote_reward`/
+/// `build_claim_tag_reward` build individually; this greedily packs those
+/// pairs into transactions up to Solana's `MAX_TX_BYTES` limit rather than
+/// always starting a new one. The ATA-create instruction is repeated in
+/// every transaction (not just the first) since transactions in a batch may
+/// land in any order — repeating an idempotent instruction is harmless, an
+/// absent one on a not-yet-created ATA is not.
+///
+/// Unlike the single-claim builders, this doesn't pre-check
+/// `account_exists` for every claim (that would be one extra RPC call per
+/// claim) — it trusts the caller to only pass positions it already loaded
+/// from `/api/rewards/positions`; a stale/nonexistent one simply fails that
+/// one transaction on-chain instead of the whole batch.
+async fn build_claim_all_rewards(
+    State(state): State<Arc<ApiState>>,
+    Json(req): Json<ClaimAllReq>,
+) -> Result<Json<BuiltTxsDto>, ApiError> {
+    if req.claims.is_empty() {
+        return Err(bad_request("No claims to build".to_string()));
+    }
+    let user = parse_pubkey("user", &req.user)?;
+    let config = config_pda(&state.program_id);
+    let vault = vault_address(&config, &state.vote_token_mint);
+    let user_token_account = associated_token_address(&user, &state.vote_token_mint);
+    let ata_ix = ata_create_idempotent_ix(&user, &user, &state.vote_token_mint);
+
+    let mut per_claim_instructions: Vec<Vec<Instruction>> = Vec::with_capacity(req.claims.len());
+    for claim in &req.claims {
+        let (data, accounts) = match claim {
+            ClaimItem::Vote { app_id } => {
+                validate_seed_len("app_id", app_id, MAX_APP_ID_LEN)?;
+                let app = app_pda(&state.program_id, app_id);
+                let position = vote_position_pda(&state.program_id, &app, &user);
+                (
+                    CLAIM_VOTE_REWARD_DISC.to_vec(),
+                    vec![
+                        AccountMeta::new_readonly(app, false),
+                        AccountMeta::new(position, false),
+                        AccountMeta::new_readonly(config, false),
+                        AccountMeta::new(vault, false),
+                        AccountMeta::new(user_token_account, false),
+                        AccountMeta::new_readonly(user, true),
+                        AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+                    ],
+                )
+            }
+            ClaimItem::Tag { app_id, tag_slug } => {
+                validate_seed_len("app_id", app_id, MAX_APP_ID_LEN)?;
+                validate_seed_len("tag_slug", tag_slug, MAX_TAG_ID_LEN)?;
+                let app = app_pda(&state.program_id, app_id);
+                let tag = tag_pda(&state.program_id, tag_slug);
+                let app_tag_stake = app_tag_stake_pda(&state.program_id, &app, &tag);
+                let position = stake_position_pda(&state.program_id, &app_tag_stake, &user);
+                (
+                    CLAIM_TAG_REWARD_DISC.to_vec(),
+                    vec![
+                        AccountMeta::new_readonly(app, false),
+                        AccountMeta::new_readonly(app_tag_stake, false),
+                        AccountMeta::new(position, false),
+                        AccountMeta::new_readonly(config, false),
+                        AccountMeta::new(vault, false),
+                        AccountMeta::new(user_token_account, false),
+                        AccountMeta::new_readonly(user, true),
+                        AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+                    ],
+                )
+            }
+        };
+        per_claim_instructions.push(vec![
+            ata_ix.clone(),
+            Instruction::new_with_bytes(state.program_id, &data, accounts),
+        ]);
+    }
+
+    let mut batches: Vec<Vec<Instruction>> = Vec::new();
+    let mut current: Vec<Instruction> = Vec::new();
+    for instructions in per_claim_instructions {
+        let mut candidate = current.clone();
+        candidate.extend(instructions.iter().cloned());
+        if !current.is_empty() && estimated_tx_size(&candidate, &user) > MAX_TX_BYTES {
+            batches.push(std::mem::take(&mut current));
+            current = instructions;
+        } else {
+            current = candidate;
+        }
+    }
+    if !current.is_empty() {
+        batches.push(current);
+    }
+
+    let mut transactions = Vec::with_capacity(batches.len());
+    for batch in batches {
+        transactions.push(unsigned_tx_base64(&state.rpc, &user, batch).await?);
+    }
+    Ok(Json(BuiltTxsDto { transactions }))
 }
 
 // ---------------------------------------------------------------------

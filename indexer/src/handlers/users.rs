@@ -74,8 +74,92 @@ async fn get_by_id(
     Ok(Json(user))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MyPositionDto {
+    kind: &'static str, // "vote" | "tagStake"
+    id: String,
+    amount: f64,
+    app_id: String,
+    app_slug: String,
+    app_name: String,
+    tag_slug: Option<String>,
+    tag_name: Option<String>,
+}
+
+/// Every active `Vote`/`Stake` row across every app for `id`, the flat list
+/// that backs the profile page's "My stakes" panel (see AppMap issue: it was
+/// previously only possible to withdraw a stake from the exact app/tag page
+/// it was placed on — this is the cross-app view + withdraw button lives on
+/// instead). Postgres-only, same as `stakes::list`/`votes::get_vote` — no
+/// on-chain read needed since `active`/`amount` here already track a
+/// confirmed withdraw.
+async fn get_positions(
+    State(state): State<Arc<ApiState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let votes: Vec<(String, f64, String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT v.id, v.amount, a.id, a.slug, a.name
+        FROM "Vote" v JOIN "App" a ON a.id = v."appId"
+        WHERE v."userId" = $1 AND v.active = true
+        ORDER BY v.amount DESC
+        "#,
+    )
+    .bind(&id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    let stakes: Vec<(String, f64, String, String, String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT s.id, s.amount, a.id, a.slug, a.name, t.slug, t.name
+        FROM "Stake" s
+        JOIN "AppTag" at ON at.id = s."appTagId"
+        JOIN "App" a ON a.id = at."appId"
+        JOIN "Tag" t ON t.id = at."tagId"
+        WHERE s."userId" = $1 AND s.active = true
+        ORDER BY s.amount DESC
+        "#,
+    )
+    .bind(&id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::api::internal)?;
+
+    let mut positions: Vec<MyPositionDto> = votes
+        .into_iter()
+        .map(|(vid, amount, app_id, app_slug, app_name)| MyPositionDto {
+            kind: "vote",
+            id: vid,
+            amount,
+            app_id,
+            app_slug,
+            app_name,
+            tag_slug: None,
+            tag_name: None,
+        })
+        .collect();
+    positions.extend(stakes.into_iter().map(
+        |(sid, amount, app_id, app_slug, app_name, tag_slug, tag_name)| MyPositionDto {
+            kind: "tagStake",
+            id: sid,
+            amount,
+            app_id,
+            app_slug,
+            app_name,
+            tag_slug: Some(tag_slug),
+            tag_name: Some(tag_name),
+        },
+    ));
+    positions.sort_by(|a, b| b.amount.partial_cmp(&a.amount).unwrap_or(std::cmp::Ordering::Equal));
+
+    Ok(Json(serde_json::json!({ "positions": positions })))
+}
+
 pub fn routes() -> Router<Arc<ApiState>> {
     Router::new()
         .route("/users/connect", post(connect))
         .route("/users/:id", get(get_by_id))
+        .route("/users/:id/positions", get(get_positions))
 }

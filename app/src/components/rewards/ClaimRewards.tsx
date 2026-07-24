@@ -13,7 +13,7 @@ import { TOKEN_SYMBOL } from "@/lib/constants";
 import { formatToken } from "@/lib/utils";
 import { fromRawAmount } from "@/lib/anchorClient";
 import { apiGet } from "@/lib/txClient";
-import type { AppAccountData, PositionData } from "@/lib/indexerClient";
+import type { AppAccountData, ClaimItem, PositionData } from "@/lib/indexerClient";
 import { settlePendingRaw } from "@/lib/rewards";
 
 interface VotePositionDTO {
@@ -56,10 +56,11 @@ export function ClaimRewards() {
   const { user } = useAuth();
   const wallet = useWallet();
   const toast = useToast();
-  const { claimVoteReward, claimTagReward } = useClaimRewards();
+  const { claimVoteReward, claimTagReward, claimAllRewards } = useClaimRewards();
 
   const [rows, setRows] = useState<ClaimRow[] | null>(null);
   const [claimingKey, setClaimingKey] = useState<string | null>(null);
+  const [claimingAll, setClaimingAll] = useState(false);
 
   useEffect(() => {
     if (!user || isSimulationMode() || !wallet.publicKey) {
@@ -168,6 +169,35 @@ export function ClaimRewards() {
     }
   }
 
+  const claimableRows = rows?.filter((r) => !!r.pending) ?? [];
+  const totalClaimable = claimableRows.reduce((sum, r) => sum + (r.pending ?? 0), 0);
+
+  async function claimAll() {
+    if (claimableRows.length === 0) return;
+    setClaimingAll(true);
+    try {
+      const claims: ClaimItem[] = claimableRows.map((r) =>
+        r.kind === "vote"
+          ? { kind: "vote", appId: r.appId }
+          : { kind: "tag", appId: r.appId, tagSlug: r.tagSlug! },
+      );
+      const { txSigs, simulated } = await claimAllRewards(claims);
+      const plural = claimableRows.length === 1 ? "" : "s";
+      toast.success(
+        simulated
+          ? "Claimed all (simulated) — running without a live deployment"
+          : `Claimed ${formatToken(totalClaimable, TOKEN_SYMBOL)} across ${claimableRows.length} position${plural} in ${txSigs.length} transaction${txSigs.length === 1 ? "" : "s"}`,
+      );
+      setRows((prev) =>
+        prev?.map((r) => (claimableRows.some((c) => c.key === r.key) ? { ...r, pending: 0 } : r)) ?? null,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Claim all failed");
+    } finally {
+      setClaimingAll(false);
+    }
+  }
+
   return (
     <section className="card space-y-4 p-6">
       <div>
@@ -202,39 +232,59 @@ export function ClaimRewards() {
       ) : rows.length === 0 ? (
         <p className="text-sm text-slate">Nothing to claim right now — check back later.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {rows.map((row) => (
-            <li
-              key={row.key}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hairline p-2"
-            >
-              <div className="flex min-w-0 items-center gap-1.5">
-                <Link href={`/app/${row.appSlug}`} className="truncate text-sm font-medium text-ink hover:text-cobalt">
-                  {row.appName}
-                </Link>
-                {row.kind === "tag" ? (
-                  <Link href={`/tags/${row.tagSlug}`} className="chip chip-active shrink-0 text-[10px]">
-                    #{row.tagName}
+        <>
+          {claimableRows.length > 1 && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-mist p-3">
+              <div>
+                <div className="text-xs text-slate-steel">Claimable now</div>
+                <div className="font-mono text-sm font-medium tabular-nums text-ink">
+                  {formatToken(totalClaimable, TOKEN_SYMBOL)}
+                </div>
+              </div>
+              <button
+                className="btn-primary text-xs"
+                disabled={claimingAll}
+                onClick={claimAll}
+              >
+                {claimingAll ? "Claiming…" : `Claim all (${claimableRows.length})`}
+              </button>
+            </div>
+          )}
+
+          <ul className="max-h-[28rem] space-y-1.5 overflow-y-auto pr-1">
+            {rows.map((row) => (
+              <li
+                key={row.key}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hairline p-2"
+              >
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Link href={`/app/${row.appSlug}`} className="truncate text-sm font-medium text-ink hover:text-cobalt">
+                    {row.appName}
                   </Link>
-                ) : (
-                  <span className="chip shrink-0 text-[10px]">Vote</span>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="font-mono text-xs font-medium tabular-nums text-ink">
-                  {formatToken(row.pending!, TOKEN_SYMBOL)}
-                </span>
-                <button
-                  className="btn-primary text-xs"
-                  disabled={claimingKey === row.key}
-                  onClick={() => claim(row)}
-                >
-                  {claimingKey === row.key ? "…" : "Claim"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+                  {row.kind === "tag" ? (
+                    <Link href={`/tags/${row.tagSlug}`} className="chip chip-active shrink-0 text-[10px]">
+                      #{row.tagName}
+                    </Link>
+                  ) : (
+                    <span className="chip shrink-0 text-[10px]">Vote</span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="font-mono text-xs font-medium tabular-nums text-ink">
+                    {formatToken(row.pending!, TOKEN_SYMBOL)}
+                  </span>
+                  <button
+                    className="btn-primary text-xs"
+                    disabled={claimingKey === row.key}
+                    onClick={() => claim(row)}
+                  >
+                    {claimingKey === row.key ? "…" : "Claim"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

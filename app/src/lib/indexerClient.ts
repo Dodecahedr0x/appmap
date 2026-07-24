@@ -225,6 +225,17 @@ export async function buildClaimTagRewardTx(
   return (await post("/tx/claim-tag-reward", { appId, tagSlug, user })) as BuiltTx;
 }
 
+export type ClaimItem = { kind: "vote"; appId: string } | { kind: "tag"; appId: string; tagSlug: string };
+
+export interface BuiltTxs {
+  transactions: string[];
+}
+
+/** Builds the minimum number of transactions packing every claim in `claims` — see api.rs's build_claim_all_rewards. */
+export async function buildClaimAllRewardsTx(claims: ClaimItem[], user: string): Promise<BuiltTxs> {
+  return (await post("/tx/claim-all-rewards", { claims, user })) as BuiltTxs;
+}
+
 export async function buildCloseVotePositionTx(position: string, user: string): Promise<BuiltTx> {
   return (await post("/tx/close-vote-position", { position, user })) as BuiltTx;
 }
@@ -484,6 +495,25 @@ export async function createStake(input: {
   simulationMode: boolean;
 }): Promise<{ stake: { id: string; amount: number } }> {
   return (await post("/stakes", input)) as { stake: { id: string; amount: number } };
+}
+
+export interface MyPosition {
+  kind: "vote" | "tagStake";
+  id: string;
+  amount: number;
+  appId: string;
+  appSlug: string;
+  appName: string;
+  tagSlug: string | null;
+  tagName: string | null;
+}
+
+/** Every active vote/tag-stake `userId` currently holds, across every app — see indexer/src/handlers/users.rs's get_positions. */
+export async function fetchMyPositions(userId: string): Promise<MyPosition[]> {
+  const { positions } = (await get(`/users/${encodeURIComponent(userId)}/positions`)) as {
+    positions: MyPosition[];
+  };
+  return positions;
 }
 
 export async function withdrawStake(stakeId: string, userId: string): Promise<{ withdrawn: boolean }> {
