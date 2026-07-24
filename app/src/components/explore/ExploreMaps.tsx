@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { TagGraph } from "@/lib/indexerClient";
@@ -66,6 +66,27 @@ export function ExploreMaps() {
 
   const [selection, setSelection] = useState<MapSelection | null>(null);
   const [availableTags, setAvailableTags] = useState<TagGraphNode[]>([]);
+  const panelRef = useRef<HTMLElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Tracks the native Fullscreen API rather than driving a boolean directly
+  // off the toggle button — the browser can also exit fullscreen on its own
+  // (Esc key, OS gesture), and this is the only way to stay in sync with that.
+  useEffect(() => {
+    function onChange() {
+      setIsFullscreen(document.fullscreenElement === panelRef.current);
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      panelRef.current?.requestFullscreen();
+    }
+  }
   // Drives the Tags tab's "typing a tag selects it on the map" behavior —
   // see ForceMap's `selectRequest` doc comment for why this needs to be a
   // fresh object every time rather than just the tag's id.
@@ -166,28 +187,38 @@ export function ExploreMaps() {
           shared light theme (see DESIGN.md) and the nebula backdrop is gone,
           that bespoke treatment would read as visually out of step with
           everything else — this panel is a card like any other now. */}
-      <section className="card overflow-hidden p-4 sm:p-6">
+      <section ref={panelRef} className="card overflow-hidden p-4 sm:p-6">
         <div className="space-y-4">
-          <div
-            role="tablist"
-            aria-label="Explore maps"
-            className="inline-flex gap-1 rounded-navitem border border-hairline bg-mist p-1"
-          >
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.key}
-                onClick={() => switchTab(t.key)}
-                className={cn(
-                  "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color] duration-150",
-                  tab === t.key ? "bg-ivory text-ink" : "text-slate hover:text-ink",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            <div
+              role="tablist"
+              aria-label="Explore maps"
+              className="inline-flex gap-1 rounded-navitem border border-hairline bg-mist p-1"
+            >
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.key}
+                  onClick={() => switchTab(t.key)}
+                  className={cn(
+                    "rounded-navitem px-4 py-2 text-sm font-medium transition-[color,background-color] duration-150",
+                    tab === t.key ? "bg-ivory text-ink" : "text-slate hover:text-ink",
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="rounded border border-hairline px-2.5 py-1.5 text-xs font-medium text-slate transition-colors hover:bg-mist hover:text-ink"
+              aria-pressed={isFullscreen}
+            >
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </button>
           </div>
 
           <p className="max-w-2xl text-pretty text-sm text-slate">{active.description}</p>

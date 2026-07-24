@@ -225,6 +225,17 @@ export async function buildClaimTagRewardTx(
   return (await post("/tx/claim-tag-reward", { appId, tagSlug, user })) as BuiltTx;
 }
 
+export type ClaimItem = { kind: "vote"; appId: string } | { kind: "tag"; appId: string; tagSlug: string };
+
+export interface BuiltTxs {
+  transactions: string[];
+}
+
+/** Builds the minimum number of transactions packing every claim in `claims` — see api.rs's build_claim_all_rewards. */
+export async function buildClaimAllRewardsTx(claims: ClaimItem[], user: string): Promise<BuiltTxs> {
+  return (await post("/tx/claim-all-rewards", { claims, user })) as BuiltTxs;
+}
+
 export async function buildCloseVotePositionTx(position: string, user: string): Promise<BuiltTx> {
   return (await post("/tx/close-vote-position", { position, user })) as BuiltTx;
 }
@@ -407,8 +418,15 @@ export async function createVote(input: {
   };
 }
 
-export async function withdrawVote(voteId: string, userId: string): Promise<{ withdrawn: boolean }> {
-  return (await post(`/votes/${encodeURIComponent(voteId)}/withdraw`, { userId })) as { withdrawn: boolean };
+export async function withdrawVote(
+  voteId: string,
+  userId: string,
+  amount?: number,
+): Promise<{ withdrawn: boolean; fullWithdrawal: boolean }> {
+  return (await post(`/votes/${encodeURIComponent(voteId)}/withdraw`, { userId, amount })) as {
+    withdrawn: boolean;
+    fullWithdrawal: boolean;
+  };
 }
 
 export async function fetchStakes(appId: string, userId: string): Promise<{ id: string; amount: number; appTagId: string }[]> {
@@ -447,8 +465,15 @@ export async function fetchMyPositions(userId: string): Promise<MyPosition[]> {
   return positions;
 }
 
-export async function withdrawStake(stakeId: string, userId: string): Promise<{ withdrawn: boolean }> {
-  return (await post(`/stakes/${encodeURIComponent(stakeId)}/withdraw`, { userId })) as { withdrawn: boolean };
+export async function withdrawStake(
+  stakeId: string,
+  userId: string,
+  amount?: number,
+): Promise<{ withdrawn: boolean; fullWithdrawal: boolean }> {
+  return (await post(`/stakes/${encodeURIComponent(stakeId)}/withdraw`, { userId, amount })) as {
+    withdrawn: boolean;
+    fullWithdrawal: boolean;
+  };
 }
 
 export interface RewardsPositions {

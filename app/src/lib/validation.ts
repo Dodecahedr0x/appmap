@@ -16,10 +16,16 @@ export const stakeSchema = z.object({
 
 export const unstakeSchema = z.object({
   stakeId: z.string().min(1),
+  // Omitted withdraws the whole stake; a smaller value does a partial
+  // withdrawal, mirroring withdraw_tag_stake's on-chain `amount` param.
+  amount: z.number().positive().optional(),
 });
 
 export const unvoteSchema = z.object({
   voteId: z.string().min(1),
+  // Omitted withdraws the whole vote; a smaller value does a partial
+  // withdrawal, mirroring withdraw_vote's on-chain `amount` param.
+  amount: z.number().positive().optional(),
 });
 
 export const trackViewSchema = z.object({
@@ -84,6 +90,16 @@ export const buildClaimVoteRewardTxSchema = z.object({
 export const buildClaimTagRewardTxSchema = z.object({
   appId: z.string().min(1),
   tagSlug: z.string().min(1),
+  user: pubkeyString,
+});
+
+const claimItemSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("vote"), appId: z.string().min(1) }),
+  z.object({ kind: z.literal("tag"), appId: z.string().min(1), tagSlug: z.string().min(1) }),
+]);
+
+export const buildClaimAllRewardsTxSchema = z.object({
+  claims: z.array(claimItemSchema).min(1),
   user: pubkeyString,
 });
 

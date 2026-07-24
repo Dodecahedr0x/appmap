@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback } from "react";
+import { Transaction } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { ProgramTxResult } from "@/lib/anchorClient";
-import { runProgramTx } from "@/lib/txClient";
+import { runProgramTx, submitSigned } from "@/lib/txClient";
+import { isSimulationMode } from "@/lib/config";
+import { buildClaimAllRewardsTx, type ClaimItem } from "@/lib/indexerClient";
 
 /**
  * Claims a pending vote-pool or tag-pool reward without withdrawing any
@@ -28,5 +31,32 @@ export function useClaimRewards() {
     [wallet],
   );
 
-  return { claimVoteReward, claimTagReward };
+  // Claims every position in `claims` with a single wallet approval: the
+  // indexer packs them into the minimum number of transactions that fit
+  // Solana's size limit (see api.rs's build_claim_all_rewards), then
+  // `signAllTransactions` signs all of them in one popup instead of one per
+  // claim. Falls back loudly rather than silently degrading to one-by-one
+  // signing if the connected wallet doesn't support batch signing.
+  const claimAllRewards = useCallback(
+    async (claims: ClaimItem[]): Promise<{ txSigs: string[]; simulated: boolean }> => {
+      if (isSimulationMode()) return { txSigs: [], simulated: true };
+      if (!wallet.publicKey) throw new Error("Connect your wallet first");
+      if (!wallet.signAllTransactions) {
+        throw new Error("Your wallet doesn't support signing multiple transactions at once");
+      }
+
+      const { transactions } = await buildClaimAllRewardsTx(claims, wallet.publicKey.toBase58());
+      const unsigned = transactions.map((t) => Transaction.from(Buffer.from(t, "base64")));
+      const signed = await wallet.signAllTransactions(unsigned);
+
+      const txSigs: string[] = [];
+      for (const tx of signed) {
+        txSigs.push(await submitSigned(tx));
+      }
+      return { txSigs, simulated: false };
+    },
+    [wallet],
+  );
+
+  return { claimVoteReward, claimTagReward, claimAllRewards };
 }

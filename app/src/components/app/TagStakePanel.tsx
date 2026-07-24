@@ -33,6 +33,9 @@ export function TagStakePanel({
 
   const [stakingId, setStakingId] = useState<string | null>(null);
   const { rendered: revealRendered, visible: revealVisible } = useMountTransition(stakingId, 200);
+  // Tag whose partial-withdrawal input is currently open.
+  const [withdrawPendingId, setWithdrawPendingId] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
   const [stakeAmount, setStakeAmount] = useState(100);
   const [busy, setBusy] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -123,17 +126,24 @@ export function TagStakePanel({
     }
   }
 
-  async function withdraw(appTagId: string, tagSlug: string) {
+  // `amount` omitted (or >= the full stake) withdraws everything; a smaller
+  // value does a partial withdrawal, mirroring withdraw_tag_stake's on-chain
+  // `amount` param (see that instruction's handler — it reduces
+  // StakePosition.amount rather than closing the position).
+  async function withdraw(appTagId: string, tagSlug: string, amount?: number) {
     const mine = myStakes[appTagId];
     if (!mine) return;
+    const withdrawAmount = amount !== undefined ? Math.min(amount, mine.amount) : mine.amount;
+    if (withdrawAmount <= 0) return;
+    const isFull = withdrawAmount >= mine.amount;
     setBusy(true);
     try {
-      const { txSig, simulated } = await withdrawTagStake(appId, tagSlug, mine.amount);
+      const { txSig, simulated } = await withdrawTagStake(appId, tagSlug, withdrawAmount);
 
       const res = await fetch("/api/stake/withdraw", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ stakeId: mine.id }),
+        body: JSON.stringify({ stakeId: mine.id, amount: isFull ? undefined : withdrawAmount }),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Withdraw failed");
@@ -144,9 +154,14 @@ export function TagStakePanel({
       );
       setMyStakes((prev) => {
         const next = { ...prev };
-        delete next[appTagId];
+        if (isFull) {
+          delete next[appTagId];
+        } else {
+          next[appTagId] = { ...next[appTagId], amount: next[appTagId].amount - withdrawAmount };
+        }
         return next;
       });
+      setWithdrawPendingId(null);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Withdraw failed");
@@ -195,53 +210,87 @@ export function TagStakePanel({
       ) : (
         <ul className="space-y-2">
           {tags.map((t) => (
-            <li key={t.id} className="rounded-lg border border-hairline p-3">
+
+            <li key={t.id} className="rounded-lg border border-hairline p-2">
               <div className="flex items-center justify-between gap-2">
-                <div>
-                  <Link href={`/tags/${t.slug}`} className="font-medium text-ink hover:text-cobalt">
-                    #{t.name}
-                  </Link>
-                  <span className="ml-2 text-xs text-slate-steel">
-                    {formatToken(t.stakeTotal, TOKEN_SYMBOL)} staked
-                  </span>
+                <Link href={`/tags/${t.slug}`} className="truncate text-xs font-medium text-ink hover:text-cobalt">
+                  #{t.name}
+                </Link>
+                <div className="flex shrink-0 items-center gap-1">
+                  {user && myStakes[t.id] && (
+                    <button
+                      className="rounded border border-hairline px-1.5 py-0.5 text-[10px] font-medium text-ink transition-colors hover:bg-mist disabled:opacity-60"
+                      disabled={busy}
+                      onClick={() => {
+                        if (withdrawPendingId === t.id) {
+                          setWithdrawPendingId(null);
+                        } else {
+                          setWithdrawPendingId(t.id);
+                          setWithdrawAmount(myStakes[t.id]!.amount);
+                        }
+                      }}
+                    >
+                      {withdrawPendingId === t.id ? "Cancel" : "Withdraw"}
+                    </button>
+                  )}
+                  {user && (
+                    <button
+                      className="rounded border border-hairline px-1.5 py-0.5 text-[10px] font-medium text-ink transition-colors hover:bg-mist"
+                      onClick={() => setStakingId(stakingId === t.id ? null : t.id)}
+                    >
+                      {stakingId === t.id ? "Cancel" : "Stake"}
+                    </button>
+                  )}
                 </div>
-                {user && myStakes[t.id] && (
-                  <button
-                    className="btn-secondary text-xs"
-                    disabled={busy}
-                    onClick={() => withdraw(t.id, t.slug)}
-                  >
-                    {busy ? "…" : `Withdraw ${myStakes[t.id]!.amount}`}
-                  </button>
-                )}
-                {user && (
-                  <button
-                    className="btn-secondary text-xs"
-                    onClick={() =>
-                      setStakingId(stakingId === t.id ? null : t.id)
-                    }
-                  >
-                    {stakingId === t.id ? "Cancel" : "Stake"}
-                  </button>
-                )}
               </div>
-              {user &&
-                myStakes[t.id] &&
-                stakedAtByTag[t.id] !== undefined &&
-                (() => {
-                  const fee = estimateUnstakeFee(myStakes[t.id]!.amount, stakedAtByTag[t.id]!);
-                  if (fee.feeBps === 0) return null;
-                  return (
-                    <p className="mt-1 text-xs text-slate-steel">
-                      {(fee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
-                      receive ~{fee.net.toFixed(2)} {TOKEN_SYMBOL}. Shrinks to 0 over a week.
-                    </p>
-                  );
-                })()}
+              <p className="mt-0.5 text-[11px] tabular-nums text-slate-steel">
+                {formatToken(t.stakeTotal, "")}
+                {user && myStakes[t.id] && ` (${formatToken(myStakes[t.id]!.amount, "")})`} {TOKEN_SYMBOL}
+              </p>
+              {user && myStakes[t.id] && withdrawPendingId === t.id && (
+                <div className="mt-1.5 rounded-md bg-mist p-2">
+                  {stakedAtByTag[t.id] !== undefined &&
+                    (() => {
+                      const fee = estimateUnstakeFee(withdrawAmount, stakedAtByTag[t.id]!);
+                      return (
+                        <div
+                          className="inline-flex items-center gap-1 text-[11px] text-slate-steel"
+                          title="The early-unstake fee starts at 1% and decays linearly to 0% over the week after you staked."
+                        >
+                          <span>{fee.feeBps === 0 ? "No fee" : `${(fee.feeBps / 100).toFixed(2)}% fee`}</span>
+                          <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-hairline text-[9px] leading-none text-slate-steel">
+                            i
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  <div className="mt-1.5 flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={myStakes[t.id]!.amount}
+                      step="any"
+                      className="input text-xs"
+                      value={withdrawAmount}
+                      onChange={(e) =>
+                        setWithdrawAmount(Math.max(0, Math.min(myStakes[t.id]!.amount, Number(e.target.value))))
+                      }
+                      aria-label="Withdraw amount"
+                    />
+                    <button
+                      className="btn-primary shrink-0 px-2 py-0.5 text-[11px]"
+                      disabled={busy || withdrawAmount <= 0}
+                      onClick={() => withdraw(t.id, t.slug, withdrawAmount)}
+                    >
+                      {busy ? "…" : "Confirm"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {revealRendered === t.id && (
                 <div
                   className={cn(
-                    "mt-3 flex items-center gap-2 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
+                    "mt-1.5 flex items-center gap-1.5 transition-opacity duration-200 motion-safe:transition-[opacity,transform]",
                     revealVisible
                       ? "opacity-100 motion-safe:translate-y-0"
                       : "opacity-0 motion-safe:-translate-y-1",
@@ -250,7 +299,7 @@ export function TagStakePanel({
                   <input
                     type="number"
                     min={1}
-                    className="input"
+                    className="input text-xs"
                     value={stakeAmount}
                     onChange={(e) =>
                       setStakeAmount(Math.max(0, Number(e.target.value)))
@@ -258,7 +307,7 @@ export function TagStakePanel({
                     aria-label="Stake amount"
                   />
                   <button
-                    className="btn-primary shrink-0 text-sm"
+                    className="btn-primary shrink-0 px-2 py-0.5 text-[11px]"
                     disabled={busy}
                     onClick={() => stake(t.id, t.slug)}
                   >
@@ -267,6 +316,7 @@ export function TagStakePanel({
                 </div>
               )}
             </li>
+
           ))}
         </ul>
       )}

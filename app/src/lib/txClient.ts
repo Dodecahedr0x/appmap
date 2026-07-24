@@ -78,6 +78,17 @@ export async function runProgramTx(
   return { txSig, simulated: false };
 }
 
+/** Submits an already-signed transaction, returning the confirmed signature. */
+export async function submitSigned(tx: Transaction): Promise<string> {
+  const signedBase64 = Buffer.from(
+    tx.serialize({ requireAllSignatures: false, verifySignatures: false }),
+  ).toString("base64");
+  const { signature } = await apiPost<{ signature: string }>("/api/tx/submit", {
+    signedTransaction: signedBase64,
+  });
+  return signature;
+}
+
 /** Signs an indexer-built unsigned transaction and submits it, returning the confirmed signature. */
 export async function signAndSubmit(
   wallet: WalletContextState,
@@ -86,11 +97,5 @@ export async function signAndSubmit(
   if (!wallet.signTransaction) throw new Error("Wallet can't sign transactions");
   const tx = Transaction.from(Buffer.from(unsignedTransactionBase64, "base64"));
   const signed = await wallet.signTransaction(tx);
-  const signedBase64 = Buffer.from(
-    signed.serialize({ requireAllSignatures: false, verifySignatures: false }),
-  ).toString("base64");
-  const { signature } = await apiPost<{ signature: string }>("/api/tx/submit", {
-    signedTransaction: signedBase64,
-  });
-  return signature;
+  return submitSigned(signed);
 }

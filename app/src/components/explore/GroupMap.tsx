@@ -551,7 +551,7 @@ export function GroupMap({
       <div className="relative">
         <div
           ref={containerRef}
-          className="relative h-[24rem] w-full overflow-hidden rounded-card border border-hairline sm:h-[30rem]"
+          className="explore-map-surface relative h-[24rem] w-full overflow-hidden rounded-card border border-hairline sm:h-[30rem]"
         >
           <svg
             ref={svgRef}

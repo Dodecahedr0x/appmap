@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/Toaster";
 import { useVoteProgram } from "@/hooks/useVoteProgram";
 import { isSimulationMode } from "@/lib/config";
+import { formatToken } from "@/lib/utils";
 import { TOKEN_SYMBOL } from "@/lib/constants";
 import { estimateUnstakeFee } from "@/lib/unstakeFee";
 import { ConnectButton } from "@/components/ConnectButton";
@@ -29,6 +30,9 @@ export function VotePanel({ appId }: { appId: string }) {
   // separately from `myVote` (a Postgres row) since only the indexed
   // on-chain account carries this field.
   const [stakedAt, setStakedAt] = useState<number | null>(null);
+  // Whether the partial-withdrawal input is open.
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -84,16 +88,22 @@ export function VotePanel({ appId }: { appId: string }) {
     }
   }
 
-  async function withdraw() {
+  // `amount` omitted (or >= the full vote) withdraws everything; a smaller
+  // value does a partial withdrawal, mirroring withdraw_vote's on-chain
+  // `amount` param — see TagStakePanel's `withdraw` for the same pattern.
+  async function withdraw(amount?: number) {
     if (!myVote) return;
+    const withdrawAmt = amount !== undefined ? Math.min(amount, myVote.amount) : myVote.amount;
+    if (withdrawAmt <= 0) return;
+    const isFull = withdrawAmt >= myVote.amount;
     setBusy(true);
     try {
-      const { txSig, simulated } = await withdrawVote(appId, myVote.amount);
+      const { txSig, simulated } = await withdrawVote(appId, withdrawAmt);
 
       const res = await fetch("/api/vote/withdraw", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ voteId: myVote.id }),
+        body: JSON.stringify({ voteId: myVote.id, amount: isFull ? undefined : withdrawAmt }),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Withdraw failed");
@@ -104,7 +114,12 @@ export function VotePanel({ appId }: { appId: string }) {
           : "Vote withdrawn — tokens returned",
         txSig ? { txSig } : undefined,
       );
-      setMyVote(null);
+      if (isFull) {
+        setMyVote(null);
+      } else {
+        setMyVote((prev) => (prev ? { ...prev, amount: prev.amount - withdrawAmt } : prev));
+      }
+      setWithdrawOpen(false);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Withdraw failed");
@@ -162,20 +177,58 @@ export function VotePanel({ appId }: { appId: string }) {
             {busy ? "Voting…" : `Vote ${amount} ${TOKEN_SYMBOL}`}
           </button>
           {myVote && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <button
                 className="btn-secondary w-full"
                 disabled={busy}
-                onClick={withdraw}
+                onClick={() => {
+                  if (withdrawOpen) {
+                    setWithdrawOpen(false);
+                  } else {
+                    setWithdrawOpen(true);
+                    setWithdrawAmount(myVote.amount);
+                  }
+                }}
               >
-                {busy ? "Withdrawing…" : `Withdraw ${myVote.amount} ${TOKEN_SYMBOL}`}
+                {withdrawOpen ? "Cancel" : `Withdraw ${formatToken(myVote.amount, TOKEN_SYMBOL)}`}
               </button>
-              {unstakeFee && unstakeFee.feeBps > 0 && (
-                <p className="text-center text-xs text-slate-steel">
-                  {(unstakeFee.feeBps / 100).toFixed(2)}% early-unstake fee right now — you&apos;d
-                  receive ~{unstakeFee.net.toFixed(2)} {TOKEN_SYMBOL}. The fee shrinks to 0 over a
-                  week and goes to other stakers, not a treasury.
-                </p>
+              {withdrawOpen && (
+                <div className="space-y-1.5 rounded-md bg-mist p-3">
+                  {stakedAt !== null &&
+                    (() => {
+                      const fee = estimateUnstakeFee(withdrawAmount, stakedAt);
+                      return (
+                        <div
+                          className="flex items-center gap-1 text-[11px] text-slate-steel"
+                          title="The early-unstake fee starts at 1% and decays linearly to 0% over the week after you voted."
+                        >
+                          <span>{fee.feeBps === 0 ? "No fee" : `${(fee.feeBps / 100).toFixed(2)}% fee`}</span>
+                          <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-hairline text-[9px] leading-none text-slate-steel">
+                            i
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  <input
+                    type="number"
+                    min={0}
+                    max={myVote.amount}
+                    step="any"
+                    className="input w-full text-sm"
+                    value={withdrawAmount}
+                    onChange={(e) =>
+                      setWithdrawAmount(Math.max(0, Math.min(myVote.amount, Number(e.target.value))))
+                    }
+                    aria-label="Withdraw amount"
+                  />
+                  <button
+                    className="btn-primary w-full text-sm"
+                    disabled={busy || withdrawAmount <= 0}
+                    onClick={() => withdraw(withdrawAmount)}
+                  >
+                    {busy ? "…" : "Confirm withdrawal"}
+                  </button>
+                </div>
               )}
             </div>
           )}

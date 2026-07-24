@@ -761,7 +761,7 @@ export function ForceMap<RawNode, RawLink>({
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className="block h-[24rem] w-full touch-none rounded-card border border-hairline sm:h-[30rem]"
+          className="explore-map-surface block h-[24rem] w-full touch-none rounded-card border border-hairline sm:h-[30rem]"
           role="img"
           aria-label={ariaLabel}
         />
