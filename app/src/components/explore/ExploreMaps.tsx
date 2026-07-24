@@ -300,7 +300,7 @@ export function ExploreMaps() {
             </button>
           </div>
 
-          <p className="max-w-2xl text-pretty text-sm text-slate">{active.description}</p>
+          <p className="text-pretty text-sm text-slate">{active.description}</p>
 
           {(tab === "apps" || tab === "group") && availableTags.length > 0 && (
             <div>
