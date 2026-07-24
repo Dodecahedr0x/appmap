@@ -18,8 +18,7 @@ import { cn, formatToken } from "@/lib/utils";
  *
  * A `button`, not a `Link` — AppCard already wraps the whole card in a
  * `<Link>` to the app page, and nesting an `<a>` inside an `<a>` is invalid;
- * this follows the same stopPropagation pattern CardVoteButton already uses
- * for the same reason.
+ * hence the stopPropagation pattern below.
  */
 export function TagChip({ tag, className }: { tag: TagDTO; className?: string }) {
   const router = useRouter();
